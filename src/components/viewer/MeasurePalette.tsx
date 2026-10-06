@@ -56,7 +56,6 @@ export function MeasurePalette({
 }) {
   const view = useViewerStore((s) => s.view);
   const setView = useViewerStore((s) => s.setView);
-  const projectId = useViewerStore((s) => s.manifest?.survey.project_id ?? null);
   const activeToolKey = useViewerStore((s) => s.activeToolKey);
   const awaitingCalc = readout.mode !== "idle" && readout.mode !== "probe" && !activeToolKey;
 
@@ -151,13 +150,11 @@ export function MeasurePalette({
             <CalcConfig
               idPrefix="palette"
               kind={selectedType.kind}
-              projectId={projectId}
               value={coerceMethodForKind(
                 {
                   method: view.volumeMethod,
                   refMode: view.refMode,
                   refElevation: view.refElevation,
-                  baseDesignId: view.baseDesignId,
                 },
                 selectedType.kind
               )}

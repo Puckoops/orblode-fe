@@ -6,10 +6,8 @@ import {
   DEFAULT_METHOD_STATE,
   STUCK_COMPUTE_MS,
   calcTypesFor,
-  crossSurveyRefs,
   defaultKindFor,
   formatComputeElapsed,
-  hasDesignBase,
   isComputeStuck,
   isVolumeKind,
   kindForCalcType,
@@ -48,9 +46,9 @@ test("defaultKindFor is the panel's displayed default — saved kind == shown pi
   assert.equal(defaultKindFor("polyline"), "distance");
 });
 
-test("isVolumeKind matches the backend's unified volume-compute set", () => {
+test("isVolumeKind is exactly the kinds orblode-svc computes", () => {
   for (const k of ["volume", "stockpile", "cut_fill"]) assert.ok(isVolumeKind(k));
-  for (const k of ["cross_section", "area", "distance", "elevation"]) assert.ok(!isVolumeKind(k));
+  for (const k of ["cross_section", "contour", "tin", "area", "distance", "elevation"]) assert.ok(!isVolumeKind(k));
 });
 
 test("smart-base emits the contract's stockpile pair (from=base, to=survey dsm)", () => {
@@ -68,7 +66,6 @@ test("reference-rl custom requires an elevation and emits elevation_m", () => {
     method: "reference-rl",
     refMode: "custom",
     refElevation: 72.5,
-    baseDesignId: null,
   });
   assert.deepEqual(from, { type: "reference_level", elevation_m: 72.5 });
 });
@@ -79,50 +76,22 @@ test("reference-rl derive modes emit derive, never elevation_m (§3.1 XOR)", () 
       method: "reference-rl",
       refMode,
       refElevation: 99, // stale custom value must not leak into a derive ref
-      baseDesignId: null,
     });
     assert.deepEqual(from, { type: "reference_level", derive: refMode });
   }
 });
 
-test("previous-survey and design emit their refs; design requires an id", () => {
-  const prev = surfaceRefsForMethod({ ...DEFAULT_METHOD_STATE, method: "previous-survey" });
-  assert.deepEqual(prev.from, { type: "previous_survey", surface: "dsm" });
-
-  assert.throws(
-    () => surfaceRefsForMethod({ ...DEFAULT_METHOD_STATE, method: "design-surface" }),
-    CalcParamsError
-  );
-  const design = surfaceRefsForMethod({
-    ...DEFAULT_METHOD_STATE,
-    method: "design-surface",
-    baseDesignId: "d-1",
-  });
-  assert.deepEqual(design.from, { type: "design", design_id: "d-1" });
-});
-
-test("custom-base is a guided error until its editor exists", () => {
-  assert.throws(
-    () => surfaceRefsForMethod({ ...DEFAULT_METHOD_STATE, method: "custom-base" }),
-    CalcParamsError
-  );
-});
-
-test("crossSurveyRefs names two explicit surveys as survey_terrain from/to (Compare Mode)", () => {
-  // from = epoch A ("before"), to = epoch B ("after") — the VolumeDiff pair.
-  assert.deepEqual(crossSurveyRefs("a-1", "b-2"), {
-    from: { type: "survey_terrain", survey_id: "a-1", surface: "dsm" },
-    to: { type: "survey_terrain", survey_id: "b-2", surface: "dsm" },
-  });
+test("methods without an instant worker are a guided error, never a payload", () => {
+  for (const method of ["previous-survey", "design-surface", "custom-base"]) {
+    assert.throws(() => surfaceRefsForMethod({ ...DEFAULT_METHOD_STATE, method }), CalcParamsError, method);
+  }
 });
 
 test("methodFromParams round-trips every emitted ref shape", () => {
   const cases = [
     { ...DEFAULT_METHOD_STATE, method: "smart-base" },
-    { method: "reference-rl", refMode: "custom" as const, refElevation: 71.2, baseDesignId: null },
-    { method: "reference-rl", refMode: "highest_vertex" as const, refElevation: null, baseDesignId: null },
-    { ...DEFAULT_METHOD_STATE, method: "previous-survey" },
-    { ...DEFAULT_METHOD_STATE, method: "design-surface", baseDesignId: "d-9" },
+    { method: "reference-rl", refMode: "custom" as const, refElevation: 71.2 },
+    { method: "reference-rl", refMode: "highest_vertex" as const, refElevation: null },
   ];
   for (const state of cases) {
     const refs = surfaceRefsForMethod(state);
@@ -133,8 +102,12 @@ test("methodFromParams round-trips every emitted ref shape", () => {
       assert.equal(back.refMode, state.refMode);
       assert.equal(back.refElevation, state.refElevation);
     }
-    if (state.method === "design-surface") assert.equal(back.baseDesignId, state.baseDesignId);
   }
+});
+
+test("methodFromParams does not recover a non-instant base", () => {
+  assert.equal(methodFromParams({ from: { type: "previous_survey", surface: "dsm" } }), null);
+  assert.equal(methodFromParams({ from: { type: "design", design_id: "d-1" } }), null);
 });
 
 test("methodFromParams falls back to legacy volume_method, else null", () => {
@@ -172,34 +145,27 @@ test("resultErrorOf and provenanceOf expose failure reason and receipt", () => {
   assert.equal(provenanceOf({ version: 1 }), null);
 });
 
-test("methodsForKind: stockpile and cut_fill get distinct, stub-free lists", async () => {
+test("methodsForKind offers only the instant methods for every volume kind", async () => {
   const { methodsForKind, defaultMethodForKind } = await import("../calc.ts");
-  assert.deepEqual(
-    methodsForKind("stockpile").map((m) => m.id),
-    ["smart-base", "reference-rl"]
-  );
-  assert.deepEqual(
-    methodsForKind("cut_fill").map((m) => m.id),
-    ["previous-survey", "design-surface", "reference-rl"]
-  );
-  // custom-base is engine-ready but has no editor — never offered.
-  assert.ok(!methodsForKind("stockpile").some((m) => m.id === "custom-base"));
+  for (const kind of ["volume", "stockpile", "cut_fill"]) {
+    assert.deepEqual(methodsForKind(kind).map((m) => m.id).sort(), ["reference-rl", "smart-base"], kind);
+  }
   assert.deepEqual(methodsForKind("area"), []); // non-volume: no base methods
+  assert.deepEqual(methodsForKind("cross_section"), []);
   assert.equal(defaultMethodForKind("stockpile"), "smart-base");
-  assert.equal(defaultMethodForKind("cut_fill"), "previous-survey");
+  assert.equal(defaultMethodForKind("cut_fill"), "reference-rl");
   assert.equal(defaultMethodForKind("distance"), null);
 });
 
 test("coerceMethodForKind snaps foreign methods to the kind's default", async () => {
   const { coerceMethodForKind } = await import("../calc.ts");
   const smart = { ...DEFAULT_METHOD_STATE, method: "smart-base" };
-  // stockpile keeps smart-base; cut_fill snaps it to previous-survey.
   assert.equal(coerceMethodForKind(smart, "stockpile").method, "smart-base");
-  assert.equal(coerceMethodForKind(smart, "cut_fill").method, "previous-survey");
-  // valid picks pass through untouched; non-volume kinds never coerce.
-  const design = { ...DEFAULT_METHOD_STATE, method: "design-surface", baseDesignId: "d1" };
-  assert.equal(coerceMethodForKind(design, "cut_fill").method, "design-surface");
-  assert.equal(coerceMethodForKind(design, "cut_fill").baseDesignId, "d1");
+  assert.equal(coerceMethodForKind(smart, "cut_fill").method, "smart-base");
+  // A method this app no longer offers (read back from a stored row) snaps.
+  const previous = { ...DEFAULT_METHOD_STATE, method: "previous-survey" };
+  assert.equal(coerceMethodForKind(previous, "cut_fill").method, "reference-rl");
+  assert.equal(coerceMethodForKind(previous, "stockpile").method, "smart-base");
   assert.equal(coerceMethodForKind(smart, "area").method, "smart-base");
 });
 
@@ -264,40 +230,4 @@ test("formatComputeElapsed renders minutes then hours, floored at 1 min", () => 
   assert.equal(formatComputeElapsed({ updated_at: minutesAgo(0) }, STUCK_NOW), "1 min");
   assert.equal(formatComputeElapsed({}, STUCK_NOW), "a while");
   assert.equal(formatComputeElapsed({ updated_at: Number.NaN }, STUCK_NOW), "a while");
-});
-
-test("hasDesignBase detects a design SurfaceRef in params.from", () => {
-  assert.equal(hasDesignBase({ from: { type: "design", design_id: "d-1" } }), true);
-});
-
-test("hasDesignBase is false for every non-design base", () => {
-  assert.equal(hasDesignBase({ from: { type: "previous_survey", surface: "dsm" } }), false);
-  assert.equal(hasDesignBase({ from: { type: "reference_level", elevation_m: 12 } }), false);
-  assert.equal(hasDesignBase({ from: { type: "smart_base" } }), false);
-});
-
-test("hasDesignBase ignores a design in the TO slot", () => {
-  // Only the BASE (from) drives the relabel — a design in `to` is the swapped
-  // ordering, where the engine's raw labels are already earthworks-correct.
-  assert.equal(hasDesignBase({ from: { type: "survey_terrain" }, to: { type: "design" } }), false);
-});
-
-test("hasDesignBase tolerates missing / malformed params", () => {
-  assert.equal(hasDesignBase(undefined), false);
-  assert.equal(hasDesignBase(null), false);
-  assert.equal(hasDesignBase({}), false);
-  assert.equal(hasDesignBase({ from: null }), false);
-  assert.equal(hasDesignBase({ from: "design" }), false);
-});
-
-test("surfaceRefsForMethod puts the design in FROM — the premise of the relabel", () => {
-  // If this ever flips to design-in-`to`, the inspector's Cut/Fill swap becomes
-  // wrong: the engine's raw labels would already be earthworks-correct.
-  const refs = surfaceRefsForMethod({
-    ...DEFAULT_METHOD_STATE,
-    method: "design-surface",
-    baseDesignId: "d-17",
-  });
-  assert.deepEqual(refs.from, { type: "design", design_id: "d-17" });
-  assert.equal((refs.to as { type: string }).type, "survey_terrain");
 });

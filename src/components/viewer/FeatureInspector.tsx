@@ -26,7 +26,6 @@ import {
   IconButton,
   Input,
   Select,
-  Skeleton,
   Slider,
   Tabs,
   TabsContent,
@@ -56,19 +55,12 @@ import {
   provenanceOf,
   resultErrorOf,
   resultForKind,
-  hasDesignBase,
   surfaceRefsForMethod,
   type CalcMethodState,
 } from "@/lib/viewer/calc";
 import { useComputeClock } from "@/components/viewer/shell/hooks/useComputeClock";
 import { UNIT_SYSTEMS, convertForDisplay, unitSystemOf, type UnitSystem } from "@/lib/viewer/units";
 import { STYLE_SWATCHES, styleOf, type MeasurementStyle } from "@/lib/viewer/style";
-import { temporalComparePair } from "@/lib/viewer/compare";
-import { ComparisonCard } from "@/components/viewer/shell/ComparisonCard";
-import { ProfileChart } from "@/components/viewer/ProfileChart";
-import { useProfileSeries } from "@/components/viewer/shell/hooks/useProfileSeries";
-import { nearestSample, profileUrlOf } from "@/lib/viewer/profile";
-import { useViewerStore } from "@/lib/viewer/state/store";
 import { formatTimestamp } from "@/lib/time";
 
 // Right contextual inspector — the DESIGN panel (SP-12 mock): header title with
@@ -85,16 +77,14 @@ interface FeatureInspectorProps {
   measurement: Measurement | PanelMeasurement | null;
   /** Property bag of a non-measurement feature picked on the map. */
   feature?: Record<string, unknown> | null;
-  /** For the design picker in the editable calc config. */
-  projectId?: string | null;
   onClose: () => void;
   /** Optional collapse control rendered next to the close button. */
   onCollapse?: () => void;
   /** When true, only the title row is shown (panel chrome stays mounted). */
   collapsed?: boolean;
-  /** Promote a draw-first draft: PATCH {name, draft:false}. */
+  /** Promote a draw-first draft: PUT {name, draft:false}. */
   onSave: (id: string, name: string) => void;
-  /** Generic PATCH (rename / re-kind / units / style) + refresh. */
+  /** Generic partial update (rename / re-kind / units / style) + refresh. */
   onPatch?: (
     id: string,
     body: { name?: string; kind?: string; params?: Record<string, unknown>; draft?: boolean }
@@ -126,8 +116,8 @@ interface FeatureInspectorProps {
   busy?: boolean;
 }
 
-// The total_*/delta_*/profile_* keys are what the compute processors actually
-// emit into measurement.result; the bare keys cover client-side plan stats.
+// The total_*/delta_* keys are what compute results carry; the bare keys cover
+// client-side plan stats.
 const METRIC_LABELS: [key: string, label: string][] = [
   ["total_volume_m3", "Volume"],
   ["total_adjusted_volume_m3", "Adj. volume"],
@@ -146,8 +136,6 @@ const METRIC_LABELS: [key: string, label: string][] = [
   ["fill_volume_m3", "Fill"],
   ["net_change_m3", "Net change"],
   ["total_moved_m3", "Moved"],
-  ["profile_length_m", "Profile length"],
-  ["profile_point_count", "Samples"],
 ];
 
 // Per-kind curated grids — the compute/estimate metric map carries the FULL
@@ -165,47 +153,6 @@ const METRICS_BY_KIND: Record<string, [key: string, label: string][]> = {
     ["area_m2", "Area"],
   ],
 };
-
-// ORB-54 — Cut/Fill against a DESIGN base are relabelled (and therefore
-// swapped), because the engine's labels are mechanical while the panel's are
-// earthworks terms.
-//
-// A design comparison dispatches from = design, to = as-built survey
-// (lib/viewer/calc.ts surfaceRefsForMethod, case "design-surface"). The engine
-// differences Δ = TO − FROM and buckets purely by sign — workflow-geo-svc
-// cutfillengine/compute.py: `diff_raw = arr_b - arr_a` with
-// dsm_a = BaselinePath = FROM, then `cut = Σ max(−Δ,0)`, `fill = Σ max(Δ,0)`.
-// With the design in the FROM slot that means:
-//
-//   fill_volume_m3 = Σ max(as-built − design, 0) = material ABOVE design = OVER-built
-//   cut_volume_m3  = Σ max(design − as-built, 0) = voids BELOW design    = UNDER-built
-//
-// Earthworks naming runs the other way: over-built material is what you CUT to
-// reach design, and an under-built void is what you FILL. So the two source
-// keys are exchanged for display.
-//
-// This is a presentation relabel, NOT a claim that the engine is inverted: a
-// design surface is rasterized into the same from/to slot any terrain base
-// would occupy (volumecompute/stage1.py `out_paths[role] = design_path`), with
-// no design-specific arithmetic anywhere. The engine's own design golden says
-// the naming is ours to own, and pins the direction: a z=51 design pad over a
-// z=50 plane carrying a z=52 prism yields cut=1900 (the below-design plane) and
-// fill=600 (the above-design prism) — see
-// cutfillengine/goldens/design_goldens_test.go TestGolden17DesignFlatPad, and
-// TestGolden17DesignSwap for the from/to symmetry.
-//
-// Scope: `design-surface` is only offered for the cut_fill kind
-// (calc.ts METHODS_FOR_KIND), and the adjusted/tonnage splits are not surfaced
-// in this grid, so these four rows are the entire swap surface.
-const METRICS_CUT_FILL_DESIGN: [key: string, label: string][] = [
-  ["fill_volume_m3", "Cut to design"],
-  ["cut_volume_m3", "Fill to design"],
-  // net_change_m3 = engine fill − engine cut = displayed Cut − displayed Fill.
-  // The label states that arithmetic so the sign can't be misread against the
-  // two swapped rows above it.
-  ["net_change_m3", "Net (cut − fill)"],
-  ["area_m2", "Area"],
-];
 
 // Internal / debug metrics never shown in the grid (they are provenance, not
 // results — sample_count, and the material-adjusted splits which surface as
@@ -234,13 +181,11 @@ function prettifyKey(key: string): string {
 
 /** Metric map → display rows, converted into the measurement's unit system.
  * A `kind` with a curated grid shows ONLY that grid; other kinds fall back to
- * the generic label table plus any remaining (non-internal) keys.
- * `designBase` switches cut_fill onto the earthworks-named grid (ORB-54). */
+ * the generic label table plus any remaining (non-internal) keys. */
 function resultMetrics(
   result: Record<string, number>,
   system: UnitSystem,
-  kind?: string,
-  designBase = false
+  kind?: string
 ): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = [];
   const seen = new Set<string>();
@@ -248,12 +193,7 @@ function resultMetrics(
     const c = convertForDisplay(key, value, system);
     rows.push({ label, value: `${formatMetric(c.value)}${c.unit ? ` ${c.unit}` : ""}` });
   };
-  const curated =
-    designBase && kind === "cut_fill"
-      ? METRICS_CUT_FILL_DESIGN
-      : kind
-        ? METRICS_BY_KIND[kind]
-        : undefined;
+  const curated = kind ? METRICS_BY_KIND[kind] : undefined;
   for (const [key, label] of curated ?? METRIC_LABELS) {
     const value = result[key];
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -437,7 +377,6 @@ function PickedFeatureView({
 export function FeatureInspector({
   measurement,
   feature,
-  projectId = null,
   onClose,
   onCollapse,
   collapsed = false,
@@ -475,17 +414,6 @@ export function FeatureInspector({
   // ORB-39: local clock so the stuck-compute affordance can appear while this
   // measurement sits in `computing` with no data changing underneath it.
   const now = useComputeClock(measurement?.status === "computing");
-  // FR-09 — the elevation series behind the profile chart. Resolved here, ABOVE
-  // the early returns, so the hook order stays stable whether the panel is
-  // showing a measurement, a picked map feature, or nothing. A non-cross-section
-  // yields a null url and the hook is inert (no fetch, no state).
-  const profileUrl =
-    measurement && measurement.kind === "cross_section"
-      ? profileUrlOf(resultForKind(measurement))
-      : null;
-  const profile = useProfileSeries(profileUrl);
-  const profileHover = useViewerStore((s) => s.profileHover);
-  const setProfileHover = useViewerStore((s) => s.setProfileHover);
 
   // Reset the editable state when a different feature is selected. Adjusting
   // state during render (instead of in an effect) avoids the cascading
@@ -510,22 +438,17 @@ export function FeatureInspector({
   const demo = (measurement as PanelMeasurement).demo === true;
   const isDraft = !demo && measurement.draft === true;
   const isVolume = isVolumeKind(measurement.kind);
-  // Compare Mode: a temporal compare (params.from/to name two different
-  // surveys) gets the A→B comparison card headline in the Properties tab.
-  const comparePair = demo ? null : temporalComparePair(measurement.params);
   const canPatch = !demo && !!onPatch;
-  // Kinds the backend actually dispatches (processorForKind): the volume family
-  // via the resolved path, and cross_section via the explicit profile-extract
-  // payload ViewerCanvas builds. Anything else gets no Run row rather than a 422
-  // toast. Completed rows may re-run (edit method → recompute); the in-flight
-  // 409 gate covers the computing state.
-  const isDispatchable = isVolume || measurement.kind === "cross_section";
-  const canCompute = !demo && isDispatchable && measurement.status !== "computing";
+  // Only the volume family is computed (instant methods); every other kind is
+  // drawn, saved and listed without a Run row rather than offering a 422.
+  // Completed rows may re-run (edit method → recompute); the in-flight 409 gate
+  // covers the computing state.
+  const canCompute = !demo && isVolume && measurement.status !== "computing";
   // ORB-39: once a compute job dies server-side the row is stranded in
   // `computing` — the Run row above is hidden and the tree's Play button only
   // shows for draft/failed, so nothing can restart it. After a few minutes,
   // offer a re-dispatch that sets `force` to bypass the in-flight 409.
-  const computeStuck = !demo && isDispatchable && isComputeStuck(measurement, now);
+  const computeStuck = !demo && isVolume && isComputeStuck(measurement, now);
   // Vertex-drag editing needs a real (non-demo) polygon/line and the handler.
   const geomType = measurement.geometry?.type;
   const canEditGeometry =
@@ -561,9 +484,6 @@ export function FeatureInspector({
     !demo && !doc && !showingEstimate && measurement.geometry
       ? geometryLocalStats(measurement.geometry)
       : null;
-  // ORB-54: a design base flips the panel onto earthworks Cut/Fill naming.
-  const designBase = !demo && hasDesignBase(measurement.params);
-  const designCutFill = designBase && measurement.kind === "cut_fill";
   const metrics = demo
     ? [
         { label: "Volume", value: "12,840 m³" },
@@ -571,12 +491,7 @@ export function FeatureInspector({
         { label: "Area", value: "1,420 m²" },
         { label: "Perimeter", value: "142 m" },
       ]
-    : resultMetrics(
-        localStats ?? estimateMetricMap ?? resultMetricMap,
-        unitSystem,
-        measurement.kind,
-        designBase
-      );
+    : resultMetrics(localStats ?? estimateMetricMap ?? resultMetricMap, unitSystem, measurement.kind);
 
   const computeError = showFailure ? resultErrorOf(measurement.result) : null;
   const receipt = demo ? null : provenanceOf(doc);
@@ -608,8 +523,7 @@ export function FeatureInspector({
     onClearEstimate?.(); // the old kind's instant number no longer applies
     const params: Record<string, unknown> = {};
     if (isVolumeKind(kind)) {
-      // Re-templating snaps the base method onto the new kind's list (a
-      // stockpile's smart base becomes cut/fill's previous survey, etc.).
+      // Re-templating snaps the base method onto the new kind's list.
       const cfg = coerceMethodForKind(calcCfg ?? DEFAULT_METHOD_STATE, kind);
       try {
         const refs = surfaceRefsForMethod(cfg);
@@ -744,10 +658,6 @@ export function FeatureInspector({
                 {measurement.folder && <Badge variant="tag">{measurement.folder}</Badge>}
               </div>
 
-              {/* Compare Mode headline — A→B epochs + cut/fill/net Δ. Only for a
-                  temporal compare; ordinary measurements skip it (and its fetch). */}
-              {comparePair && <ComparisonCard measurement={measurement} projectId={projectId} pair={comparePair} />}
-
               {/* Failure reason — the LATEST run's error, only while the
                   selected kind has no successful doc of its own. */}
               {showFailure && (
@@ -761,40 +671,9 @@ export function FeatureInspector({
               ) : (
                 !showFailure && (
                   <p className="caption rounded-md border border-hairline bg-surface-2 p-3 text-ink-4">
-                    {computing ? "Computing — results will appear here shortly." : "Nothing computed yet. Run compute to populate volume and area."}
+                    {computing ? "Computing — results will appear here shortly." : isVolume ? "Nothing computed yet. Run compute to populate volume and area." : "Nothing to measure on this shape yet."}
                   </p>
                 )
-              )}
-
-              {/* FR-09 — the cross-section chart, directly under its numbers.
-                  Only a cross_section reaches any of these branches; every other
-                  kind leaves profileUrl null and renders nothing. */}
-              {measurement.kind === "cross_section" && !demo && (
-                <>
-                  {profile.series && (
-                    <ProfileChart
-                      series={profile.series}
-                      system={unitSystem}
-                      // The scene drives the marker only when IT is the mover;
-                      // echoing the chart's own hover back would fight the cursor.
-                      externalIndex={
-                        profileHover?.source === "scene" ? (nearestSample(profile.series, profileHover.chainage)?.index ?? null) : null
-                      }
-                      onHoverStation={(sample) => setProfileHover(sample ? { chainage: sample.distanceM, source: "chart" } : null)}
-                    />
-                  )}
-                  {profile.loading && <Skeleton width="100%" height={180} radius="var(--radius-md)" />}
-                  {profile.error && (
-                    <Alert tone="warning" title="Couldn't load the profile">
-                      {profile.error}
-                    </Alert>
-                  )}
-                  {!profileUrl && !computing && !showFailure && (
-                    <p className="caption rounded-md border border-hairline bg-surface-2 p-3 text-ink-4">
-                      No profile yet. Run compute to sample the surface along this line.
-                    </p>
-                  )}
-                </>
               )}
 
               {showingEstimate && (
@@ -811,16 +690,8 @@ export function FeatureInspector({
               )}
 
               {localStats && metrics.length > 0 && (
-                <p className="caption -mt-1 text-ink-4">Plan values measured from the drawn geometry — run compute for surface-true results.</p>
-              )}
-
-              {/* ORB-54: state the convention explicitly — these two rows read
-                  against the design, which is the opposite sense to a
-                  survey-to-survey compare. */}
-              {designCutFill && !localStats && metrics.length > 0 && (
                 <p className="caption -mt-1 text-ink-4">
-                  Measured against the design surface: <span className="text-ink-2">Cut</span> is material sitting above design (to remove),{" "}
-                  <span className="text-ink-2">Fill</span> is volume still below it (to add).
+                  {isVolume ? "Plan values measured from the drawn geometry — run compute for surface-true results." : "Plan values measured from the drawn geometry."}
                 </p>
               )}
 
@@ -857,7 +728,6 @@ export function FeatureInspector({
                   <CalcConfig
                     idPrefix="inspect"
                     kind={measurement.kind}
-                    projectId={projectId}
                     value={calcCfg}
                     onChange={(patch) => setCalcCfg((c) => ({ ...(c ?? DEFAULT_METHOD_STATE), ...patch }))}
                   />

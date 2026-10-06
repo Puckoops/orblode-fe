@@ -314,8 +314,6 @@ export interface MeasurementResultDoc {
     diff_raster_url?: string;
     heatmap_tiles_url?: string;
     base_surface_url?: string;
-    /** Elevation-series JSON from profile-extract (cross-section). */
-    profile_url?: string;
     bbox?: number[];
   };
   provenance?: {
@@ -433,30 +431,23 @@ export function updateMeasurement(
   );
 }
 
-/** Dispatch compute. `body.params` is a partial params object the backend
- * deep-merges over the measurement's stored params AND persists before
- * dispatch (§6.1 — the row always states what ran); `body.force` bypasses the
- * compute-in-flight 409. Empty body = run with stored params. */
-/** Compute response. Either the async worker was dispatched (`status:
- * "computing"`, `workflow_id` set) or a PROMOTED method (§6) computed
- * synchronously in PostGIS (`status: "completed"`, `result` = the persisted
- * §7.1 doc — no polling; the panel renders it straight away). */
+/** Compute response. An instant method (`smart_base`, `reference_level`) is
+ * computed synchronously in PostGIS: `status: "completed"` with `result` = the
+ * persisted §7.1 doc, rendered straight away. */
 export interface ComputeResponse {
   workflow_id?: string;
   status: string; // "computing" | "completed"
   result?: MeasurementResultDoc;
 }
 
-/** POST /compute body. `params`/`force` are the normal FE path (the backend
- * resolves SurfaceRefs itself). `payload`/`inputs` are the ADVANCED explicit
- * path — dispatched verbatim, and the only route the backend offers for
- * cross_section / contour / tin, whose buildInputs returns ErrComputeUnsupported
- * (asset-svc-refactor measurements/service.go). Mutually exclusive with params. */
+/** POST /compute body: `params` is a partial params object the backend
+ * deep-merges over the stored params AND persists before computing (§6.1 — the
+ * row always states what ran); `force` bypasses the compute-in-flight 409.
+ * Empty body = run with stored params. Only volume / stockpile / cut_fill with
+ * an instant method compute; anything else answers 422 with the reason. */
 export interface ComputeMeasurementBody {
   params?: Record<string, unknown>;
   force?: boolean;
-  payload?: Record<string, unknown>;
-  inputs?: GenerateArtifactRef[];
 }
 
 export function computeMeasurement(
@@ -567,10 +558,8 @@ export interface EstimateResult {
 }
 
 /** Synchronous instant estimate (POST /estimate). Resolves in tens of ms for a
- * panel-scale boundary. Methods the instant tier can't serve (custom_base, an
- * unregistered surface, timeout, busy) come back as a fallback-shaped ApiError
- * (409/422/429/503/504) — callers catch and skip the instant number, letting
- * the authoritative worker compute stand alone. */
+ * panel-scale boundary. A method no worker runs answers 422 with the reason;
+ * an unregistered surface, timeout or busy tier answers 409/429/503/504. */
 export function estimateMeasurement(
   surveyId: string,
   measurementId: string

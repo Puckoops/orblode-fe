@@ -83,7 +83,6 @@ export function DetailContent({
   const busyIds = useViewerStore((s) => s.busyIds);
   const estimates = useViewerStore((s) => s.estimates);
   const clearEstimate = useViewerStore((s) => s.clearEstimate);
-  const projectId = useViewerStore((s) => s.manifest?.survey.project_id ?? null);
 
   const actions = useViewerActions();
 
@@ -126,7 +125,6 @@ export function DetailContent({
     <FeatureInspector
       measurement={inspectMeasurement}
       feature={inspectFeature}
-      projectId={projectId}
       onClose={actions.cancelDraw}
       onCollapse={onCollapse}
       collapsed={collapsed}

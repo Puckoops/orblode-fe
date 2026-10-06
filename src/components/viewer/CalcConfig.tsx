@@ -9,14 +9,12 @@
 // patches via onChange.
 //
 // Method semantics per docs/contracts/surface-ref.md §3.1 (see lib/viewer/calc):
-// reference-rl takes elevation_m XOR derive lowest/highest vertex; design needs
-// a design_id (picker fed by listDesigns); previous-survey resolves server-side
-// to the chronologically previous survey; custom-base awaits its vertex editor.
+// only the instant methods are offered; reference-rl takes elevation_m XOR
+// derive lowest/highest vertex.
 
-import React, { useEffect, useId, useState } from "react";
-import { Field, HelperText, Input, RadioGroup, Select, Skeleton } from "@puckoops/camelot";
+import { useId } from "react";
+import { Field, Input, RadioGroup } from "@puckoops/camelot";
 
-import { listDesigns, type DesignRecord } from "@/lib/api/orblodeSvc";
 import { methodsForKind, type CalcMethodState, type RefMode } from "@/lib/viewer/calc";
 
 const REF_MODES: { id: RefMode; label: string }[] = [
@@ -29,39 +27,16 @@ export function CalcConfig({
   value,
   onChange,
   kind,
-  projectId,
   idPrefix = "calc",
 }: {
   value: CalcMethodState;
   onChange: (patch: Partial<CalcMethodState>) => void;
-  /** Measurement kind — the base-method list is CALC-TYPE-AWARE (stockpile:
-   * smart base/reference RL; cut_fill: previous survey/design/reference RL). */
+  /** Measurement kind — its default method leads the list (stockpile: smart
+   * base; cut_fill: reference RL). */
   kind: string;
-  /** For the design picker; null hides the list (no manifest yet). */
-  projectId: string | null;
   /** Keeps radio input ids unique when two hosts are mounted at once. */
   idPrefix?: string;
 }) {
-  // Designs load lazily the first time the design-surface method is picked.
-  const [designs, setDesigns] = useState<DesignRecord[] | null>(null);
-  const [designsError, setDesignsError] = useState<string | null>(null);
-  const wantDesigns = value.method === "design-surface" && projectId !== null;
-
-  useEffect(() => {
-    if (!wantDesigns || designs !== null || designsError !== null) return;
-    let cancelled = false;
-    listDesigns(projectId!)
-      .then((res) => {
-        if (!cancelled) setDesigns(res.designs ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled) setDesignsError(err instanceof Error ? err.message : "Failed to load designs");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [wantDesigns, designs, designsError, projectId]);
-
   const baseLabelId = `${useId()}-${idPrefix}-base`;
   const refLabelId = `${baseLabelId}-ref`;
 
@@ -99,33 +74,6 @@ export function CalcConfig({
                 value={value.refElevation ?? ""}
                 onChange={(e) => onChange({ refElevation: e.target.value === "" ? null : Number(e.target.value) })}
                 className="num"
-              />
-            </Field>
-          )}
-        </div>
-      )}
-
-      {value.method === "previous-survey" && (
-        <p className="caption rounded-md border border-hairline bg-surface-2 p-2.5 text-ink-3">
-          Compares against the chronologically previous survey of this project — resolved automatically when the compute runs.
-        </p>
-      )}
-
-      {value.method === "design-surface" && (
-        <div className="flex flex-col gap-1.5 rounded-md border border-hairline bg-surface-2 p-2.5">
-          {designsError ? (
-            <HelperText tone="error">{designsError}</HelperText>
-          ) : designs === null ? (
-            <Skeleton width="100%" height={36} />
-          ) : designs.length === 0 ? (
-            <HelperText>No designs are uploaded to this project yet. Upload one from Upload → Design.</HelperText>
-          ) : (
-            <Field label="Design surface">
-              <Select
-                value={value.baseDesignId ?? undefined}
-                onValueChange={(id) => onChange({ baseDesignId: id || null })}
-                placeholder="Pick a design…"
-                options={designs.map((d) => ({ value: d.id, label: d.name }))}
               />
             </Field>
           )}

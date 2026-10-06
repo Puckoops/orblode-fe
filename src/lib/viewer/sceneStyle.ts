@@ -3,7 +3,7 @@
 // colour from Camelot's tokens. Values are CSS colour strings so this stays importable without
 // Cesium (and under `node --test`); scene code wraps them with Color.fromCssColorString.
 
-/** Selection, draft strokes, the profile hover marker and the default measurement colour. */
+/** Selection, draft strokes and the default measurement colour. */
 export const SCENE_ACCENT = "#C97A4E";
 
 /** Behind the globe when the --canvas token cannot be read. */

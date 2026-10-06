@@ -80,7 +80,6 @@ export interface ViewSettings {
   calcType: string | null;
   refMode: "custom" | "lowest_vertex" | "highest_vertex";
   refElevation: number | null;
-  baseDesignId: string | null;
 }
 
 /** Field-wise URL restore payload (§5.6). The 1.4 codec parses the query
@@ -181,18 +180,6 @@ export interface ViewerShellData {
   splitPosition: number;
 
   /**
-   * Cross-section hover bridge (FR-09). The two surfaces that show a profile —
-   * the ProfileChart and the 3D canvas — are siblings, so the hovered station
-   * travels through the store rather than through a shared parent.
-   *
-   * `chainage` is metres along the line (the chart's own x-axis, and what
-   * `positionAtChainage` needs to place the world marker); `source` names who
-   * moved last so neither side echoes the other's update back and fights the
-   * user's cursor. Null when nothing is hovered. Transient — not URL state.
-   */
-  profileHover: { chainage: number; source: "chart" | "scene" } | null;
-
-  /**
    * Camera projection (FR-06). "perspective" is the 3D orbit; "orthographic" is
    * the 90° top-down plan view. `obliquePitch` remembers the tilt the user left
    * 3D at, so switching back restores their view instead of snapping to a
@@ -252,9 +239,6 @@ export interface ViewerShellActions {
   setCompareB: (id: string | null) => void;
   /** Divider x-position, 0..1 (the caller clamps to a visible band). */
   setSplitPosition: (pos: number) => void;
-
-  /** Cross-section hover bridge — see `profileHover`. */
-  setProfileHover: (hover: { chainage: number; source: "chart" | "scene" } | null) => void;
 
   /** Camera projection (FR-06) — see `projection`. */
   setProjection: (mode: "perspective" | "orthographic") => void;
@@ -346,7 +330,6 @@ function defaultData(surveyId: string): ViewerShellData {
     compareA: null,
     compareB: null,
     splitPosition: 0.5,
-    profileHover: null,
     projection: "perspective",
     obliquePitch: null,
 
@@ -368,7 +351,6 @@ function defaultData(surveyId: string): ViewerShellData {
       calcType: null,
       refMode: "lowest_vertex",
       refElevation: null,
-      baseDesignId: null,
     },
   };
 }
@@ -510,7 +492,6 @@ export function createViewerStore(
     setCompareA: (id) => set({ compareA: id }),
     setCompareB: (id) => set({ compareB: id }),
     setSplitPosition: (pos) => set({ splitPosition: pos }),
-    setProfileHover: (hover) => set({ profileHover: hover }),
     setProjection: (mode) => set({ projection: mode }),
     setObliquePitch: (pitchDeg) => set({ obliquePitch: pitchDeg }),
 

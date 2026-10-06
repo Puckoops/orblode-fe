@@ -51,7 +51,7 @@ import {
   type ComputeMeasurementBody,
 } from "@/lib/api/orblodeSvc";
 import { ApiError } from "@/lib/api/client";
-import { filesUrlsIn, fromFilesUrl } from "@/lib/files";
+import { filesUrlsIn } from "@/lib/files";
 import { stripErrNamespace } from "@/lib/api/errors";
 import {
   geometryPositions,
@@ -78,14 +78,6 @@ import {
   metricsOf,
   resultForKind,
 } from "@/lib/viewer/calc";
-import {
-  buildProfileRequest,
-  lineStringCoords,
-  needsProjection,
-  pickProfileSource,
-  projectPolyline,
-} from "@/lib/viewer/profile";
-import { getWorkingTransform } from "@/lib/viewer/projection";
 import { applySceneBackground } from "@/lib/viewer/cesiumScene";
 import { applyProjectionMode, resetToNorth } from "@/lib/viewer/camera";
 import { buildPointCloudStyle } from "@/lib/viewer/pointcloud";
@@ -130,7 +122,6 @@ import { useDrawInteraction } from "@/components/viewer/shell/hooks/useDrawInter
 import { useScenePicking } from "@/components/viewer/shell/hooks/useScenePicking";
 import { useLayerLifecycle } from "@/components/viewer/shell/hooks/useLayerLifecycle";
 import { useCompareLayers } from "@/components/viewer/shell/hooks/useCompareLayers";
-import { useProfileHoverMarker } from "@/components/viewer/shell/hooks/useProfileHoverMarker";
 
 // Zoom-button step: a fraction of the camera's CURRENT altitude, not a fixed
 // meter amount, so one click feels the same whether orbiting the whole site or
@@ -206,9 +197,6 @@ export function ViewerCanvas() {
   const treePanelOpen = useViewerStore((s) => s.treePanelOpen);
   const activeModule = useViewerStore((s) => s.activeModule);
   const selectionKind = useViewerStore((s) => s.selection?.kind ?? null);
-  const selectedMeasurementId = useViewerStore((s) =>
-    s.selection?.kind === "measurement" ? s.selection.measurementIds[0] : null
-  );
   const projection = useViewerStore((s) => s.projection);
   const baseMap = useViewerStore((s) => s.view.baseMap);
   const compareActive = useViewerStore((s) => s.compareActive);
@@ -998,15 +986,11 @@ export function ViewerCanvas() {
     [store, cleanupDraw]
   );
 
-  // Dispatch compute for a measurement (drafts included) — the direct HTTP
-  // call into asset-svc; results land on the row via the workflow consumer and
-  // the 5s poll picks them up. Declared BEFORE startDraw, whose finish() auto-
-  // computes freshly created volume drafts.
   // Best-effort instant estimate for a volume measurement's CURRENT stored
   // params (call AFTER any override is persisted). Sets the ephemeral store
-  // estimate on success; a fallback-shaped ApiError (custom_base, unregistered
-  // surface, timeout, busy) is swallowed so the authoritative worker stands
-  // alone. Superseded by the worker doc once it lands (resultForKind wins).
+  // estimate on success. A 422 (a method no worker runs) shows the server's
+  // reason; a transient refusal (unregistered surface, timeout, busy) is
+  // dropped quietly. Superseded by the computed doc once it lands.
   const runEstimate = useCallback(
     async (id: string) => {
       const m = store.getState().measurements.find((x) => x.id === id);
@@ -1014,84 +998,28 @@ export function ViewerCanvas() {
       try {
         const est = await estimateMeasurement(surveyId, id);
         store.getState().setEstimate(id, m.kind, est);
-      } catch {
-        // instant tier can't serve this method/state — worker path continues
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 422) {
+          toast.warning(`Can't estimate: ${stripErrNamespace(err.message)}`);
+        }
       }
     },
     [surveyId, store]
-  );
-
-  /**
-   * The explicit profile-extract body for a cross_section row (FR-09).
-   *
-   * asset-svc only auto-resolves volume-compute payloads — every other kind
-   * returns 422 ErrComputeUnsupported from an empty body — so a cross-section
-   * MUST arrive on the advanced path with its own payload. Throws a
-   * user-facing message when the survey can't support one; the caller turns
-   * that into a toast instead of dispatching a request destined to fail.
-   */
-  const buildProfileBody = useCallback(
-    async (id: string) => {
-      const st = store.getState();
-      const m = st.measurements.find((x) => x.id === id);
-      const coords = lineStringCoords(m?.geometry);
-      if (!coords) throw new Error("A cross-section needs a line with at least two points.");
-
-      const layer = pickProfileSource(st.manifest?.layers.terrain);
-      if (!layer?.raw_raster_url) {
-        throw new Error("No processed DSM/DTM surface to sample.");
-      }
-
-      // profile.py samples through the raster's own geotransform, so the
-      // polyline must be in the DSM's CRS. Stored geometry is WGS84, which a
-      // geographic DSM takes as-is; a projected one needs it forwarded first.
-      let polyline = coords;
-      if (needsProjection(layer.crs)) {
-        const transform = await getWorkingTransform(layer.crs);
-        const projected = transform ? projectPolyline(coords, transform.forward) : null;
-        if (!projected) {
-          throw new Error(`Can't project this line into ${layer.crs}.`);
-        }
-        polyline = projected;
-      }
-
-      return buildProfileRequest({
-        // Un-proxy: the store manifest carries the /files proxy path, but
-        // the worker needs the real bucket URL it can read.
-        sourceUrl: fromFilesUrl(layer.raw_raster_url),
-        crs: layer.crs,
-        polyline,
-      });
-    },
-    [store]
   );
 
   const triggerCompute = useCallback(
     async (id: string, override?: Record<string, unknown>, opts?: { force?: boolean }) => {
       store.getState().setBusy(id, true);
       try {
-        // computeMeasurement persists the override (§6.1). A PROMOTED method
-        // (§6) returns status "completed" — computed synchronously in PostGIS
-        // and already persisted, so the refresh below shows the final doc and no
-        // preview is needed. Otherwise the async worker is running: fire the
-        // instant estimate so a number appears while it computes.
-        // `force` (ORB-39) bypasses the in-flight 409 so a row whose job died
-        // server-side can be re-dispatched.
+        // computeMeasurement persists the override (§6.1). An instant method
+        // returns status "completed" — computed synchronously in PostGIS and
+        // already persisted, so the refresh below shows the final doc. Anything
+        // else means the server is still working: fire the instant estimate so
+        // a number appears meanwhile. `force` (ORB-39) bypasses the in-flight
+        // 409 so a row stranded in `computing` can be re-run.
         const body: ComputeMeasurementBody = {};
         if (override) body.params = override;
         if (opts?.force) body.force = true;
-
-        // cross_section rides the advanced explicit-payload path (see
-        // buildProfileBody). params and payload are mutually exclusive
-        // server-side, so the override — which a cross-section has no use for —
-        // is dropped rather than sent alongside.
-        const kind = store.getState().measurements.find((x) => x.id === id)?.kind;
-        if (kind === "cross_section") {
-          const profile = await buildProfileBody(id);
-          delete body.params;
-          body.payload = profile.payload;
-          body.inputs = profile.inputs;
-        }
 
         const res = await computeMeasurement(surveyId, id, body);
         if (res.status === "completed") {
@@ -1106,12 +1034,9 @@ export function ViewerCanvas() {
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 422) {
-          // 422 covers four distinct causes (unsupported kind, unresolvable
-          // inputs, no geometry, invalid params) and the response carries only a
-          // message — no machine-readable code to branch on. So the prefix stays
-          // neutral: "not available yet" used to be shown for all of them, which
-          // misdiagnosed a fixable validation error as a missing feature. The
-          // backend message carries the specific reason.
+          // 422 covers several causes (a method or kind no worker runs,
+          // unresolvable inputs, no geometry, invalid params) and carries only a
+          // message, so the prefix stays neutral and the server's reason is shown.
           toast.warning(`Can't compute: ${stripErrNamespace(err.message)}`);
         } else if (err instanceof Error) {
           toast.error(stripErrNamespace(err.message));
@@ -1121,7 +1046,7 @@ export function ViewerCanvas() {
         refreshMeasurements();
       }
     },
-    [surveyId, store, refreshMeasurements, runEstimate, buildProfileBody]
+    [surveyId, store, refreshMeasurements, runEstimate]
   );
 
   // Re-point the commit actor's deps slot at the current closures after every
@@ -1355,15 +1280,6 @@ export function ViewerCanvas() {
     setLayerControls,
     setDesignControls,
   });
-  // The selected row, only when it is a cross_section — the hover bridge below
-  // is inert for every other kind, and memoising here keeps its effects from
-  // re-running on unrelated measurement-list refreshes.
-  const selectedCrossSection = useMemo(() => {
-    if (!selectedMeasurementId) return null;
-    const m = measurements.find((x) => x.id === selectedMeasurementId);
-    return m && m.kind === "cross_section" ? m : null;
-  }, [selectedMeasurementId, measurements]);
-
   // Survey compare (swipe): split imagery for two epochs + the divider position.
   // Owns its own compare layers; reads handlesRef only to hide the normal ortho.
   useCompareLayers({
@@ -1375,15 +1291,6 @@ export function ViewerCanvas() {
     viewerRef,
     handlesRef,
   });
-  // FR-09 hover bridge: the selected cross-section's chart and the 3D canvas
-  // mirror each other's hovered station. Inert for every other selection.
-  useProfileHoverMarker({
-    viewerReady,
-    viewerRef,
-    store,
-    measurement: selectedCrossSection,
-  });
-
   const actions = useMemo<ViewerActions>(
     () => ({
       startProbe,

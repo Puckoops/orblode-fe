@@ -61,7 +61,7 @@ import {
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
 import { useInteractionActor } from "@/components/viewer/shell/interactionContext";
 import { useSelector } from "@xstate/react";
-import { isComputeStuck, metricsOf, resultForKind } from "@/lib/viewer/calc";
+import { isComputeStuck, isVolumeKind, metricsOf, resultForKind } from "@/lib/viewer/calc";
 import { useComputeClock } from "@/components/viewer/shell/hooks/useComputeClock";
 import type { PanelMeasurement } from "@/lib/viewer/sampleData";
 import { measurementState } from "@/lib/status";
@@ -217,7 +217,7 @@ function MeasurementRow({
   onDelete: (id: string) => void;
   onToggleVisible: (id: string, visible: boolean) => void;
 }) {
-  const canCompute = m.status === "draft" || m.status === "failed";
+  const canCompute = isVolumeKind(m.kind) && (m.status === "draft" || m.status === "failed");
   const showDot = !m.demo && m.status !== "completed";
   const draggable = dnd.ready && !m.demo;
   return (
@@ -487,7 +487,7 @@ function TreeNode({
               m={m}
               busy={busyIds.has(m.id)}
               visible={isMeasurementVisibleOnCanvas(m, visibility)}
-              stuck={!m.demo && isComputeStuck(m, now)}
+              stuck={!m.demo && isVolumeKind(m.kind) && isComputeStuck(m, now)}
               dnd={dnd}
               onSelect={onSelect}
               onCompute={onCompute}
@@ -776,8 +776,8 @@ export function WorkspaceTree() {
     },
   };
 
-  /** Amber refresh icon on a stuck row → re-dispatch with `force`, bypassing
-   * asset-svc's compute-in-flight 409 (ORB-39). */
+  /** Amber refresh icon on a stuck row → re-run with `force`, bypassing the
+   * compute-in-flight 409 (ORB-39). */
   const forceCompute = (id: string) => actions.triggerCompute(id, undefined, { force: true });
 
   /** Row trash icon → confirm, then the real delete (ORB-37). */
