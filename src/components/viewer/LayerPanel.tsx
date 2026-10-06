@@ -5,7 +5,6 @@ import {
   AnalyticsUpIcon,
   ArrowRight01Icon,
   Building03Icon,
-  Camera01Icon,
   CubeIcon,
   DistributionIcon,
   Image01Icon,
@@ -16,7 +15,6 @@ import {
   Settings01Icon,
   SparklesIcon,
   Sun03Icon,
-  Target01Icon,
 } from "@hugeicons/core-free-icons";
 import { Alert, Field, Glyph, Icon, IconButton, Input, ProgressCircle, Select, Slider, Sparkbars, Switch, Tooltip, type IconDefinition } from "@puckoops/camelot";
 import { Collapsible } from "radix-ui";
@@ -40,7 +38,7 @@ export interface LayerControl {
   lensRamp?: string;
   /** Contour spacing in meters (vector layers only). */
   intervalM?: number;
-  /** Manifest vector role (image_positions, gcps, contours, …). */
+  /** Manifest vector role (contours, overlay, …). */
   vectorRole?: string;
 }
 
@@ -65,12 +63,6 @@ interface LayerPanelProps {
   surveyStatus?: string;
   terrainExaggeration: number;
   baseMap: string;
-  imageCount?: number;
-  gcpCount?: number;
-  hasImageLayer?: boolean;
-  hasGcpLayer?: boolean;
-  imagesVisible?: boolean;
-  gcpsVisible?: boolean;
   colorMap: string;
   shading: string;
   availableColorMaps: string[];
@@ -90,8 +82,6 @@ interface LayerPanelProps {
   onColorMapChange: (value: string) => void;
   onShadingChange: (value: string) => void;
   onContourIntervalChange: (intervalM: number) => void;
-  onToggleImages?: () => void;
-  onToggleGcps?: () => void;
   onToggleDigitalTwin?: () => void;
   onSunLightingChange?: (enabled: boolean, hour: number) => void;
 }
@@ -468,12 +458,6 @@ export function LayerPanel({
   surveyStatus,
   terrainExaggeration,
   baseMap,
-  imageCount,
-  gcpCount,
-  hasImageLayer = false,
-  hasGcpLayer = false,
-  imagesVisible = false,
-  gcpsVisible = false,
   colorMap,
   shading,
   availableColorMaps,
@@ -493,8 +477,6 @@ export function LayerPanel({
   onColorMapChange,
   onShadingChange,
   onContourIntervalChange,
-  onToggleImages,
-  onToggleGcps,
   onToggleDigitalTwin,
   onSunLightingChange,
 }: LayerPanelProps) {
@@ -568,27 +550,6 @@ export function LayerPanel({
             onDisabledClick={() => toast.info("Digital Twin requires a Cesium ion token (World Terrain)")}
           />
         )}
-      </Section>
-
-      <Section title="Survey data">
-        <ControlRow
-          icon={Camera01Icon}
-          label="Images"
-          count={imageCount ? `${imageCount.toLocaleString()} images` : undefined}
-          active={imagesVisible}
-          disabled={!hasImageLayer}
-          onToggle={() => onToggleImages?.()}
-          onDisabledClick={() => toast.info("Image positions — not available for this survey")}
-        />
-        <ControlRow
-          icon={Target01Icon}
-          label="GCPs"
-          count={gcpCount ? `${gcpCount} GCPs` : undefined}
-          active={gcpsVisible}
-          disabled={!hasGcpLayer}
-          onToggle={() => onToggleGcps?.()}
-          onDisabledClick={() => toast.info("Ground control points — not available for this survey")}
-        />
       </Section>
 
       <Section title="Map controls">

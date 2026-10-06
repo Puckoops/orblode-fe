@@ -8,11 +8,10 @@
 // DATA is read from the store with per-field selectors (§3.6); the Cesium-bound
 // callbacks come from `useViewerActions()` (they close over ViewerCanvas's refs).
 // The reused panels keep their prop interfaces verbatim — the derivations below
-// (color maps, contour intervals, image/gcp vectors, digital-twin availability)
-// are the same `useMemo`s that lived in SurveyViewer, now computed here from
-// store state.
+// (color maps, contour intervals, digital-twin availability) are the same
+// `useMemo`s that lived in SurveyViewer, now computed here from store state.
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft01Icon, Download01Icon, Layers01Icon } from "@hugeicons/core-free-icons";
 import { Alert, Button, EmptyState, IconButton, Skeleton, Tooltip } from "@puckoops/camelot";
@@ -27,9 +26,6 @@ import {
 import { isMineSiteProject } from "@/lib/dashboard/resolveProjectCenter";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import { LayerPanel } from "@/components/viewer/LayerPanel";
-import { GcpVerificationPanel } from "@/components/viewer/GcpVerificationPanel";
-import { useGcpMarks } from "@/components/viewer/shell/hooks/useGcpMarks";
-import { gcpVerificationLayer, readVerdict } from "@/lib/viewer/gcpVerify";
 import { SurveyList } from "@/components/viewer/SurveyList";
 import { WorkspaceTree } from "@/components/viewer/shell/WorkspaceTree";
 import type { ModuleKey } from "@/lib/viewer/state/store";
@@ -147,32 +143,7 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
     return out.sort((a, b) => a - b);
   }, [layerControls]);
 
-  const imageVector = useMemo(
-    () => layerControls.find((l) => l.vectorRole === "image_positions"),
-    [layerControls]
-  );
-  const gcpVector = useMemo(
-    () => layerControls.find((l) => l.vectorRole === "gcps"),
-    [layerControls]
-  );
-
-  const gcpVerifying = useViewerStore((s) => s.gcpVerifying);
-
   const contourIntervalM = view.contourIntervalM ?? availableContourIntervals[0] ?? null;
-  const imageCount = manifest?.layers.vectors?.find((v) => v.role === "image_positions")?.feature_count;
-  const gcpCount = manifest?.layers.vectors?.find((v) => v.role === "gcps")?.feature_count;
-
-  // FR-17 — the last alignment check. The verdict rides in the manifest layer's
-  // `properties`, so the summary needs no network; the per-point document is
-  // fetched only once the user expands the affected-marks list.
-  const gcpReportLayer = useMemo(() => gcpVerificationLayer(manifest), [manifest]);
-  const gcpVerdict = useMemo(() => readVerdict(gcpReportLayer), [gcpReportLayer]);
-  const [gcpDetailWanted, setGcpDetailWanted] = React.useState(false);
-  const gcpMarks = useGcpMarks(gcpReportLayer?.geojson_url, gcpDetailWanted);
-  // A check needs both ingested marks and a co-registered surface to sample.
-  const canVerifyGcps =
-    !!gcpVector &&
-    (manifest?.layers.terrain ?? []).some((t) => !!t.raw_raster_url);
   const showDigitalTwin =
     project !== null &&
     manifest?.survey.project_id === project.id &&
@@ -188,12 +159,6 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
         surveyStatus={manifest?.survey.status}
         terrainExaggeration={view.terrainExaggeration}
         baseMap={view.baseMap}
-        imageCount={imageCount}
-        gcpCount={gcpCount}
-        hasImageLayer={!!imageVector}
-        hasGcpLayer={!!gcpVector}
-        imagesVisible={imageVector?.visible ?? false}
-        gcpsVisible={gcpVector?.visible ?? false}
         colorMap={view.colorMap}
         shading={view.shading}
         availableColorMaps={availableColorMaps}
@@ -213,20 +178,8 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
         onColorMapChange={actions.handleColorMapChange}
         onShadingChange={actions.handleShadingChange}
         onContourIntervalChange={actions.handleContourIntervalChange}
-        onToggleImages={actions.handleToggleImages}
-        onToggleGcps={actions.handleToggleGcps}
         onToggleDigitalTwin={actions.handleToggleDigitalTwin}
         onSunLightingChange={actions.handleSunLightingChange}
-      />
-      <GcpVerificationPanel
-        canVerify={canVerifyGcps}
-        gcpCount={gcpCount}
-        verifying={gcpVerifying}
-        onVerify={actions.handleVerifyGcps}
-        verdict={gcpVerdict}
-        marks={gcpMarks.marks}
-        marksLoading={gcpMarks.loading}
-        onExpandDetail={() => setGcpDetailWanted(true)}
       />
     </>
   );

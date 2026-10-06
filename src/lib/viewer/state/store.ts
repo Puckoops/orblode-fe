@@ -206,11 +206,6 @@ export interface ViewerShellData {
   measurementSearch: string;
   searchingMeasurements: boolean;
 
-  /** Transient: a `gcp-verify` dispatch is in flight (POST → manifest poll until
-   * the gcp_verification VectorLayer lands). Drives the GcpVerificationPanel's
-   * "Checking…" state. Not persisted, not URL state. */
-  gcpVerifying: boolean;
-
   view: ViewSettings;
 }
 
@@ -284,7 +279,6 @@ export interface ViewerShellActions {
   setSaving: (saving: boolean) => void;
   setMeasurementSearch: (search: string) => void;
   setSearchingMeasurements: (searching: boolean) => void;
-  setGcpVerifying: (verifying: boolean) => void;
   setDraft: (points: Cartesian3[], hover: Cartesian3 | null) => void;
   setProbePoint: (point: LngLatHeight | null) => void;
   /** Mark (or clear) the measurement the live draw session is editing. */
@@ -360,7 +354,6 @@ function defaultData(surveyId: string): ViewerShellData {
     saving: false,
     measurementSearch: "",
     searchingMeasurements: false,
-    gcpVerifying: false,
 
     view: {
       baseMap: "satellite",
@@ -568,7 +561,6 @@ export function createViewerStore(
     setMeasurementSearch: (search) => set({ measurementSearch: search }),
     setSearchingMeasurements: (searching) =>
       set({ searchingMeasurements: searching }),
-    setGcpVerifying: (verifying) => set({ gcpVerifying: verifying }),
     setDraft: (points, hover) => set({ draft: { points, hover } }),
     setProbePoint: (point) => set({ probePoint: point }),
     setEditingMeasurementId: (id) => set({ editingMeasurementId: id }),

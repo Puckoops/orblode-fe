@@ -20,9 +20,9 @@ import {
   DRAFT_LABEL_BACKGROUND,
   HANDLE_FILL,
   HANDLE_OUTLINE,
-  PROFILE_LINE,
   SCENE_ACCENT,
   SNAP_HALO,
+  VECTOR_OVERLAY,
 } from "@/lib/viewer/sceneStyle";
 
 /** A thin DXF site model is a CAD surface (floats/cliffs, single-sided) — NOT a
@@ -48,7 +48,7 @@ export const HANDLE = Color.fromCssColorString(HANDLE_FILL);
 export const HANDLE_DARK = Color.fromCssColorString(HANDLE_OUTLINE);
 export const SNAP = Color.fromCssColorString(SNAP_HALO);
 export const LABEL_BG = Color.fromCssColorString(DRAFT_LABEL_BACKGROUND).withAlpha(0.9);
-export const PROFILE = Color.fromCssColorString(PROFILE_LINE);
+export const VECTOR = Color.fromCssColorString(VECTOR_OVERLAY);
 export const DESIGN = Color.fromCssColorString(DESIGN_OVERLAY);
 
 // Global terrain base. With a Cesium ion token set, the viewer uses Cesium World

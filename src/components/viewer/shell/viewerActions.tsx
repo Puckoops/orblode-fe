@@ -65,13 +65,6 @@ export interface ViewerActions {
   handleColorMapChange: (value: string) => void;
   handleShadingChange: (value: string) => void;
   handleContourIntervalChange: (intervalM: number) => void;
-  /** FR-17 — dispatch `gcp-verify` for the survey's DSM/DTM against its ingested
-   * control points, then poll the manifest until the gcp_verification vector
-   * lands. Toasts + no-ops when the surface or the marks are missing. Sets and
-   * clears the store's `gcpVerifying` flag. */
-  handleVerifyGcps: (toleranceM: number) => void;
-  handleToggleImages: () => void;
-  handleToggleGcps: () => void;
   handleToggleDigitalTwin: () => void;
   handleSunLightingChange: (enabled: boolean, hour: number) => void;
   setVolumeMethod: (value: string) => void;

@@ -22,8 +22,8 @@ export const SNAP_HALO = "#00FFFF";
 /** The backdrop behind draft segment labels. */
 export const DRAFT_LABEL_BACKGROUND = "#18181B";
 
-/** The line a cross-section or GCP check is drawn along. */
-export const PROFILE_LINE = "#7DD3FC";
+/** Vector overlays: contours, boundaries and other uploaded vectors. */
+export const VECTOR_OVERLAY = "#7DD3FC";
 
 /** A design file's outline overlay. */
 export const DESIGN_OVERLAY = "#A78BFA";

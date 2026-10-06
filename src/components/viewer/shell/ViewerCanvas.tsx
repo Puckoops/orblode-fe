@@ -45,7 +45,6 @@ import {
   computeMeasurement,
   deleteMeasurement,
   estimateMeasurement,
-  generateSurvey,
   getManifest,
   listMeasurements,
   updateMeasurement,
@@ -75,7 +74,6 @@ import { ShortcutSheet } from "@/components/viewer/shell/ShortcutSheet";
 import { CommandPalette } from "@/components/viewer/shell/CommandPalette";
 import { useViewerHotkeys } from "@/components/viewer/shell/hooks/useViewerHotkeys";
 import {
-  STUCK_COMPUTE_MS,
   isVolumeKind,
   metricsOf,
   resultForKind,
@@ -90,17 +88,12 @@ import {
 import { getWorkingTransform } from "@/lib/viewer/projection";
 import { applySceneBackground } from "@/lib/viewer/cesiumScene";
 import { applyProjectionMode, resetToNorth } from "@/lib/viewer/camera";
-import {
-  buildGcpVerifyRequest,
-  gcpSourceLayer,
-  gcpVerificationLayer,
-} from "@/lib/viewer/gcpVerify";
 import { buildPointCloudStyle } from "@/lib/viewer/pointcloud";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import {
   DEFAULT_CENTER,
   DESIGN,
-  PROFILE,
+  VECTOR,
   bboxToRectangle,
   isThinSurfaceMesh,
   manifestLayersEmpty,
@@ -623,8 +616,8 @@ export function ViewerCanvas() {
           patchControl(key, { loading: true, error: null });
           GeoJsonDataSource.load(handle.url, {
             clampToGround: true,
-            stroke: PROFILE,
-            fill: PROFILE.withAlpha(0.15),
+            stroke: VECTOR,
+            fill: VECTOR.withAlpha(0.15),
             strokeWidth: 2,
           })
             .then((ds) => {
@@ -741,8 +734,8 @@ export function ViewerCanvas() {
           patchControl(l.key, { loading: true, error: null });
           GeoJsonDataSource.load(handle.url, {
             clampToGround: true,
-            stroke: PROFILE,
-            fill: PROFILE.withAlpha(0.15),
+            stroke: VECTOR,
+            fill: VECTOR.withAlpha(0.15),
             strokeWidth: 2,
           })
             .then((ds) => {
@@ -767,71 +760,6 @@ export function ViewerCanvas() {
       store.getState().setLayerControls(next);
     },
     [store, viewerRef, patchControl]
-  );
-
-  // Dispatch the GCP alignment check (gcp-verify processor) for the survey's DSM
-  // (else DTM) surface against its ingested control points, then reuse
-  // `loadManifest` to poll until the gcp_verification VectorLayer lands. Same
-  // shape as handleGenerateContours / handleCompareToDesign, pointed at the
-  // vectors list.
-  const handleVerifyGcps = useCallback(
-    async (toleranceM: number) => {
-      if (store.getState().gcpVerifying) return; // guard re-entrancy
-      const manifestNow = store.getState().manifest;
-      const surface = pickProfileSource(manifestNow?.layers.terrain);
-      if (!surface?.raw_raster_url) {
-        toast.error("No processed DSM/DTM surface to check against.");
-        return;
-      }
-      const marks = gcpSourceLayer(manifestNow);
-      if (!marks?.geojson_url) {
-        toast.error("No ground control points have been ingested for this survey.");
-        return;
-      }
-
-      // A re-run must be detectable, and the role key is stable across runs — so
-      // poll for a CHANGED report url rather than for its mere existence, which
-      // would resolve instantly against the previous run's layer.
-      const previousUrl = gcpVerificationLayer(manifestNow)?.geojson_url ?? null;
-      const landed = () => {
-        const url = gcpVerificationLayer(store.getState().manifest)?.geojson_url ?? null;
-        return !!url && url !== previousUrl;
-      };
-
-      store.getState().setGcpVerifying(true);
-      try {
-        await generateSurvey(
-          surveyId,
-          // Un-proxy both: the store manifest carries /files proxy paths,
-          // but the worker needs the real bucket URLs it can read.
-          buildGcpVerifyRequest({
-            sourceUrl: fromFilesUrl(surface.raw_raster_url),
-            crs: surface.crs,
-            gcpsUrl: fromFilesUrl(marks.geojson_url),
-            toleranceM,
-          })
-        );
-        const deadline = Date.now() + STUCK_COMPUTE_MS;
-        let appeared = false;
-        while (!appeared && Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 5_000));
-          await loadManifest();
-          appeared = landed();
-        }
-        if (appeared) {
-          toast.success("Control point check complete");
-        } else {
-          toast.info("Still checking — the result will appear when ready.");
-        }
-      } catch (err) {
-        if (err instanceof ApiError) toast.error(stripErrNamespace(err.message));
-        else if (err instanceof Error) toast.error(err.message);
-        else toast.error("Failed to start the control point check.");
-      } finally {
-        store.getState().setGcpVerifying(false);
-      }
-    },
-    [store, surveyId, loadManifest]
   );
 
   const handleToggleDigitalTwin = useCallback(() => {
@@ -887,16 +815,6 @@ export function ViewerCanvas() {
     if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender();
     store.getState().setView({ digitalTwinEnabled: next });
   }, [store, viewerRef, applyTerrain]);
-
-  const handleToggleImages = useCallback(() => {
-    const v = store.getState().layerControls.find((l) => l.vectorRole === "image_positions");
-    if (v) handleToggle(v.key);
-  }, [store, handleToggle]);
-
-  const handleToggleGcps = useCallback(() => {
-    const v = store.getState().layerControls.find((l) => l.vectorRole === "gcps");
-    if (v) handleToggle(v.key);
-  }, [store, handleToggle]);
 
   const handleSunLightingChange = useCallback(
     (enabled: boolean, hour: number) => {
@@ -1489,9 +1407,6 @@ export function ViewerCanvas() {
       handleColorMapChange,
       handleShadingChange,
       handleContourIntervalChange,
-      handleVerifyGcps,
-      handleToggleImages,
-      handleToggleGcps,
       handleToggleDigitalTwin,
       handleSunLightingChange,
       setVolumeMethod: (v: string) => store.getState().setView({ volumeMethod: v }),
@@ -1517,9 +1432,6 @@ export function ViewerCanvas() {
       handleColorMapChange,
       handleShadingChange,
       handleContourIntervalChange,
-      handleVerifyGcps,
-      handleToggleImages,
-      handleToggleGcps,
       handleToggleDigitalTwin,
       handleSunLightingChange,
     ]
