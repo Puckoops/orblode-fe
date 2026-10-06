@@ -12,6 +12,7 @@
 // (§3.1 — no defaults on the correctness-critical path), which we always write.
 
 import type { MeasurementResultDoc } from "@/lib/api/orblodeSvc";
+import { isEpochMs, type EpochMs } from "../time.ts";
 
 export interface CalcType {
   id: string;
@@ -316,24 +317,18 @@ export function provenanceOf(result: MeasurementResultDoc | null | undefined) {
 export const STUCK_COMPUTE_MS = 3 * 60_000;
 
 /** True when `m` has been `computing` for longer than {@link STUCK_COMPUTE_MS}.
- * `updated_at` is the dispatch stamp — asset-svc persists the params and flips
- * the row to `computing` in the same write. `now` is passed in so the caller
- * controls the clock (and so this stays pure/testable). */
-export function isComputeStuck(
-  m: { status: string; updated_at?: string },
-  now: number
-): boolean {
-  if (m.status !== "computing" || !m.updated_at) return false;
-  const started = Date.parse(m.updated_at);
-  if (!Number.isFinite(started)) return false;
-  return now - started > STUCK_COMPUTE_MS;
+ * `updated_at` (epoch ms) is the dispatch stamp — the server persists the params
+ * and flips the row to `computing` in the same write. `now` is passed in so the
+ * caller controls the clock (and so this stays pure/testable). */
+export function isComputeStuck(m: { status: string; updated_at?: EpochMs }, now: number): boolean {
+  if (m.status !== "computing" || !isEpochMs(m.updated_at)) return false;
+  return now - m.updated_at > STUCK_COMPUTE_MS;
 }
 
 /** Rough "running for 4 min" copy for the stuck-compute notice. */
-export function formatComputeElapsed(m: { updated_at?: string }, now: number): string {
-  const started = m.updated_at ? Date.parse(m.updated_at) : NaN;
-  if (!Number.isFinite(started)) return "a while";
-  const minutes = Math.max(1, Math.floor((now - started) / 60_000));
+export function formatComputeElapsed(m: { updated_at?: EpochMs }, now: number): string {
+  if (!isEpochMs(m.updated_at)) return "a while";
+  const minutes = Math.max(1, Math.floor((now - m.updated_at) / 60_000));
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   return `${hours} hr`;

@@ -15,6 +15,8 @@ export const SAMPLE_DESIGNS: DesignControl[] = [
   { key: "sample-design-haul", label: "haul road A (LandXML)", visible: true, renderable: true },
 ];
 
+const SAMPLE_STAMP = Date.UTC(2024, 4, 18);
+
 // Pre-formatted, single-line labels so rows read exactly like the design,
 // e.g. "SP-01 · limestone · 14,820 m³".
 function demoMeasurement(folder: string, name: string): PanelMeasurement {
@@ -26,8 +28,8 @@ function demoMeasurement(folder: string, name: string): PanelMeasurement {
     name,
     folder,
     status: "completed",
-    created_at: "2024-05-18T00:00:00Z",
-    updated_at: "2024-05-18T00:00:00Z",
+    created_at: SAMPLE_STAMP,
+    updated_at: SAMPLE_STAMP,
     demo: true,
   };
 }

@@ -32,6 +32,10 @@ test("a non-envelope error body surfaces its error string first, then message", 
   assert.throws(() => readBody(404, false, JSON.stringify({ message: "not here" })), /not here/);
 });
 
+test("a delete answering 200 with data null resolves to null", () => {
+  assert.equal(readBody(200, true, envelope({ status: 200, error: false, data: null, message: "deleted" })), null);
+});
+
 test("an empty or non-JSON body is null when ok and a status error otherwise", () => {
   assert.equal(readBody(200, true, ""), null);
   assert.throws(() => readBody(504, false, "<html>Gateway Timeout</html>"), /Request failed \(504\)/);

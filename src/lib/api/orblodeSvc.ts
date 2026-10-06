@@ -1,9 +1,34 @@
 import { apiFetch, ORBLODE_API } from "@/lib/api/client";
+import { fetchAllPages } from "@/lib/api/paging";
+import type { EpochMs } from "@/lib/time";
 
-// orblode-svc, through /api/orblode: surveys, render manifest, measurements, folders. Paths are
-// asset-svc's; types mirror its Go DTOs (field names matter).
+// orblode-svc, through /api/orblode: surveys, render manifest, measurements, folders. Shapes follow
+// ORBLODE_API_CONTRACT.md: entity ids are opaque strings (ObjectIDs; client_id/project_id are
+// user-svc UUIDs), every *_at is epoch milliseconds, and list routes are paged.
 
 const BASE = ORBLODE_API;
+
+/** Set by the server from the token; never sent by the client. */
+export interface Author {
+  id: string;
+  email: string;
+}
+
+interface PageEnvelope {
+  total: number;
+  page: number;
+  page_size: number;
+  [plural: string]: unknown;
+}
+
+/** Every row of a paged list route (`data: {<plural>, total, page, page_size}`). */
+function listAll<T>(path: string, plural: string): Promise<T[]> {
+  const sep = path.includes("?") ? "&" : "?";
+  return fetchAllPages<T>(async (page, pageSize) => {
+    const res = await apiFetch<PageEnvelope>(BASE, `${path}${sep}page=${page}&page_size=${pageSize}`);
+    return { items: res[plural] as T[] | null | undefined, total: res.total };
+  });
+}
 
 /** Minimal GeoJSON geometry (Polygon / LineString / …). */
 export interface GeoJsonGeometry {
@@ -22,16 +47,18 @@ export interface Survey {
   working_crs: string;
   vertical_datum: string;
   metadata: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
+  created_at: EpochMs;
+  updated_at: EpochMs;
+  created_by?: Author;
+  edited_by?: Author;
 }
 
-export function listSurveys(projectId: string): Promise<{ surveys: Survey[] }> {
-  return apiFetch<{ surveys: Survey[] }>(BASE, `/surveys?project_id=${encodeURIComponent(projectId)}`);
+export async function listSurveys(projectId: string): Promise<{ surveys: Survey[] }> {
+  return { surveys: await listAll<Survey>(`/surveys?project_id=${encodeURIComponent(projectId)}`, "surveys") };
 }
 
 /** Body for POST /surveys — working CRS / vertical datum are NOT client-supplied;
- * asset-svc snapshots them from the project. */
+ * orblode-svc snapshots them from the project. */
 export interface CreateSurveyRequest {
   project_id: string;
   survey_date: string; // YYYY-MM-DD
@@ -43,9 +70,8 @@ export function createSurvey(req: CreateSurveyRequest): Promise<Survey> {
   return apiFetch<Survey>(BASE, "/surveys", { method: "POST", body: req });
 }
 
-/** One requested upload slot (asset-svc ingest.UploadInit). `kind` must be one
- * of the ingest validKinds: terrain | ortho | pointcloud | vector | site_model
- * | images | gcp. */
+/** One requested upload slot. `kind` is one of the ingest kinds the planner
+ * produces: terrain | ortho | pointcloud | vector | site_model. */
 export interface UploadInitFile {
   filename: string;
   kind: string;
@@ -68,6 +94,9 @@ export interface SourceAsset {
   vertical_datum?: string;
   status: string;
   metadata?: Record<string, unknown>;
+  created_at?: EpochMs;
+  updated_at?: EpochMs;
+  created_by?: Author;
 }
 
 export interface InitiatedUpload {
@@ -90,14 +119,14 @@ export function initUploads(
 
 export function markAssetUploaded(surveyId: string, assetId: string): Promise<SourceAsset> {
   return apiFetch<SourceAsset>(BASE, `/surveys/${surveyId}/assets/${assetId}/uploaded`, {
-    method: "PATCH",
+    method: "PUT",
   });
 }
 
 /** Source objects uploaded/registered on a survey (status: pending_upload |
  * registered). */
-export function listSurveyAssets(surveyId: string): Promise<{ assets: SourceAsset[] }> {
-  return apiFetch<{ assets: SourceAsset[] }>(BASE, `/surveys/${surveyId}/assets`);
+export async function listSurveyAssets(surveyId: string): Promise<{ assets: SourceAsset[] }> {
+  return { assets: await listAll<SourceAsset>(`/surveys/${surveyId}/assets`, "assets") };
 }
 
 /** Addressable input artifact for a processor (asset-svc dtos.ArtifactRefDTO). */
@@ -145,18 +174,18 @@ export interface DesignRecord {
   file_url?: string;
   source_crs?: string;
   status?: string;
-  created_at?: string;
+  created_at?: EpochMs;
+  updated_at?: EpochMs;
+  created_by?: Author;
+  edited_by?: Author;
 }
 
 export function createDesign(req: CreateDesignRequest): Promise<DesignRecord> {
   return apiFetch<DesignRecord>(BASE, "/designs", { method: "POST", body: req });
 }
 
-export function listDesigns(projectId: string): Promise<{ designs: DesignRecord[] }> {
-  return apiFetch<{ designs: DesignRecord[] }>(
-    BASE,
-    `/designs?project_id=${encodeURIComponent(projectId)}`
-  );
+export async function listDesigns(projectId: string): Promise<{ designs: DesignRecord[] }> {
+  return { designs: await listAll<DesignRecord>(`/designs?project_id=${encodeURIComponent(projectId)}`, "designs") };
 }
 
 export interface ManifestSurvey {
@@ -351,8 +380,10 @@ export interface Measurement {
   /** Per-calc-type memory: kind → that type's last SUCCESSFUL v1 doc. The type
    * dropdown is a view switch over this map; compute is explicit Run/Re-run. */
   results?: Record<string, MeasurementResultDoc>;
-  created_at: string;
-  updated_at: string;
+  created_at: EpochMs;
+  updated_at: EpochMs;
+  created_by?: Author;
+  edited_by?: Author;
 }
 
 export interface CreateMeasurementRequest {
@@ -364,7 +395,7 @@ export interface CreateMeasurementRequest {
   draft?: boolean;
 }
 
-/** PATCH body — every field optional; omitted = unchanged. `params` is a
+/** PUT body — every field optional; omitted = unchanged. `params` is a
  * PARTIAL object deep-merged server-side over the stored params (§6.1
  * override semantics); `draft: false` promotes a draw-first draft. */
 export interface UpdateMeasurementRequest {
@@ -377,15 +408,15 @@ export interface UpdateMeasurementRequest {
 }
 
 /** Optional `search` filters server-side by measurement name (case-insensitive
- * substring, asset-svc `?search=`). Empty/blank is omitted so the URL stays
+ * substring, `?search=`). Empty/blank is omitted so the URL stays
  * clean and the endpoint returns the full set. */
-export function listMeasurements(
+export async function listMeasurements(
   surveyId: string,
   search?: string
 ): Promise<{ measurements: Measurement[] }> {
   const q = search?.trim();
   const qs = q ? `?search=${encodeURIComponent(q)}` : "";
-  return apiFetch<{ measurements: Measurement[] }>(BASE, `/surveys/${surveyId}/measurements${qs}`);
+  return { measurements: await listAll<Measurement>(`/surveys/${surveyId}/measurements${qs}`, "measurements") };
 }
 
 export function createMeasurement(surveyId: string, req: CreateMeasurementRequest): Promise<Measurement> {
@@ -395,8 +426,7 @@ export function createMeasurement(surveyId: string, req: CreateMeasurementReques
   });
 }
 
-/** Dispatches the compute workflow (202). Inputs auto-resolve server-side. */
-/** Partial update (PATCH): rename, re-folder, re-kind, params patch, draft
+/** Partial update (PUT): rename, re-folder, re-kind, params patch, draft
  * promotion. Returns the fresh row. */
 export function updateMeasurement(
   surveyId: string,
@@ -406,7 +436,7 @@ export function updateMeasurement(
   return apiFetch<Measurement>(
     BASE,
     `/surveys/${surveyId}/measurements/${measurementId}`,
-    { method: "PATCH", body }
+    { method: "PUT", body }
   );
 }
 
@@ -448,8 +478,9 @@ export function computeMeasurement(
   );
 }
 
-export function deleteMeasurement(surveyId: string, measurementId: string): Promise<void> {
-  return apiFetch<void>(BASE, `/surveys/${surveyId}/measurements/${measurementId}`, {
+/** Soft delete: 200 with `data: null` (an older 204 is handled the same way). */
+export async function deleteMeasurement(surveyId: string, measurementId: string): Promise<void> {
+  await apiFetch<null>(BASE, `/surveys/${surveyId}/measurements/${measurementId}`, {
     method: "DELETE",
   });
 }
@@ -464,8 +495,10 @@ export interface FolderRecord {
   name: string;
   depth: number;
   position: number;
-  created_at: string;
-  updated_at: string;
+  created_at: EpochMs;
+  updated_at: EpochMs;
+  created_by?: Author;
+  edited_by?: Author;
 }
 
 /** FROZEN wire node for GET /projects/:id/folder-tree — `itemIds` is
@@ -507,13 +540,13 @@ export function updateFolder(
   folderId: string,
   body: { name?: string; parent_id?: string | null; position?: number }
 ): Promise<FolderRecord> {
-  return apiFetch<FolderRecord>(BASE, `/folders/${folderId}`, { method: "PATCH", body });
+  return apiFetch<FolderRecord>(BASE, `/folders/${folderId}`, { method: "PUT", body });
 }
 
-/** Hard delete; cascades to child folders + memberships. Measurements
+/** Deletes the folder with its child folders and memberships (200, `data: null`). Measurements
  * SURVIVE — they simply fall back to Ungrouped. */
-export function deleteFolder(folderId: string): Promise<void> {
-  return apiFetch<void>(BASE, `/folders/${folderId}`, { method: "DELETE" });
+export async function deleteFolder(folderId: string): Promise<void> {
+  await apiFetch<null>(BASE, `/folders/${folderId}`, { method: "DELETE" });
 }
 
 /** Batch add/remove measurement membership; returns the folder's resulting

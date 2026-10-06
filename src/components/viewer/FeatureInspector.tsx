@@ -69,6 +69,7 @@ import { ProfileChart } from "@/components/viewer/ProfileChart";
 import { useProfileSeries } from "@/components/viewer/shell/hooks/useProfileSeries";
 import { nearestSample, profileUrlOf } from "@/lib/viewer/profile";
 import { useViewerStore } from "@/lib/viewer/state/store";
+import { formatTimestamp } from "@/lib/time";
 
 // Right contextual inspector — the DESIGN panel (SP-12 mock): header title with
 // pencil-rename; a type dropdown (re-template, teardown §2 "type is mutable
@@ -582,9 +583,7 @@ export function FeatureInspector({
   // Chip reflects the SELECTED kind: computing (row-level) → this kind's doc →
   // last-run failure → not computed yet.
   const chipStatus = computing ? "computing" : doc ? "completed" : showFailure ? "failed" : "draft";
-  const calcStamp = measurement.updated_at
-    ? measurement.updated_at.slice(0, 16).replace("T", " ")
-    : "";
+  const calcStamp = formatTimestamp(measurement.updated_at);
 
   // Type dropdown: the geometry's calc types; the stored kind rides along even
   // if it predates the catalog (legacy "volume") so the select never lies.

@@ -106,7 +106,7 @@ interface RunResult {
 type Phase = "form" | "working" | "done";
 
 /** One file's server-side slot, plus exactly how far it got. Both flags matter
- * independently: bytes can be in GCS (`uploaded`) while the PATCH that flips the
+ * independently: bytes can be in GCS (`uploaded`) while the PUT that flips the
  * row to `registered` has not landed (`marked`). */
 interface AssetSlot {
   assetId: string;
@@ -463,11 +463,11 @@ export function UploadScreen() {
             });
             slot.uploaded = true;
           }
-          // ORB-38: this PATCH used to sit OUTSIDE the try, so a failure here
+          // ORB-38: this PUT used to sit OUTSIDE the try, so a failure here
           // escaped the per-file handler — the row stayed "uploading" forever
           // while the bytes sat in GCS as pending_upload with nothing to
           // reconcile them. It is idempotent (it just flips one row to
-          // registered) and PATCHes never auto-retry in lib/api/client.ts, so
+          // registered) and only GETs auto-retry in lib/api/client.ts, so
           // it gets its own retry.
           if (!slot.marked) {
             await withRetry(() => markAssetUploaded(survey.id, slot.assetId));
@@ -794,7 +794,7 @@ function DoneSummary({
           {result.workflows.map((w) => (
             <li key={w.id} className="flex items-baseline justify-between gap-3">
               <span className="small min-w-0 truncate text-ink-2">{w.label}</span>
-              <span className="num-sm shrink-0 text-ink-4">{w.id.slice(0, 8)}…</span>
+              <span className="num-sm shrink-0 text-ink-4">{w.id}</span>
             </li>
           ))}
         </ul>

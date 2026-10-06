@@ -4,7 +4,7 @@
 // double-submit. But some non-GET calls in the upload run ARE safe to retry
 // because they are idempotent by construction: markAssetUploaded just flips one
 // asset row to `registered`, so replaying it converges on the same state.
-// Without a retry, a single transient blip on that PATCH strands already-
+// Without a retry, a single transient blip on that PUT strands already-
 // uploaded bytes as `pending_upload` forever.
 //
 // Callers must only wrap genuinely idempotent operations.

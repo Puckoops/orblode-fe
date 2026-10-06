@@ -220,7 +220,7 @@ test("resultForKind: map hit, map miss, legacy fallback", async () => {
 });
 
 const STUCK_NOW = Date.parse("2026-07-28T12:00:00Z");
-const minutesAgo = (n: number) => new Date(STUCK_NOW - n * 60_000).toISOString();
+const minutesAgo = (n: number) => STUCK_NOW - n * 60_000;
 
 test("STUCK_COMPUTE_MS is the documented three minutes", () => {
   assert.equal(STUCK_COMPUTE_MS, 180_000);
@@ -247,9 +247,10 @@ test("isComputeStuck is true once past the threshold", () => {
   assert.equal(isComputeStuck({ status: "computing", updated_at: minutesAgo(600) }, STUCK_NOW), true);
 });
 
-test("isComputeStuck tolerates a missing or unparseable timestamp", () => {
+test("isComputeStuck tolerates a missing or non-finite timestamp", () => {
   assert.equal(isComputeStuck({ status: "computing" }, STUCK_NOW), false);
-  assert.equal(isComputeStuck({ status: "computing", updated_at: "not-a-date" }, STUCK_NOW), false);
+  assert.equal(isComputeStuck({ status: "computing", updated_at: Number.NaN }, STUCK_NOW), false);
+  assert.equal(isComputeStuck({ status: "computing", updated_at: 0 }, STUCK_NOW), false);
 });
 
 test("isComputeStuck never fires on a future stamp (server clock ahead)", () => {
@@ -262,6 +263,7 @@ test("formatComputeElapsed renders minutes then hours, floored at 1 min", () => 
   assert.equal(formatComputeElapsed({ updated_at: minutesAgo(75) }, STUCK_NOW), "1 hr");
   assert.equal(formatComputeElapsed({ updated_at: minutesAgo(0) }, STUCK_NOW), "1 min");
   assert.equal(formatComputeElapsed({}, STUCK_NOW), "a while");
+  assert.equal(formatComputeElapsed({ updated_at: Number.NaN }, STUCK_NOW), "a while");
 });
 
 test("hasDesignBase detects a design SurfaceRef in params.from", () => {

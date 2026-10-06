@@ -65,6 +65,7 @@ import { isComputeStuck, metricsOf, resultForKind } from "@/lib/viewer/calc";
 import { useComputeClock } from "@/components/viewer/shell/hooks/useComputeClock";
 import type { PanelMeasurement } from "@/lib/viewer/sampleData";
 import { measurementState } from "@/lib/status";
+import { compareNewestFirst } from "@/lib/time";
 
 /** Single-line row label, e.g. "SP-01 · 14,820 m³" (ported from
  * MeasurementPanel). total_* keys are what the stockpile compute emits; the
@@ -362,7 +363,7 @@ function TreeNode({
     .map((id) => byId.get(id))
     .filter((m): m is PanelMeasurement => Boolean(m))
     .sort((a, b) =>
-      sortRecent ? b.updated_at.localeCompare(a.updated_at) : a.name.localeCompare(b.name)
+      sortRecent ? compareNewestFirst(a.updated_at, b.updated_at) : a.name.localeCompare(b.name)
     );
 
   // Folder eye covers every non-demo measurement in the subtree.

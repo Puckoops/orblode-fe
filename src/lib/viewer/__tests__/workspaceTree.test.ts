@@ -16,8 +16,8 @@ function m(id: string, folder?: string): Measurement {
     name: id,
     folder,
     status: "completed",
-    created_at: "",
-    updated_at: "",
+    created_at: 0,
+    updated_at: 0,
   };
 }
 

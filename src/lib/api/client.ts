@@ -8,7 +8,7 @@ export const ORBLODE_API = "/api/orblode";
 export const USERS_API = "/api/users";
 
 interface ApiFetchOptions {
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   /** Caller-supplied cancellation; defaults to a per-attempt timeout when omitted. */
   signal?: AbortSignal;
