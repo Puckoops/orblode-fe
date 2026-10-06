@@ -35,13 +35,11 @@ import {
   Math as CesiumMath,
   PolylineDashMaterialProperty,
   PolylineGraphics,
-  Rectangle,
   RequestScheduler,
   UrlTemplateImageryProvider,
   type Viewer as CesiumViewer,
 } from "cesium";
 import { metricsOf, resultForKind } from "@/lib/viewer/calc";
-import { contourTileTemplate } from "@/lib/viewer/contours";
 import { styleOf } from "@/lib/viewer/style";
 import type {
   AssetLayer,
@@ -204,22 +202,6 @@ export function useLayerLifecycle(deps: {
     tilesetFramedRef.current = false;
 
     const controls: LayerControl[] = [];
-
-    // Survey extent — union of the raster layers' bboxes. Reused to confine the
-    // contour tile pyramids' requests, exactly like each ortho ImageryLayer's
-    // `rectangle` (without it a non-zero minimumLevel floods 404s when the site
-    // is small in view). undefined when no layer carries a bbox.
-    const surveyRects = [
-      ...(manifest.layers.ortho || []),
-      ...(manifest.layers.terrain || []),
-      ...(manifest.layers.lenses || []),
-      ...(manifest.layers.pointcloud || []),
-    ]
-      .map((l) => bboxToRectangle(l.bbox))
-      .filter((r): r is Rectangle => !!r);
-    const surveyRect = surveyRects.length
-      ? surveyRects.reduce((acc, r) => Rectangle.union(acc, r, new Rectangle()), surveyRects[0])
-      : undefined;
 
     // A complete photogrammetry reality mesh is the hero ONLY with a global
     // terrain (World Terrain) under it — then it renders crisp, city-twin style.
@@ -487,34 +469,6 @@ export function useLayerLifecycle(deps: {
     // failure in Cesium's geometry pipeline).
     (manifest.layers.vectors || []).forEach((l, i) => {
       const key = `vector-${i}`;
-      // A contour layer may now ship an XYZ PNG pyramid (constant-cost imagery)
-      // beside its heavy GeoJSON. When present, register a lazy IMAGERY handle
-      // built from the SAME ortho machinery on first show; the pyramid is
-      // confined to the survey extent. Older contours (no tiles) — and every
-      // other vector role — keep the GeoJSON path untouched.
-      const tiles = contourTileTemplate(l.properties);
-      if (tiles) {
-        handles.set(key, {
-          type: "imagery-lazy",
-          template: tiles.template, // already CORS-proxied at manifest load
-          minZoom: tiles.minZoom,
-          maxZoom: tiles.maxZoom,
-          rectangle: surveyRect,
-        });
-        controls.push({
-          key,
-          label: `${l.role || "vector"} (${l.feature_count})`,
-          category: "vector",
-          visible: false,
-          opacity: 1,
-          // Tiles honor alpha (like ortho) — expose the opacity slider. The
-          // GeoJSON fallback below can't, so it stays false there.
-          supportsOpacity: true,
-          intervalM: l.interval_m,
-          vectorRole: l.role,
-        });
-        return;
-      }
       if (!l.geojson_url) return;
       handles.set(key, { type: "geojson-lazy", url: l.geojson_url });
       controls.push({

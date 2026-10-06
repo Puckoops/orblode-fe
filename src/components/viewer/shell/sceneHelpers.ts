@@ -133,20 +133,7 @@ export type LayerHandle =
   | { type: "datasource"; ds: GeoJsonDataSource }
   // Large GeoJSON (contours) parses + batches into big typed arrays — done
   // lazily on first toggle so opening the viewer never pays that cost.
-  | { type: "geojson-lazy"; url: string; loading?: boolean }
-  // Contour XYZ tile pyramid — the constant-cost alternative to geojson-lazy.
-  // The UrlTemplateImageryProvider is built lazily on first show (mirroring
-  // geojson-lazy) then promoted to a plain `imagery` handle, so toggle/opacity/
-  // teardown flow through the exact ortho machinery. `rectangle` (the survey
-  // extent) confines requests, like each ortho ImageryLayer's rectangle.
-  | {
-      type: "imagery-lazy";
-      template: string;
-      minZoom?: number;
-      maxZoom?: number;
-      rectangle?: Rectangle;
-      loading?: boolean;
-    };
+  | { type: "geojson-lazy"; url: string; loading?: boolean };
 
 export interface PendingDraw {
   mode: DrawMode;

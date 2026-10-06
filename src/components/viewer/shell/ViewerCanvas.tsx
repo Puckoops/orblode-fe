@@ -33,11 +33,9 @@ import {
   Entity,
   GeoJsonDataSource,
   HeadingPitchRange,
-  ImageryLayer,
   Math as CesiumMath,
   Rectangle,
   ScreenSpaceEventHandler,
-  UrlTemplateImageryProvider,
   type TerrainProvider,
   createWorldTerrainAsync,
 } from "cesium";
@@ -82,7 +80,6 @@ import {
   metricsOf,
   resultForKind,
 } from "@/lib/viewer/calc";
-import { buildContourRequest } from "@/lib/viewer/contours";
 import {
   buildProfileRequest,
   lineStringCoords,
@@ -105,7 +102,6 @@ import {
   DESIGN,
   PROFILE,
   bboxToRectangle,
-  contourVectorRole,
   isThinSurfaceMesh,
   manifestLayersEmpty,
   type LayerHandle,
@@ -575,38 +571,6 @@ export function ViewerCanvas() {
     [viewerRef, ensureBaseTerrain]
   );
 
-  // Contour tile pyramid → Cesium ImageryLayer, built the SAME way as ortho:
-  // a UrlTemplateImageryProvider over the (already CORS-proxied) XYZ template on
-  // the Web-Mercator/EPSG:3857 default scheme, confined to the survey rectangle.
-  // Built lazily on first show — mirroring the geojson-lazy → datasource
-  // promotion — then stored as a plain `imagery` handle so toggle (`.show`),
-  // opacity (`.alpha`) and the manifest-rebuild teardown
-  // (`imageryLayers.remove(layer, true)`) all reuse the exact ortho lifecycle.
-  // `addImageryProvider` (no index) appends to the TOP of the imagery stack, so
-  // the contour lines sit ABOVE the ortho added at layer-build time. Idempotent:
-  // returns the existing layer once promoted.
-  const ensureContourImagery = useCallback(
-    (key: string): ImageryLayer | null => {
-      const viewer = viewerRef.current;
-      if (!viewer || viewer.isDestroyed()) return null;
-      const handle = handlesRef.current.get(key);
-      if (!handle) return null;
-      if (handle.type === "imagery") return handle.layer;
-      if (handle.type !== "imagery-lazy") return null;
-      const provider = new UrlTemplateImageryProvider({
-        url: handle.template, // gdal2tiles XYZ {z}/{x}/{y} top-origin, no reverseY
-        rectangle: handle.rectangle,
-        minimumLevel: handle.minZoom,
-        maximumLevel: handle.maxZoom,
-      });
-      const layer = viewer.imageryLayers.addImageryProvider(provider);
-      layer.alpha = layerControlsRef.current.find((c) => c.key === key)?.opacity ?? 1;
-      handlesRef.current.set(key, { type: "imagery", layer });
-      return layer;
-    },
-    [viewerRef]
-  );
-
   const handleToggle = useCallback(
     (key: string) => {
       const prev = layerControlsRef.current;
@@ -652,12 +616,7 @@ export function ViewerCanvas() {
         applyTerrain(nowVisible && h ? h.url : null);
       } else if (handle) {
         if (handle.type === "imagery") handle.layer.show = nowVisible;
-        else if (handle.type === "imagery-lazy") {
-          // Contour tiles: build-on-first-show, then it's a plain `imagery`
-          // handle for every later toggle (hit above).
-          const layer = ensureContourImagery(key);
-          if (layer) layer.show = nowVisible;
-        } else if (handle.type === "tileset") handle.tileset.show = nowVisible;
+        else if (handle.type === "tileset") handle.tileset.show = nowVisible;
         else if (handle.type === "datasource") handle.ds.show = nowVisible;
         else if (handle.type === "geojson-lazy" && nowVisible && !handle.loading) {
           handle.loading = true;
@@ -687,7 +646,7 @@ export function ViewerCanvas() {
       layerControlsRef.current = next;
       store.getState().setLayerControls(next);
     },
-    [store, viewerRef, applyTerrain, patchControl, updateCloudPreload, ensureContourImagery]
+    [store, viewerRef, applyTerrain, patchControl, updateCloudPreload]
   );
 
   const handleOpacity = useCallback(
@@ -775,20 +734,7 @@ export function ViewerCanvas() {
         }
         const show = l.intervalM === intervalM;
         const handle = handlesRef.current.get(l.key);
-        if (handle?.type === "imagery" || handle?.type === "imagery-lazy") {
-          // Contour tiles: SHOW the selected interval (built lazily on first
-          // show), and HIDE the rest via the ortho-style `.show`. An interval
-          // never shown stays imagery-lazy — nothing to hide until it's built,
-          // so the swap allocates only the newly-selected pyramid. No leaks:
-          // built pyramids persist hidden and are torn down (removed with true)
-          // on the next manifest rebuild, exactly like ortho.
-          if (show) {
-            const layer = ensureContourImagery(l.key);
-            if (layer) layer.show = true;
-          } else if (handle.type === "imagery") {
-            handle.layer.show = false;
-          }
-        } else if (handle?.type === "datasource") {
+        if (handle?.type === "datasource") {
           handle.ds.show = show;
         } else if (handle?.type === "geojson-lazy" && show && !handle.loading) {
           handle.loading = true;
@@ -820,73 +766,7 @@ export function ViewerCanvas() {
       layerControlsRef.current = next;
       store.getState().setLayerControls(next);
     },
-    [store, viewerRef, patchControl, ensureContourImagery]
-  );
-
-  // Dispatch a contour-generate job for the survey's DSM (else DTM) surface,
-  // then reuse `loadManifest` to poll until the resulting contour VectorLayer
-  // lands — the existing layer lifecycle renders it, so this handler only
-  // triggers + refreshes (§backend is async: the job persists a vector, which
-  // reappears in the manifest with a "contours" role + interval_m).
-  const handleGenerateContours = useCallback(
-    async (intervalM: number) => {
-      if (store.getState().contourGenerating) return; // guard re-entrancy
-      const terrain = store.getState().manifest?.layers.terrain ?? [];
-      const layer =
-        terrain.find((t) => t.surface_type === "dsm" && t.raw_raster_url) ??
-        terrain.find((t) => t.surface_type === "dtm" && t.raw_raster_url) ??
-        terrain.find((t) => t.raw_raster_url);
-      if (!layer?.raw_raster_url) return; // no co-registered surface — button is disabled
-
-      if (!Number.isFinite(intervalM) || intervalM <= 0) {
-        toast.error("Enter a contour interval greater than 0.");
-        return;
-      }
-
-      const hasInterval = () =>
-        (store.getState().manifest?.layers.vectors ?? []).some(
-          (v) =>
-            contourVectorRole(v.role) &&
-            typeof v.interval_m === "number" &&
-            Math.abs(v.interval_m - intervalM) < 1e-6
-        );
-
-      store.getState().setContourGenerating(true);
-      try {
-        await generateSurvey(
-          surveyId,
-          // Un-proxy: the store manifest carries the /files proxy path, but
-          // the backend needs the real bucket URL it can read.
-          buildContourRequest({
-            sourceUrl: fromFilesUrl(layer.raw_raster_url),
-            crs: layer.crs,
-            intervalM,
-          })
-        );
-        // Poll the manifest (via the shared loadManifest) until the contour
-        // vector appears, bounded by the STUCK compute threshold so a dead job
-        // can't spin forever. Cadence matches the 5s compute poll.
-        const deadline = Date.now() + STUCK_COMPUTE_MS;
-        let appeared = hasInterval();
-        while (!appeared && Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 5_000));
-          await loadManifest();
-          appeared = hasInterval();
-        }
-        if (appeared) {
-          toast.success(`Contours ready (${intervalM} m)`);
-        } else {
-          toast.info("Contours are still generating — they'll appear when ready.");
-        }
-      } catch (err) {
-        if (err instanceof ApiError) toast.error(stripErrNamespace(err.message));
-        else if (err instanceof Error) toast.error(err.message);
-        else toast.error("Failed to start contour generation.");
-      } finally {
-        store.getState().setContourGenerating(false);
-      }
-    },
-    [store, surveyId, loadManifest]
+    [store, viewerRef, patchControl]
   );
 
   // Dispatch the GCP alignment check (gcp-verify processor) for the survey's DSM
@@ -1609,7 +1489,6 @@ export function ViewerCanvas() {
       handleColorMapChange,
       handleShadingChange,
       handleContourIntervalChange,
-      handleGenerateContours,
       handleVerifyGcps,
       handleToggleImages,
       handleToggleGcps,
@@ -1638,7 +1517,6 @@ export function ViewerCanvas() {
       handleColorMapChange,
       handleShadingChange,
       handleContourIntervalChange,
-      handleGenerateContours,
       handleVerifyGcps,
       handleToggleImages,
       handleToggleGcps,

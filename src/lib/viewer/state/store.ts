@@ -206,11 +206,6 @@ export interface ViewerShellData {
   measurementSearch: string;
   searchingMeasurements: boolean;
 
-  /** Transient: a `contour-generate` dispatch is in flight (POST → manifest
-   * poll until the contour VectorLayer lands). Drives the LayerPanel terrain
-   * card's "Generating…" state. Not persisted, not URL state. */
-  contourGenerating: boolean;
-
   /** Transient: a `gcp-verify` dispatch is in flight (POST → manifest poll until
    * the gcp_verification VectorLayer lands). Drives the GcpVerificationPanel's
    * "Checking…" state. Not persisted, not URL state. */
@@ -289,8 +284,6 @@ export interface ViewerShellActions {
   setSaving: (saving: boolean) => void;
   setMeasurementSearch: (search: string) => void;
   setSearchingMeasurements: (searching: boolean) => void;
-  /** Toggle the in-flight flag for a contour-generate dispatch. */
-  setContourGenerating: (generating: boolean) => void;
   setGcpVerifying: (verifying: boolean) => void;
   setDraft: (points: Cartesian3[], hover: Cartesian3 | null) => void;
   setProbePoint: (point: LngLatHeight | null) => void;
@@ -367,7 +360,6 @@ function defaultData(surveyId: string): ViewerShellData {
     saving: false,
     measurementSearch: "",
     searchingMeasurements: false,
-    contourGenerating: false,
     gcpVerifying: false,
 
     view: {
@@ -576,7 +568,6 @@ export function createViewerStore(
     setMeasurementSearch: (search) => set({ measurementSearch: search }),
     setSearchingMeasurements: (searching) =>
       set({ searchingMeasurements: searching }),
-    setContourGenerating: (generating) => set({ contourGenerating: generating }),
     setGcpVerifying: (verifying) => set({ gcpVerifying: verifying }),
     setDraft: (points, hover) => set({ draft: { points, hover } }),
     setProbePoint: (point) => set({ probePoint: point }),
