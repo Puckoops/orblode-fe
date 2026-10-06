@@ -1,0 +1,41 @@
+@layer theme, base, camelot, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "@puckoops/camelot/styles.css" layer(camelot);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Tailwind is the layout layer only: its palette and type scale are switched off, so colour comes
+   from Camelot's role tokens and text size from Camelot's type classes. */
+@theme {
+  --color-*: initial;
+  --text-*: initial;
+  --spacing: 4px;
+}
+
+@theme inline {
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-control: var(--border-control);
+  --color-ink-1: var(--text-1);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-ink-4: var(--text-4);
+  --color-emphasis: var(--emphasis);
+  --color-emphasis-on: var(--emphasis-on);
+  --color-emphasis-quiet: var(--emphasis-quiet);
+  --color-scrim: var(--scrim);
+  --color-focus: var(--focus-ring);
+}
+
+:root {
+  --font-sans: var(--pk-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--pk-serif), "Iowan Old Style", Georgia, serif;
+  --font-mono: var(--pk-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
