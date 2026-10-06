@@ -1,68 +1,55 @@
 // Upload planning — pure logic, no React, no network.
 //
-// Maps the Upload page's data types + files onto the real backend contracts:
-//  - ingest kinds (asset-svc ingest.validKinds: terrain | ortho | pointcloud |
-//    vector | site_model | images | gcp), and
-//  - processor dispatches (asset-svc POST /surveys/:id/generate → workflow-geo-svc
-//    framework processors). Payload shapes mirror each processor's typed Input
-//    schema (workflow-geo-svc/internal/processor/<pkg>/types.go) — field names
-//    matter, they are validated server-side.
+// Maps the Upload page's data types + files onto orblode-svc:
+//  - ingest kinds (terrain | ortho | pointcloud | vector | site_model), and
+//  - processor dispatches (POST /surveys/:id/generate), limited to the types a
+//    legacy worker runs. Payload shapes are what orblode-svc translates for
+//    those workers — field names matter, they are validated server-side.
 //
-// Per-epoch pipeline (PROCESSOR_DESIGN.md §6): DSM/DTM rasters dispatch BOTH
-//  - `co-register`  → normalized raw raster → terrain_surfaces.raw_raster_url
-//    (what measurement compute resolves — the "no co-registered DSM" 422), and
-//  - `terrain-quantized-mesh` → Cesium tiles → terrain_surfaces.tile_directory_url
-//    (what the viewer renders).
-// The two completions merge into one terrain_surfaces row per (survey, type).
+// DSM/DTM rasters dispatch `terrain-quantized-mesh` directly; the uploaded
+// raster becomes the terrain layer's raw_raster_url as well as its tiles.
 
 import type { GenerateRequest } from "@/lib/api/orblodeSvc";
 
-export type DataType = "survey" | "lidar" | "preprocessed" | "design";
+export type DataType = "lidar" | "preprocessed" | "design";
 
 /** Per-file role driving both the ingest kind and the processor plan. */
 export type FileRole =
-  | "images" // geotagged survey photos (zip → image-index)
   | "pointcloud" // .las/.laz → pointcloud-tiles
-  | "dsm" // GeoTIFF surface → co-register + terrain-quantized-mesh
+  | "dsm" // GeoTIFF surface → terrain-quantized-mesh
   | "dtm"
   | "ortho" // orthophoto GeoTIFF → orthophoto-tiles
   | "contours" // vector contours → vector-features
   | "vector" // other vector overlays → vector-features
-  | "gcp" // GCP csv → gcp-ingest
   | "site_model" // mesh (needs a WGS84 anchor — ingest only, no auto-dispatch)
   | "design"; // project design file → POST /designs
 
 export const ROLE_LABELS: Record<FileRole, string> = {
-  images: "Images",
   pointcloud: "Point cloud",
   dsm: "DSM",
   dtm: "DTM",
   ortho: "Orthophoto",
   contours: "Contours",
   vector: "Vector",
-  gcp: "GCPs",
   site_model: "3D mesh",
   design: "Design",
 };
 
 /** Roles the user may switch a file to, per data type (the per-row select). */
 export const SELECTABLE_ROLES: Record<DataType, FileRole[]> = {
-  survey: ["images", "gcp"],
   lidar: ["pointcloud"],
-  preprocessed: ["dsm", "dtm", "ortho", "pointcloud", "contours", "vector", "gcp", "site_model"],
+  preprocessed: ["dsm", "dtm", "ortho", "pointcloud", "contours", "vector", "site_model"],
   design: ["design"],
 };
 
 /** File-picker accept list per data type. */
 export const ACCEPT: Record<DataType, string> = {
-  survey: ".jpg,.jpeg,.png,.tif,.tiff,.zip,.csv",
   lidar: ".las,.laz,.zip",
-  preprocessed: ".tif,.tiff,.las,.laz,.dxf,.shp,.geojson,.json,.zip,.csv,.obj,.osgb,.3mx",
+  preprocessed: ".tif,.tiff,.las,.laz,.dxf,.shp,.geojson,.json,.zip,.obj,.osgb,.3mx",
   design: ".dxf,.xml,.geojson,.json,.obj,.ifc",
 };
 
 export const DROPZONE_HINT: Record<DataType, string> = {
-  survey: "JPG, TIFF — 10+ geotagged images (or one .zip)",
   lidar: "LAS / LAZ point clouds",
   preprocessed: "GeoTIFF DSM / DTM / ortho, LAZ, contour DXF / SHP / GeoJSON",
   design: "DXF, LandXML, GeoJSON, OBJ, IFC design surfaces",
@@ -81,11 +68,9 @@ export function guessRole(filename: string, dataType: DataType): FileRole {
 
   if (dataType === "design") return "design";
   if (dataType === "lidar") return "pointcloud";
-  if (dataType === "survey") return e === "csv" ? "gcp" : "images";
 
   // preprocessed — sniff the role from the name, then the extension.
   if (e === "las" || e === "laz") return "pointcloud";
-  if (e === "csv") return "gcp";
   if (e === "obj" || e === "osgb" || e === "3mx") return "site_model";
   if (e === "tif" || e === "tiff") {
     if (n.includes("dtm")) return "dtm";
@@ -99,11 +84,9 @@ export function guessRole(filename: string, dataType: DataType): FileRole {
   return "vector";
 }
 
-/** Ingest kind for a role (must be an asset-svc ingest validKind). */
+/** Ingest kind for a role. */
 export function roleToAssetKind(role: FileRole): string {
   switch (role) {
-    case "images":
-      return "images";
     case "pointcloud":
       return "pointcloud";
     case "dsm":
@@ -115,8 +98,6 @@ export function roleToAssetKind(role: FileRole): string {
     case "vector":
     case "design":
       return "vector";
-    case "gcp":
-      return "gcp";
     case "site_model":
       return "site_model";
   }
@@ -158,8 +139,6 @@ export interface PlannedFile {
 export interface PlannerOptions {
   /** Horizontal CRS chosen in the form, e.g. "EPSG:32645". */
   epsg: string;
-  /** The survey's snapshotted working CRS — preferred co-register target. */
-  workingCrs?: string;
 }
 
 /** One generate call to fire, with a user-facing label. */
@@ -179,14 +158,10 @@ export interface ProcessorPlan {
   skips: PlannedSkip[];
 }
 
-/**
- * Builds the processor dispatch plan for a set of uploaded files. Payload
- * shapes are lock-step with the workflow-geo-svc framework Input schemas.
- */
+/** Builds the processor dispatch plan for a set of uploaded files. */
 export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): ProcessorPlan {
   const dispatches: PlannedDispatch[] = [];
   const skips: PlannedSkip[] = [];
-  const targetCrs = (opts.workingCrs || "").trim() || opts.epsg;
 
   // vector-features batches every vector file into one call.
   const vectorFiles: PlannedFile[] = [];
@@ -194,24 +169,7 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
   for (const f of files) {
     switch (f.role) {
       case "dsm":
-      case "dtm": {
-        // 1) co-register — normalizes CRS and lands the RAW raster analytics
-        //    (stockpile/cut-fill compute) resolve. Vertical datums are left
-        //    unset: co-register v1 fails Permanent on a vertical mismatch
-        //    rather than converting, so we don't assert one from a dropdown.
-        dispatches.push({
-          label: `Co-register ${f.role.toUpperCase()} (${f.name})`,
-          request: {
-            processor_type: "co-register",
-            payload: {
-              source: { url: f.url, kind: "terrain", crs: opts.epsg },
-              target_crs: targetCrs,
-              surface_type: f.role,
-            },
-            inputs: [{ url: f.url, kind: "terrain", crs: opts.epsg }],
-          },
-        });
-        // 2) terrain-quantized-mesh — Cesium tiles for the viewer.
+      case "dtm":
         dispatches.push({
           label: `Terrain tiles ${f.role.toUpperCase()} (${f.name})`,
           request: {
@@ -224,7 +182,6 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
           },
         });
         break;
-      }
       case "ortho":
         dispatches.push({
           label: `Ortho tiles (${f.name})`,
@@ -252,41 +209,10 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
       case "vector":
         vectorFiles.push(f);
         break;
-      case "gcp":
-        dispatches.push({
-          label: `GCP ingest (${f.name})`,
-          request: {
-            processor_type: "gcp-ingest",
-            payload: { source: { url: f.url, kind: "gcp" } },
-            inputs: [{ url: f.url, kind: "gcp" }],
-          },
-        });
-        break;
-      case "images":
-        // image-index reads EXIF GPS out of a zip (or a single image); loose
-        // photo sets are ingested as source assets but only zips are indexed.
-        if (ext(f.name) === "zip") {
-          dispatches.push({
-            label: `Index image positions (${f.name})`,
-            request: {
-              processor_type: "image-index",
-              payload: { source: { url: f.url, kind: "images" } },
-              inputs: [{ url: f.url, kind: "images" }],
-            },
-          });
-        } else {
-          skips.push({
-            filename: f.name,
-            reason: "stored as source imagery — zip the set to index camera positions",
-          });
-        }
-        break;
       case "site_model":
-        // mesh-3dtiles needs a WGS84 anchor + source format the form doesn't
-        // collect yet — ingest the file, leave processing to the backend team.
         skips.push({
           filename: f.name,
-          reason: "3D mesh stored — mesh-3dtiles dispatch needs a placement anchor (not collected here yet)",
+          reason: "3D mesh stored — no processor turns meshes into viewer tiles yet",
         });
         break;
       case "design":

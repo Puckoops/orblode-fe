@@ -55,7 +55,6 @@ import { UploadTimeoutError, putToSignedUrl } from "@/lib/upload/putToSignedUrl"
 import { withRetry } from "@/lib/upload/retry";
 
 const DATA_TYPES: { id: DataType; label: string }[] = [
-  { id: "survey", label: "Survey" },
   { id: "lidar", label: "LiDAR" },
   { id: "preprocessed", label: "Pre-processed" },
   { id: "design", label: "Design" },
@@ -177,7 +176,7 @@ export function UploadScreen() {
   const [newSiteName, setNewSiteName] = useState("");
 
   // Data
-  const [dataType, setDataType] = useState<DataType>("survey");
+  const [dataType, setDataType] = useState<DataType>("preprocessed");
   const [files, setFiles] = useState<QueuedFile[]>([]);
   const [datasetName, setDatasetName] = useState("");
   // Whether the user has typed their own dataset name (stops the autofill).
@@ -397,8 +396,7 @@ export function UploadScreen() {
           resolvedSurvey = await createSurvey({
             project_id: project.id,
             survey_date: surveyDate,
-            survey_type:
-              dataType === "lidar" ? "lidar" : dataType === "preprocessed" ? "preprocessed" : "aerial",
+            survey_type: dataType === "lidar" ? "lidar" : "preprocessed",
             metadata: {
               dataset_name: effectiveDatasetName.trim(),
               tags,
@@ -511,7 +509,7 @@ export function UploadScreen() {
             role: q.role,
             url: progress.assets[q.file.name]?.url || "",
           })),
-          { epsg, workingCrs: survey.working_crs }
+          { epsg }
         );
         outcome.skips = plan.skips;
         for (const d of plan.dispatches) {
