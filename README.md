@@ -14,6 +14,15 @@ The browser only ever calls this app. The session token lives in an httpOnly coo
 
 Every backend answers with `{status, data, error, message}`; `src/lib/api` unwraps `data` and surfaces `message`. A 401 from either backend clears the session and lands on `/sign-in?next=…`.
 
+## What it expects from the backends
+
+- Every response in the `{status, data, error, message}` envelope; `message` is shown to people on failure.
+- `POST /user/login` with `type: "orblode"` answering `data: {token, expire_at, user, client, membership}`; 400 or 401 for bad credentials, 403 for an unconfirmed address, 429 when rate-limited.
+- Email links built from the URLs this app sends: `verify_url` (`<origin>/verify[?next=…]`) and `reset_url` (`<origin>/reset-password`) get `token=<token>` appended as a query parameter.
+- `POST /orblode/clients/signup` taking GEOID's client sign-up fields (`name, email, password, company_name, company_role, domain, phone, address, city, state, zip, country`) plus `verify_url`, with the Orbit password rule; 409 when the email exists and the password does not match.
+- orblode-svc's `GET|HEAD /files/<key>` honouring `Range`, and `?download=1` answering a 302 to a signed link with a filename.
+- A storage CORS rule that admits `PUT` from this app's origins, since uploads go straight to the bucket.
+
 ## Running it
 
 ```bash
@@ -34,7 +43,15 @@ Checks: `npm run typecheck`, `npm run lint`, `npm test` (Node's test runner over
 
 `@puckoops/camelot` is installed from `vendor/puckoops-camelot-0.1.0.tgz`, the same packed build orbit-fe uses. Its stylesheet is imported into a cascade layer (`src/app/globals.css`) between Tailwind's base and utilities. Tailwind is kept as the layout layer only: its colour palette and type scale are switched off, so colour comes from Camelot's role tokens (`bg-surface`, `border-hairline`, `text-ink-3`) and text size from Camelot's type classes (`small`, `caption`, `caps`, `num`).
 
-The Cesium scene's colours and materials (measurement palette, heatmaps, draft and selection styling) are data rendering, not chrome, and live in `src/lib/viewer/sceneStyle.ts`, the one module allowed literal colours.
+The Cesium scene's colours and materials (measurement palette, heatmap legend, draft and selection styling, site markers) are data rendering, not chrome, and live in `src/lib/viewer/sceneStyle.ts`, the one module allowed literal colours. The space around the globe takes the theme's `--canvas` token, so the viewer follows light and dark. The app opens in dark (a 3D viewer reads best there); Settings and the account menu switch it.
+
+Where Camelot has no equivalent, these stay:
+
+- **`radix-ui` Collapsible** for the dense disclosure headers of the measurement tree and the layer, conformance and GCP sections (Camelot's Accordion is a full-height page section).
+- **framer-motion** for the draggable detail panel and the toolbar pills, animating transform and opacity only, under `MotionConfig reducedMotion="user"`.
+- **Plain elements** where no Camelot component fits: selectable list rows (site list, tree rows), the compass ring and drag handle, the measurement colour swatches, the command palette's options, the inline-editable measurement title, and the tag token input on Upload.
+- **The command palette** overlay (Camelot has none), built from `SearchInput` and tokens; the scene context menu is Camelot's `Menu` anchored at the cursor.
+- **The cross-section chart** is hand-drawn SVG (it needs two-way hover with the scene and gaps over nodata) in Camelot's chart paints and tick face.
 
 ## Deployment
 
@@ -46,3 +63,11 @@ Vercel builds the repo as a Next.js project from its root (`npm install`, `npm r
 - **Upload CORS fallback.** fyns-fe retried a CORS-blocked signed PUT through its `/gcs` rewrite. The `/files` proxy is read-only (`GET|HEAD`), so a blocked PUT now fails with a message naming the bucket's CORS rule instead of retrying. The bucket must allow PUT from the app's origins.
 - **`/sign-up` creates an organisation.** fyns-fe's page only said accounts were by invitation; the spec's public `POST /orblode/clients/signup` makes self-serve sign-up real, so the page now sends GEOID's client sign-up fields and ends at the inbox like Orbit's sign-up.
 - **Session profile cookie.** fyns-fe kept the login response's user and client in local/session storage. With the token httpOnly, they are kept in an httpOnly `orblode_profile` cookie with the same lifetime and read by the signed-in layouts. "Remember me" decides whether both cookies outlive the browser session.
+- **Tailwind kept as the layout layer.** orbit-fe uses CSS modules only. The viewer's dense overlay layout ported far more safely as utilities, so Tailwind 4 stays, but with its palette and type scale removed (see Camelot above): it cannot produce a literal colour or font size.
+
+## Changed or dropped from fyns-fe
+
+- Dropped: the marketing route group (per the spec), the disabled Google/Microsoft SSO buttons, the dead "Report" button on the site panel, and `MeasurementPanel`, a component fyns-fe no longer rendered (its draw types moved to `src/lib/viewer/draw.ts`).
+- Added: `/forgot-password`, `/reset-password`, `/verify`, a not-found page, and an appearance setting.
+- The viewer's URL state codec (`src/lib/viewer/urlState.ts`) is still the no-op seam it is in fyns-fe: camera, module and selection are not in the URL yet.
+

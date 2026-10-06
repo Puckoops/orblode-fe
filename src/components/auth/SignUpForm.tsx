@@ -37,7 +37,7 @@ const REQUIRED: Record<Exclude<keyof Form, "email" | "password">, string> = {
   city: "Enter the city.",
   state: "Enter the state or region.",
   zip: "Enter the postcode.",
-  country: "Enter the country.",
+  country: "Enter the country code, such as AU.",
 };
 
 /** Creates an organisation with the person as its owner; it ends at the inbox, like every Puckoops sign-up. */
@@ -156,8 +156,8 @@ export function SignUpForm() {
           <Field label="Postcode" error={fieldErrors.zip}>
             <Input value={form.zip} onChange={set("zip")} autoComplete="postal-code" />
           </Field>
-          <Field label="Country" error={fieldErrors.country}>
-            <Input value={form.country} onChange={set("country")} autoComplete="country-name" />
+          <Field label="Country code" error={fieldErrors.country}>
+            <Input value={form.country} onChange={set("country")} autoComplete="country" placeholder="AU" maxLength={10} />
           </Field>
         </div>
         <Button type="submit" variant="primary" size="lg" className={styles.submit} loading={pending}>
