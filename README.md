@@ -8,7 +8,7 @@ The browser only ever calls this app. The session token lives in an httpOnly coo
 
 - **Accounts** come from Orbit's [user-svc](../user-svc). `/api/auth/*` signs people in, confirms email addresses, resets passwords and creates organisations, always with `"type": "orblode"`. The login response's user and client are kept in a second httpOnly cookie (`orblode_profile`) for display (sidebar, topbar, settings) and handed to client components by the signed-in layouts.
 - **Orblode's domain** in user-svc (projects, members, permissions, viewer presets and bookmarks) is reached through `/api/users/*`, which forwards `/orblode/*` and `/users/*` with the session as a bearer token.
-- **Everything else** comes from [orblode-svc](../orblode-svc) through `/api/orblode/*`, with paths identical to GEOID's asset-svc.
+- **Everything else** comes from [orblode-svc](../orblode-svc) through `/api/orblode/*`, following [`ORBLODE_API_CONTRACT.md`](../ORBLODE_API_CONTRACT.md).
 - **Stored files** (tiles, tilesets, GeoJSON, uploads) are read same-origin as `/files/<key>`. `src/proxy.ts` rewrites those requests to orblode-svc's files proxy with the bearer, forwarding only `Range` and the conditional-GET headers. Manifests carry `https://storage.googleapis.com/<bucket>/<key>`; `src/lib/files` maps them to `/files/<key>` on the way in and back to the stored URL when a value is sent to the API. `?download=1` makes orblode-svc answer with a short-lived signed link.
 - **Uploads** go straight to storage with the signed PUT URL orblode-svc mints, with progress, a stall watchdog and a resumable retry.
 
@@ -20,6 +20,14 @@ Every backend answers with `{status, data, error, message}`; `src/lib/api` unwra
 - `POST /user/login` with `type: "orblode"` answering `data: {token, expire_at, user, client, membership}`; 400 or 401 for bad credentials, 403 for an unconfirmed address, 429 when rate-limited.
 - Email links built from the URLs this app sends: `verify_url` (`<origin>/verify[?next=…]`) and `reset_url` (`<origin>/reset-password`) get `token=<token>` appended as a query parameter.
 - `POST /orblode/clients/signup` taking GEOID's client sign-up fields (`name, email, password, company_name, company_role, domain, phone, address, city, state, zip, country`) plus `verify_url`, with the Orbit password rule; 409 when the email exists and the password does not match.
+- orblode-svc speaking the contract in [`ORBLODE_API_CONTRACT.md`](../ORBLODE_API_CONTRACT.md):
+  - Entity ids are opaque strings (24-hex ObjectIDs; `client_id` and `project_id` are user-svc UUIDs). The app never parses them.
+  - Every `*_at` is an integer of epoch milliseconds; `survey_date` stays `YYYY-MM-DD`. `src/lib/time.ts` formats and sorts them.
+  - `created_by` / `edited_by` are `{id, email}` set by the server; the app never sends them.
+  - `GET /surveys?project_id=`, `/surveys/:id/assets`, `/surveys/:id/measurements`, `/designs?project_id=` and `/materials` are paged (`page`, `page_size`; `data: {<plural>, total, page, page_size}`). `fetchAllPages` (`src/lib/api/paging.ts`) walks pages of 100 until `total` wherever the app needs a whole list.
+  - Updates are `PUT` (asset uploaded, measurement, folder); deletes answer `200` with `data: null` (a `204` is accepted too).
+  - `POST /surveys/:id/generate` is sent only for the processor types with a legacy worker. The upload planner dispatches `orthophoto-tiles`, `pointcloud-tiles`, `vector-features` and, for a DSM or DTM, `terrain-quantized-mesh` directly.
+  - `POST /surveys/:id/measurements/:mid/compute` and `/estimate` are offered only for `volume`, `stockpile` and `cut_fill` with an instant method (`smart_base`, `reference_level`). A `422` shows the server's message.
 - orblode-svc's `GET|HEAD /files/<key>` honouring `Range`, and `?download=1` answering a 302 to a signed link with a filename.
 - A storage CORS rule that admits `PUT` from this app's origins, since uploads go straight to the bucket.
 
@@ -47,11 +55,10 @@ The Cesium scene's colours and materials (measurement palette, heatmap legend, d
 
 Where Camelot has no equivalent, these stay:
 
-- **`radix-ui` Collapsible** for the dense disclosure headers of the measurement tree and the layer, conformance and GCP sections (Camelot's Accordion is a full-height page section).
+- **`radix-ui` Collapsible** for the dense disclosure headers of the measurement tree and the layer sections (Camelot's Accordion is a full-height page section).
 - **framer-motion** for the draggable detail panel and the toolbar pills, animating transform and opacity only, under `MotionConfig reducedMotion="user"`.
 - **Plain elements** where no Camelot component fits: selectable list rows (site list, tree rows), the compass ring and drag handle, the measurement colour swatches, the command palette's options, the inline-editable measurement title, and the tag token input on Upload.
 - **The command palette** overlay (Camelot has none), built from `SearchInput` and tokens; the scene context menu is Camelot's `Menu` anchored at the cursor.
-- **The cross-section chart** is hand-drawn SVG (it needs two-way hover with the scene and gaps over nodata) in Camelot's chart paints and tick face.
 
 ## Deployment
 
@@ -68,6 +75,6 @@ Vercel builds the repo as a Next.js project from its root (`npm install`, `npm r
 ## Changed or dropped from fyns-fe
 
 - Dropped: the marketing route group (per the spec), the disabled Google/Microsoft SSO buttons, the dead "Report" button on the site panel, and `MeasurementPanel`, a component fyns-fe no longer rendered (its draw types moved to `src/lib/viewer/draw.ts`).
+- Dropped because orblode-svc has no worker for them (`ORBLODE_PROCESSORS.md`): contour generation, GCP verification, GCP and drone-photo uploads (with the Survey upload type and the Images/GCPs toggles), design conformance, the co-register step (a DSM/DTM goes straight to terrain tiles), cross-section profiles and their chart, and every volume method but smart base and reference level, including the cross-survey compute in compare mode. Cross-section, contour and TIN measurements can still be drawn, saved, listed and deleted; designs are still registered and drawn.
 - Added: `/forgot-password`, `/reset-password`, `/verify`, a not-found page, and an appearance setting.
 - The viewer's URL state codec (`src/lib/viewer/urlState.ts`) is still the no-op seam it is in fyns-fe: camera, module and selection are not in the URL yet.
-
