@@ -98,11 +98,6 @@ import {
   gcpSourceLayer,
   gcpVerificationLayer,
 } from "@/lib/viewer/gcpVerify";
-import {
-  buildDesignCompareRequest,
-  designCompareEligible,
-  designConformanceEntries,
-} from "@/lib/viewer/designCompare";
 import { buildPointCloudStyle } from "@/lib/viewer/pointcloud";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import {
@@ -959,85 +954,6 @@ export function ViewerCanvas() {
     [store, surveyId, loadManifest]
   );
 
-  // Dispatch a whole-survey design comparison (design-compare processor) for the
-  // survey's DSM (else DTM) surface against a chosen design, then reuse
-  // `loadManifest` to poll until the site-wide design-conformance cut/fill entry
-  // lands. The layer lifecycle registers its heatmap on the next rebuild and the
-  // panel shows the numbers, so this handler only triggers + refreshes — the
-  // exact shape of handleGenerateContours, pointed at analytics.cut_fill.
-  const handleCompareToDesign = useCallback(
-    async (designId: string) => {
-      if (store.getState().designCompareGenerating) return; // guard re-entrancy
-      const manifestNow = store.getState().manifest;
-      const terrain = manifestNow?.layers.terrain ?? [];
-      const surface =
-        terrain.find((t) => t.surface_type === "dsm" && t.raw_raster_url) ??
-        terrain.find((t) => t.surface_type === "dtm" && t.raw_raster_url) ??
-        terrain.find((t) => t.raw_raster_url);
-      if (!surface?.raw_raster_url) {
-        toast.error("No processed DSM/DTM surface to compare.");
-        return;
-      }
-      const design = (manifestNow?.layers.designs ?? []).find((d) => d.id === designId);
-      if (!design?.file_url) {
-        toast.error("Pick a design with an uploaded file to compare.");
-        return;
-      }
-      if (!designCompareEligible(design.format)) {
-        toast.error("LandXML designs only for now.");
-        return;
-      }
-      const projectId = manifestNow?.survey.project_id;
-      if (!projectId) {
-        toast.error("Survey has no project — cannot compare.");
-        return;
-      }
-
-      // Recognize completion by a CHANGE in the conformance set (first run:
-      // none → one; re-run: volumes/heatmap differ), so a stale prior result
-      // doesn't make the poll exit immediately.
-      const sig = () => JSON.stringify(designConformanceEntries(store.getState().manifest));
-      const before = sig();
-
-      store.getState().setDesignCompareGenerating(true);
-      try {
-        await generateSurvey(
-          surveyId,
-          // Un-proxy both surfaces: the store manifest carries the /files
-          // Cesium-CORS paths, but the backend needs the real bucket URLs.
-          buildDesignCompareRequest({
-            surveySurfaceUrl: fromFilesUrl(surface.raw_raster_url),
-            surveyCrs: surface.crs,
-            designUrl: fromFilesUrl(design.file_url),
-            designCrs: design.crs,
-            designFormat: design.format,
-            surveyId,
-            projectId,
-          })
-        );
-        const deadline = Date.now() + STUCK_COMPUTE_MS;
-        let appeared = sig() !== before;
-        while (!appeared && Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 5_000));
-          await loadManifest();
-          appeared = sig() !== before;
-        }
-        if (appeared) {
-          toast.success("Design comparison ready");
-        } else {
-          toast.info("Design comparison is still running — it'll appear when ready.");
-        }
-      } catch (err) {
-        if (err instanceof ApiError) toast.error(stripErrNamespace(err.message));
-        else if (err instanceof Error) toast.error(err.message);
-        else toast.error("Failed to start design comparison.");
-      } finally {
-        store.getState().setDesignCompareGenerating(false);
-      }
-    },
-    [store, surveyId, loadManifest]
-  );
-
   const handleToggleDigitalTwin = useCallback(() => {
     if (!USE_WORLD_TERRAIN) return;
     const next = !store.getState().view.digitalTwinEnabled;
@@ -1694,7 +1610,6 @@ export function ViewerCanvas() {
       handleShadingChange,
       handleContourIntervalChange,
       handleGenerateContours,
-      handleCompareToDesign,
       handleVerifyGcps,
       handleToggleImages,
       handleToggleGcps,
@@ -1724,7 +1639,6 @@ export function ViewerCanvas() {
       handleShadingChange,
       handleContourIntervalChange,
       handleGenerateContours,
-      handleCompareToDesign,
       handleVerifyGcps,
       handleToggleImages,
       handleToggleGcps,

@@ -26,17 +26,7 @@ import {
 } from "@/components/viewer/shell/sceneHelpers";
 import { isMineSiteProject } from "@/lib/dashboard/resolveProjectCenter";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
-import {
-  designCompareEligible,
-  designConformanceEntries,
-  heatmapTileTemplate,
-} from "@/lib/viewer/designCompare";
 import { LayerPanel } from "@/components/viewer/LayerPanel";
-import {
-  DesignConformancePanel,
-  type ConformanceResultVM,
-  type DesignCompareOption,
-} from "@/components/viewer/DesignConformancePanel";
 import { GcpVerificationPanel } from "@/components/viewer/GcpVerificationPanel";
 import { useGcpMarks } from "@/components/viewer/shell/hooks/useGcpMarks";
 import { gcpVerificationLayer, readVerdict } from "@/lib/viewer/gcpVerify";
@@ -174,60 +164,7 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
   );
   const contourGenerating = useViewerStore((s) => s.contourGenerating);
 
-  // Design conformance (design-vs-as-built).
-  const designCompareGenerating = useViewerStore((s) => s.designCompareGenerating);
   const gcpVerifying = useViewerStore((s) => s.gcpVerifying);
-
-  // Designs offered to the compare picker, flagged by processor eligibility
-  // (LandXML / GeoTIFF only, for now).
-  const designCompareOptions = useMemo<DesignCompareOption[]>(
-    () =>
-      (manifest?.layers.designs ?? [])
-        .filter((d) => !!d.file_url)
-        .map((d) => ({
-          id: d.id,
-          name: d.name,
-          format: d.format,
-          eligible: designCompareEligible(d.format),
-        })),
-    [manifest]
-  );
-
-  // Enable "Compare" only with both a surface to compare and an eligible design.
-  const canCompareToDesign = useMemo(
-    () =>
-      (manifest?.layers.terrain ?? []).some((t) => !!t.raw_raster_url) &&
-      designCompareOptions.some((d) => d.eligible),
-    [manifest, designCompareOptions]
-  );
-
-  // Zip the site-wide conformance entries (the SHARED designConformanceEntries
-  // order → `conformance-{i}`) with their heatmap layer control (present only
-  // when the backend emitted a tile pyramid). Numbers show regardless; the
-  // toggle/opacity/legend attach when a heatmap layer exists.
-  const conformanceResults = useMemo<ConformanceResultVM[]>(() => {
-    const entries = designConformanceEntries(manifest);
-    return entries.map((e, i) => {
-      const key = `conformance-${i}`;
-      const hasHeatmap = heatmapTileTemplate(e.heatmap_tiles_url) !== null;
-      const control = hasHeatmap ? layerControls.find((l) => l.key === key) : undefined;
-      return {
-        label: e.zone_name || "Design conformance",
-        cutM3: e.cut_volume_m3,
-        fillM3: e.fill_volume_m3,
-        netM3: e.net_change_m3,
-        layer: control
-          ? {
-              key,
-              visible: control.visible,
-              opacity: control.opacity,
-              loading: control.loading,
-              error: control.error,
-            }
-          : undefined,
-      };
-    });
-  }, [manifest, layerControls]);
 
   const contourIntervalM = view.contourIntervalM ?? availableContourIntervals[0] ?? null;
   const imageCount = manifest?.layers.vectors?.find((v) => v.role === "image_positions")?.feature_count;
@@ -291,15 +228,6 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
         onToggleGcps={actions.handleToggleGcps}
         onToggleDigitalTwin={actions.handleToggleDigitalTwin}
         onSunLightingChange={actions.handleSunLightingChange}
-      />
-      <DesignConformancePanel
-        designOptions={designCompareOptions}
-        canCompare={canCompareToDesign}
-        generating={designCompareGenerating}
-        results={conformanceResults}
-        onCompareToDesign={actions.handleCompareToDesign}
-        onToggle={actions.handleToggle}
-        onOpacity={actions.handleOpacity}
       />
       <GcpVerificationPanel
         canVerify={canVerifyGcps}

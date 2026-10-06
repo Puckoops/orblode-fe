@@ -30,7 +30,3 @@ export const DESIGN_OVERLAY = "#A78BFA";
 
 /** Colours a person can give a measurement; the first is the default. Stored on the row, so keep the values. */
 export const MEASUREMENT_SWATCHES = ["#C97A4E", "#6366F1", "#EF4444", "#22C55E", "#EAB308", "#3B82F6", "#F4F4F5"] as const;
-
-/** Design conformance heatmap: over-grade (cut, remove) and under-grade (fill, add). */
-export const CONFORMANCE_OVER = "#E1745C";
-export const CONFORMANCE_UNDER = "#5B8DEF";

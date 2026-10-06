@@ -24,16 +24,7 @@ import { toast } from "@/lib/toast";
 import type { TerrainStats } from "@/lib/api/orblodeSvc";
 import { suggestContourInterval } from "@/lib/viewer/contours";
 
-export type LayerCategory =
-  | "terrain"
-  | "ortho"
-  | "pointcloud"
-  | "lens"
-  | "vector"
-  // Result overlays (design-conformance heatmap): toggled/opacity'd like ortho
-  // imagery but rendered outside LayerPanel in DesignConformancePanel. The
-  // `conformance-` key prefix keeps them out of LayerPanel's prefix groups.
-  | "analysis";
+export type LayerCategory = "terrain" | "ortho" | "pointcloud" | "lens" | "vector";
 
 export interface LayerControl {
   key: string;

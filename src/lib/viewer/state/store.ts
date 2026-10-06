@@ -211,11 +211,6 @@ export interface ViewerShellData {
    * card's "Generating…" state. Not persisted, not URL state. */
   contourGenerating: boolean;
 
-  /** Transient: a `design-compare` dispatch is in flight (POST → manifest poll
-   * until the site-wide design-conformance cut/fill entry lands). Drives the
-   * DesignConformancePanel's "Comparing…" state. Not persisted, not URL state. */
-  designCompareGenerating: boolean;
-
   /** Transient: a `gcp-verify` dispatch is in flight (POST → manifest poll until
    * the gcp_verification VectorLayer lands). Drives the GcpVerificationPanel's
    * "Checking…" state. Not persisted, not URL state. */
@@ -296,8 +291,6 @@ export interface ViewerShellActions {
   setSearchingMeasurements: (searching: boolean) => void;
   /** Toggle the in-flight flag for a contour-generate dispatch. */
   setContourGenerating: (generating: boolean) => void;
-  /** Toggle the in-flight flag for a design-compare dispatch. */
-  setDesignCompareGenerating: (generating: boolean) => void;
   setGcpVerifying: (verifying: boolean) => void;
   setDraft: (points: Cartesian3[], hover: Cartesian3 | null) => void;
   setProbePoint: (point: LngLatHeight | null) => void;
@@ -375,7 +368,6 @@ function defaultData(surveyId: string): ViewerShellData {
     measurementSearch: "",
     searchingMeasurements: false,
     contourGenerating: false,
-    designCompareGenerating: false,
     gcpVerifying: false,
 
     view: {
@@ -585,8 +577,6 @@ export function createViewerStore(
     setSearchingMeasurements: (searching) =>
       set({ searchingMeasurements: searching }),
     setContourGenerating: (generating) => set({ contourGenerating: generating }),
-    setDesignCompareGenerating: (generating) =>
-      set({ designCompareGenerating: generating }),
     setGcpVerifying: (verifying) => set({ gcpVerifying: verifying }),
     setDraft: (points, hover) => set({ draft: { points, hover } }),
     setProbePoint: (point) => set({ probePoint: point }),

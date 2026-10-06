@@ -42,10 +42,6 @@ import {
 } from "cesium";
 import { metricsOf, resultForKind } from "@/lib/viewer/calc";
 import { contourTileTemplate } from "@/lib/viewer/contours";
-import {
-  designConformanceEntries,
-  heatmapTileTemplate,
-} from "@/lib/viewer/designCompare";
 import { styleOf } from "@/lib/viewer/style";
 import type {
   AssetLayer,
@@ -182,13 +178,7 @@ export function useLayerLifecycle(deps: {
     const viewer = viewerRef.current;
     if (!viewerReady || !viewer || viewer.isDestroyed() || !manifest) return;
 
-    // Design-conformance heatmaps land in analytics.cut_fill (NOT layers), so
-    // fold them into the rebuild signature — otherwise a comparison that
-    // completes after load never triggers a rebuild and its heatmap handle is
-    // never built. Same effect the contour vectors already get for free (they
-    // land in layers.vectors, which is in the signature).
-    const conformance = designConformanceEntries(manifest);
-    const signature = JSON.stringify(manifest.layers) + "|" + JSON.stringify(conformance);
+    const signature = JSON.stringify(manifest.layers);
     if (signature === layersSignatureRef.current) return;
     layersSignatureRef.current = signature;
 
@@ -560,35 +550,6 @@ export function useLayerLifecycle(deps: {
     // section is demonstrable. Drop this fallback once asset-svc populates
     // manifest.layers.designs.
     if (designs.length === 0) designs.push(...SAMPLE_DESIGNS.map((d) => ({ ...d })));
-
-    // Design-conformance heatmaps — the site-wide cut/fill-vs-design result
-    // (analytics.cut_fill, role "design_conformance") renders through the SAME
-    // imagery machinery as contour tiles: an XYZ pyramid → lazy imagery handle,
-    // promoted to a plain `imagery` handle on first show so toggle (`.show`),
-    // opacity (`.alpha`) and teardown all reuse the ortho lifecycle. Confined to
-    // the survey rectangle like the contour pyramids. Indexed off the SHARED
-    // designConformanceEntries() order so the `conformance-{i}` key matches the
-    // numbers the panel reads from the same list. Entries without a heatmap URL
-    // (numbers-only, or still generating) register no handle/control — the panel
-    // still shows their volumes. OFF by default (opt-in overlay).
-    conformance.forEach((e, i) => {
-      const template = heatmapTileTemplate(e.heatmap_tiles_url);
-      if (!template) return;
-      const key = `conformance-${i}`;
-      handles.set(key, {
-        type: "imagery-lazy",
-        template, // already CORS-proxied at manifest load
-        rectangle: surveyRect,
-      });
-      controls.push({
-        key,
-        label: "Design conformance",
-        category: "analysis",
-        visible: false,
-        opacity: 1,
-        supportsOpacity: true,
-      });
-    });
 
     visibleRef.current = new Map([
       ...controls.map((c) => [c.key, c.visible] as const),

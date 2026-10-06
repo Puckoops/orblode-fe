@@ -70,13 +70,6 @@ export interface ViewerActions {
    * contour VectorLayer lands (LayerPanel renders it). No-op when the surface
    * has no `raw_raster_url`. Sets/clears the store's `contourGenerating` flag. */
   handleGenerateContours: (intervalM: number) => void;
-  /** Dispatch a whole-survey `design-compare` job for the survey's DSM/DTM
-   * surface against the design with the given id, then poll the manifest until
-   * the site-wide design-conformance cut/fill entry lands (its heatmap +
-   * numbers render via DesignConformancePanel). Toasts + no-ops when the DSM
-   * surface, the design, its format, or the project id are missing. Sets/clears
-   * the store's `designCompareGenerating` flag. */
-  handleCompareToDesign: (designId: string) => void;
   /** FR-17 — dispatch `gcp-verify` for the survey's DSM/DTM against its ingested
    * control points, then poll the manifest until the gcp_verification vector
    * lands. Toasts + no-ops when the surface or the marks are missing. Sets and

@@ -299,13 +299,6 @@ export interface CutFillEntry {
   net_change_m3: number;
   heatmap_tiles_url?: string;
   diff_raster_url?: string;
-  /** Marks WHAT this entry compares. A site-wide design comparison
-   * (survey-vs-design surface, dispatched by the "design-compare" processor)
-   * carries role "design_conformance" — alongside scope "site" and an empty
-   * comparison_survey_id. For such entries the volume semantics are grade
-   * conformance: cut_volume_m3 = over-built (survey above design → remove),
-   * fill_volume_m3 = under-built (below design → add). Absent on legacy
-   * survey-vs-survey rows. */
   role?: string;
 }
 
