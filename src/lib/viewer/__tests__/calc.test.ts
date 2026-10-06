@@ -148,12 +148,12 @@ test("resultErrorOf and provenanceOf expose failure reason and receipt", () => {
 test("methodsForKind offers only the instant methods for every volume kind", async () => {
   const { methodsForKind, defaultMethodForKind } = await import("../calc.ts");
   for (const kind of ["volume", "stockpile", "cut_fill"]) {
-    assert.deepEqual(methodsForKind(kind).map((m) => m.id).sort(), ["reference-rl", "smart-base"], kind);
+    assert.deepEqual(methodsForKind(kind).map((m) => m.id), ["smart-base", "reference-rl"], kind);
   }
   assert.deepEqual(methodsForKind("area"), []); // non-volume: no base methods
   assert.deepEqual(methodsForKind("cross_section"), []);
   assert.equal(defaultMethodForKind("stockpile"), "smart-base");
-  assert.equal(defaultMethodForKind("cut_fill"), "reference-rl");
+  assert.equal(defaultMethodForKind("cut_fill"), "smart-base");
   assert.equal(defaultMethodForKind("distance"), null);
 });
 
@@ -164,7 +164,7 @@ test("coerceMethodForKind snaps foreign methods to the kind's default", async ()
   assert.equal(coerceMethodForKind(smart, "cut_fill").method, "smart-base");
   // A method this app no longer offers (read back from a stored row) snaps.
   const previous = { ...DEFAULT_METHOD_STATE, method: "previous-survey" };
-  assert.equal(coerceMethodForKind(previous, "cut_fill").method, "reference-rl");
+  assert.equal(coerceMethodForKind(previous, "cut_fill").method, "smart-base");
   assert.equal(coerceMethodForKind(previous, "stockpile").method, "smart-base");
   assert.equal(coerceMethodForKind(smart, "area").method, "smart-base");
 });

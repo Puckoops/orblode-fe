@@ -31,8 +31,7 @@ export function CalcConfig({
 }: {
   value: CalcMethodState;
   onChange: (patch: Partial<CalcMethodState>) => void;
-  /** Measurement kind — its default method leads the list (stockpile: smart
-   * base; cut_fill: reference RL). */
+  /** Measurement kind — non-volume kinds offer no base methods. */
   kind: string;
   /** Keeps radio input ids unique when two hosts are mounted at once. */
   idPrefix?: string;

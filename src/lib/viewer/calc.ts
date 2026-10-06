@@ -91,13 +91,12 @@ export const VOLUME_METHODS = [
   { id: "reference-rl", label: "Reference RL" },
 ] as const;
 
-// Every volume kind offers the two instant methods. A stockpile defaults to the
-// smart base (volume above the ground it sits on); cut/fill defaults to a
-// reference level (cut and fill against a grade).
+// Every volume kind offers the two instant methods, smart base first — the same
+// default the drawing panel and a row without a stored method fall back to.
 const METHODS_FOR_KIND: Record<string, string[]> = {
   stockpile: ["smart-base", "reference-rl"],
   volume: ["smart-base", "reference-rl"],
-  cut_fill: ["reference-rl", "smart-base"],
+  cut_fill: ["smart-base", "reference-rl"],
 };
 
 export function methodsForKind(kind: string): { id: string; label: string }[] {
