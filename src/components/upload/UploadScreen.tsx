@@ -86,8 +86,7 @@ const TAG_SUGGESTIONS = ["pit", "survey", "lidar", "design"];
 // v2 (ORB-38): v1 drafts persisted the old unconfirmed `EPSG:4326` CRS default,
 // so restoring one would smuggle that default straight back past the new
 // explicit-choice requirement. Bumping the key retires those drafts.
-const DRAFT_KEY = "geoid-upload-draft-v2";
-
+const DRAFT_KEY = "orblode-upload-draft-v2";
 
 interface QueuedFile {
   file: File;
@@ -168,7 +167,6 @@ function formatBytes(n: number): string {
   return `${n} B`;
 }
 
-
 export function UploadScreen() {
   const router = useRouter();
 
@@ -203,7 +201,6 @@ export function UploadScreen() {
   // state below is only what the footer renders about it.
   const progressRef = useRef<RunProgress>(emptyProgress());
   const [resume, setResume] = useState<{ target: string; text: string } | null>(null);
-
 
   useEffect(() => {
     listProjects()
@@ -303,7 +300,6 @@ export function UploadScreen() {
   // construction, so it simply stops rendering — no ref writes during render.
   const resumeNotice = resume && resume.target === runTarget ? resume.text : null;
 
-
   const addFiles = useCallback(
     (list: FileList | File[]) => {
       setFiles((prev) => {
@@ -329,14 +325,12 @@ export function UploadScreen() {
   const setRole = (name: string, role: FileRole) =>
     setFiles((prev) => prev.map((q) => (q.file.name === name ? { ...q, role } : q)));
 
-
   const addTag = (raw: string) => {
     const t = raw.trim().replace(/,+$/, "");
     if (!t) return;
     setTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
     setTagInput("");
   };
-
 
   const canSubmit =
     phase === "form" &&

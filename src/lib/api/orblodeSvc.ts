@@ -11,8 +11,6 @@ export interface GeoJsonGeometry {
   coordinates: unknown;
 }
 
-// ---------------------------------------------------------------- surveys
-
 export interface Survey {
   id: string;
   client_id: string;
@@ -44,8 +42,6 @@ export interface CreateSurveyRequest {
 export function createSurvey(req: CreateSurveyRequest): Promise<Survey> {
   return apiFetch<Survey>(BASE, "/surveys", { method: "POST", body: req });
 }
-
-// ------------------------------------------------------------------ ingest
 
 /** One requested upload slot (asset-svc ingest.UploadInit). `kind` must be one
  * of the ingest validKinds: terrain | ortho | pointcloud | vector | site_model
@@ -104,8 +100,6 @@ export function listSurveyAssets(surveyId: string): Promise<{ assets: SourceAsse
   return apiFetch<{ assets: SourceAsset[] }>(BASE, `/surveys/${surveyId}/assets`);
 }
 
-// ---------------------------------------------------------------- generate
-
 /** Addressable input artifact for a processor (asset-svc dtos.ArtifactRefDTO). */
 export interface GenerateArtifactRef {
   url: string;
@@ -132,8 +126,6 @@ export function generateSurvey(
     body: req,
   });
 }
-
-// ------------------------------------------------------------------ designs
 
 /** Body for POST /designs — registers an uploaded design file on a project. */
 export interface CreateDesignRequest {
@@ -166,8 +158,6 @@ export function listDesigns(projectId: string): Promise<{ designs: DesignRecord[
     `/designs?project_id=${encodeURIComponent(projectId)}`
   );
 }
-
-// ---------------------------------------------------------------- manifest
 
 export interface ManifestSurvey {
   id: string;
@@ -342,8 +332,6 @@ export function getManifest(surveyId: string): Promise<Manifest> {
   return apiFetch<Manifest>(BASE, `/surveys/${surveyId}/manifest`);
 }
 
-// ------------------------------------------------------------ measurements
-
 export interface Measurement {
   id: string;
   client_id: string;
@@ -465,8 +453,6 @@ export function deleteMeasurement(surveyId: string, measurementId: string): Prom
     method: "DELETE",
   });
 }
-
-// ------------------------------------------------------------------ folders
 
 /** A folder row (viewer-shell §6.2). parent_id null = workspace (depth 0);
  * children nest to depth 5. Project-scoped — persists across surveys. */

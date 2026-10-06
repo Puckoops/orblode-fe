@@ -25,10 +25,12 @@ export function lifecycleState(status: string | null | undefined): StateStyle {
   }
 }
 
-/** A survey's processing status. */
+/** A survey's lifecycle status (asset-svc survey.Status plus the processing states). */
 export function surveyState(status: string | null | undefined): StateStyle {
   const s = (status ?? "").toLowerCase();
   if (s === "completed" || s === "approved" || s === "ready" || s === "published") return { label: humanize(s), tone: "teal", glyph: "check" };
+  if (s === "locked") return { label: "Locked", tone: "neutral", glyph: "square-filled" };
+  if (s === "under_qa" || s === "ready_to_approve") return { label: humanize(s), tone: "amber", glyph: "diamond" };
   if (s === "failed" || s === "error" || s === "rejected") return { label: humanize(s), tone: "red", glyph: "triangle" };
   if (s === "processing" || s === "ingesting" || s === "uploading" || s === "running" || s === "computing")
     return { label: humanize(s), tone: "blue", glyph: "circle-half" };

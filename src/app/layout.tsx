@@ -7,7 +7,8 @@ import { DEFAULT_THEME } from "@/lib/theme";
 import { Providers } from "./providers";
 
 const sans = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--pk-sans", display: "swap" });
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--pk-serif", display: "swap" });
+// The display face only titles the auth pages, so it is not preloaded on every route.
+const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: "--pk-serif", display: "swap", preload: false });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--pk-mono", display: "swap" });
 
 export const metadata: Metadata = {

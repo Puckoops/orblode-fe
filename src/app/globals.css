@@ -32,6 +32,10 @@
   --color-emphasis-quiet: var(--emphasis-quiet);
   --color-scrim: var(--scrim);
   --color-focus: var(--focus-ring);
+  --color-delta-up: var(--delta-up);
+  --color-delta-down: var(--delta-down);
+  --color-series: var(--series-1);
+  --color-series-track: var(--series-track);
 }
 
 :root {
@@ -42,3 +46,9 @@
 
 /* Cesium's credit strip, hidden on the dashboard globe as in GEOID. */
 .orblode-globe .cesium-viewer-bottom { display: none !important; }
+
+/* The viewer's Cesium widget sits on the page canvas, and its credit strip is hidden as in GEOID. */
+.orblode-scene .cesium-viewer,
+.orblode-scene .cesium-widget,
+.orblode-scene .cesium-widget canvas { background-color: var(--canvas) !important; }
+.orblode-scene .cesium-viewer-bottom { display: none !important; }
