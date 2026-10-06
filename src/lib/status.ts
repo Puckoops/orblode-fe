@@ -1,0 +1,60 @@
+import type { ChipTone, GlyphShape } from "@puckoops/camelot";
+
+export interface StateStyle {
+  label: string;
+  tone: ChipTone;
+  glyph: GlyphShape;
+}
+
+const humanize = (value: string) => {
+  const words = value.replace(/[_-]+/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : "Unknown";
+};
+
+/** A project's lifecycle_status; GEOID only ever showed "active" specially. */
+export function lifecycleState(status: string | null | undefined): StateStyle {
+  switch (status) {
+    case "active":
+      return { label: "Active", tone: "teal", glyph: "check" };
+    case "archived":
+    case "closed":
+    case "completed":
+      return { label: humanize(status), tone: "neutral", glyph: "square" };
+    default:
+      return { label: humanize(status ?? ""), tone: "amber", glyph: "circle-half" };
+  }
+}
+
+/** A survey's processing status. */
+export function surveyState(status: string | null | undefined): StateStyle {
+  const s = (status ?? "").toLowerCase();
+  if (s === "completed" || s === "approved" || s === "ready" || s === "published") return { label: humanize(s), tone: "teal", glyph: "check" };
+  if (s === "failed" || s === "error" || s === "rejected") return { label: humanize(s), tone: "red", glyph: "triangle" };
+  if (s === "processing" || s === "ingesting" || s === "uploading" || s === "running" || s === "computing")
+    return { label: humanize(s), tone: "blue", glyph: "circle-half" };
+  return { label: humanize(s), tone: "amber", glyph: "circle-dashed" };
+}
+
+/** A measurement's compute status: draft | computing | completed | failed. */
+export function measurementState(status: string | null | undefined): StateStyle {
+  switch (status) {
+    case "completed":
+      return { label: "Computed", tone: "teal", glyph: "check" };
+    case "computing":
+      return { label: "Computing", tone: "blue", glyph: "circle-half" };
+    case "failed":
+      return { label: "Failed", tone: "red", glyph: "triangle" };
+    default:
+      return { label: "Not computed", tone: "neutral", glyph: "circle-dashed" };
+  }
+}
+
+/** A source asset still waiting for its bytes. */
+export const PENDING_UPLOAD: StateStyle = { label: "Pending", tone: "amber", glyph: "circle-dashed" };
+
+/** One queued upload row on the upload page. */
+export const UPLOAD_ROW: Record<"uploading" | "uploaded" | "error", StateStyle> = {
+  uploading: { label: "Uploading", tone: "blue", glyph: "circle-half" },
+  uploaded: { label: "Done", tone: "teal", glyph: "check" },
+  error: { label: "Failed", tone: "red", glyph: "triangle" },
+};

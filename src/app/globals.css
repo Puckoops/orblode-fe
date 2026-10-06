@@ -39,3 +39,6 @@
   --font-display: var(--pk-serif), "Iowan Old Style", Georgia, serif;
   --font-mono: var(--pk-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* Cesium's credit strip, hidden on the dashboard globe as in GEOID. */
+.orblode-globe .cesium-viewer-bottom { display: none !important; }
