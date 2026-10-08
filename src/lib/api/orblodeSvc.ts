@@ -277,31 +277,6 @@ export interface ManifestLayers {
   designs: DesignLayer[] | null;
 }
 
-export interface StockpileEntry {
-  pile_id: string;
-  material_name?: string;
-  area_m2: number;
-  volume_m3: number;
-  adjusted_volume_m3: number;
-  tonnage_t: number;
-  delta_volume_m3: number;
-  mesh_url?: string;
-}
-
-export interface CutFillEntry {
-  baseline_survey_id: string;
-  comparison_survey_id: string;
-  scope: string;
-  zone_id: string;
-  zone_name?: string;
-  cut_volume_m3: number;
-  fill_volume_m3: number;
-  net_change_m3: number;
-  heatmap_tiles_url?: string;
-  diff_raster_url?: string;
-  role?: string;
-}
-
 // The §7.1 v1 result document stored verbatim on measurements.result by the
 // measurement-result consumer: metrics + artifacts + provenance ("receipt") on
 // success, error {class, message} on failure. Legacy rows are flat metric maps —
@@ -341,10 +316,6 @@ export interface MeasurementSummary {
 export interface Manifest {
   survey: ManifestSurvey;
   layers: ManifestLayers;
-  analytics: {
-    stockpiles: StockpileEntry[] | null;
-    cut_fill: CutFillEntry[] | null;
-  };
   measurements: MeasurementSummary[] | null;
 }
 

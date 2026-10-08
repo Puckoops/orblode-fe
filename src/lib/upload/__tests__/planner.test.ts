@@ -15,10 +15,6 @@ const LEGACY_TYPES = new Set([
   "vector-features",
   "terrain-quantized-mesh",
   "pointcloud-tiles",
-  "stockpile-inventory",
-  "cut-fill",
-  "reconciliation",
-  "temporal-trends",
   "terrain-lens-bake",
 ]);
 
