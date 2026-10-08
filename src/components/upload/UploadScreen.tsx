@@ -69,8 +69,12 @@ const CRS_OPTIONS = [
   { value: "EPSG:32754", label: "WGS84 / UTM Zone 54S" },
   { value: "EPSG:32755", label: "WGS84 / UTM Zone 55S" },
   { value: "EPSG:32756", label: "WGS84 / UTM Zone 56S" },
+  { value: "EPSG:28354", label: "GDA94 / MGA Zone 54" },
   { value: "EPSG:28355", label: "GDA94 / MGA Zone 55" },
+  { value: "EPSG:28356", label: "GDA94 / MGA Zone 56" },
+  { value: "EPSG:7854", label: "GDA2020 / MGA Zone 54" },
   { value: "EPSG:7855", label: "GDA2020 / MGA Zone 55" },
+  { value: "EPSG:7856", label: "GDA2020 / MGA Zone 56" },
 ];
 
 const VDATUM_OPTIONS = [
