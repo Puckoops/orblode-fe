@@ -109,6 +109,7 @@ import { TreePanel } from "@/components/viewer/shell/TreePanel";
 import { FloatingToolbar } from "@/components/viewer/shell/FloatingToolbar";
 import { SurveyCompare } from "@/components/viewer/shell/SurveyCompare";
 import { DetailPanel } from "@/components/viewer/shell/DetailPanel";
+import { Loader } from "@/components/brand/Loader";
 import { StatusBar } from "@/components/viewer/shell/StatusBar";
 import { CameraJoystick } from "@/components/viewer/CameraJoystick";
 
@@ -186,6 +187,7 @@ export function ViewerCanvas() {
 
   const surveyId = useViewerStore((s) => s.surveyId);
   const manifest = useViewerStore((s) => s.manifest);
+  const manifestError = useViewerStore((s) => s.manifestError);
   const measurements = useViewerStore((s) => s.measurements);
   const measurementVisibility = useViewerStore((s) => s.measurementVisibility);
   const layerControls = useViewerStore((s) => s.layerControls);
@@ -1412,6 +1414,7 @@ export function ViewerCanvas() {
                   style={{ width: "100%", height: "100%" }}
                 />
               </div>
+              {(!viewerReady || !manifest) && !manifestError && <Loader variant="fill" label="Loading the survey" />}
 
               {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}
               {isMeasure && <FloatingToolbar />}

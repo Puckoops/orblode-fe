@@ -12,9 +12,10 @@ import {
   RefreshIcon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons";
-import { Alert, Badge, Band, Button, EmptyState, Icon, IconButton, Page, PageHeader, SearchInput, Skeleton, TextLink, toast, type IconDefinition } from "@puckoops/camelot";
+import { Alert, Badge, Band, Button, EmptyState, Icon, IconButton, Page, PageHeader, SearchInput, TextLink, toast, type IconDefinition } from "@puckoops/camelot";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Loader } from "@/components/brand/Loader";
 import { StateChip } from "@/components/common/StateChip";
 import { listProjects, type Project } from "@/lib/api/userSvc";
 import { listDesigns, listSurveyAssets, listSurveys, type DesignRecord, type SourceAsset, type Survey } from "@/lib/api/orblodeSvc";
@@ -188,12 +189,7 @@ export function FilesScreen() {
             {loadError}
           </Alert>
         ) : visible === null ? (
-          <div className="flex flex-col gap-3" aria-busy="true">
-            <Skeleton width={180} height={20} />
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} width="100%" height={56} radius="var(--radius-md)" />
-            ))}
-          </div>
+          <Loader label="Loading files" />
         ) : visible.length === 0 ? (
           q ? (
             <EmptyState icon={File01Icon} title="No files match your search." framed />

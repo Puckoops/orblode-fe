@@ -1,6 +1,6 @@
 # orblode-fe
 
-The web app for **Orblode**, GEOID's site-survey platform running on Orbit: sign in, browse sites on a globe, upload survey data, download what was uploaded, and measure, compare and inspect each survey in a 3D Cesium viewer. Next.js 16 (App Router) with the Camelot design system. It is a port of GEOID's `fyns-fe`; the marketing site was not ported.
+The web app for **Orblode**, GEOID's site-survey platform running on Orbit: sign in, browse sites on a globe, upload survey data, download what was uploaded, and measure, compare and inspect each survey in a 3D Cesium viewer. Next.js 16 (App Router) with the Camelot design system. It is a port of GEOID's `fyns-fe`; fyns-fe's marketing site was not ported, and `/` is Orblode's own landing page instead (signed-in visitors go straight to `/globe`).
 
 ## How it talks to the backends
 
@@ -9,6 +9,7 @@ The browser only ever calls this app. The session token lives in an httpOnly coo
 - **Accounts** come from Orbit's [user-svc](../user-svc). `/api/auth/*` signs people in, confirms email addresses, resets passwords and creates organisations, always with `"type": "orblode"`. The login response's user and client are kept in a second httpOnly cookie (`orblode_profile`) for display (sidebar, topbar, settings) and handed to client components by the signed-in layouts.
 - **Orblode's domain** in user-svc (projects, members, permissions, viewer presets and bookmarks) is reached through `/api/users/*`, which forwards `/orblode/*` and `/users/*` with the session as a bearer token.
 - **Everything else** comes from [orblode-svc](../orblode-svc) through `/api/orblode/*`, following [`ORBLODE_API_CONTRACT.md`](../ORBLODE_API_CONTRACT.md).
+- **Demo requests** from the landing page go through `/api/leads`, the one route that needs no session. It forwards `{name, email, company, message, website}` to orblode-svc's public `POST /leads` (stored in the `leads` collection) with the visitor's `X-Forwarded-For`, so the service's per-address rate limit counts people rather than this server; `website` is a hidden honeypot.
 - **Stored files** (tiles, tilesets, GeoJSON, uploads) are read same-origin as `/files/<key>`. `src/proxy.ts` rewrites those requests to orblode-svc's files proxy with the bearer, forwarding only `Range` and the conditional-GET headers. Manifests carry `https://storage.googleapis.com/<bucket>/<key>`; `src/lib/files` maps them to `/files/<key>` on the way in and back to the stored URL when a value is sent to the API. `?download=1` makes orblode-svc answer with a short-lived signed link.
 - **Uploads** go straight to storage with the signed PUT URL orblode-svc mints, with progress, a stall watchdog and a resumable retry.
 
@@ -28,6 +29,7 @@ Every backend answers with `{status, data, error, message}`; `src/lib/api` unwra
   - Updates are `PUT` (asset uploaded, measurement, folder); deletes answer `200` with `data: null` (a `204` is accepted too).
   - `POST /surveys/:id/generate` is sent only for the processor types with a legacy worker. The upload planner dispatches `orthophoto-tiles`, `pointcloud-tiles`, `vector-features` and, for a DSM or DTM, `terrain-quantized-mesh` directly.
   - `POST /surveys/:id/measurements/:mid/compute` and `/estimate` are offered only for `volume`, `stockpile` and `cut_fill` with an instant method (`smart_base`, `reference_level`). A `422` shows the server's message.
+- orblode-svc's public `POST /leads` answering 201 for a stored request, 400 with a message for a bad field and 429 past its rate limit.
 - orblode-svc's `GET|HEAD /files/<key>` honouring `Range`, and `?download=1` answering a 302 to a signed link with a filename.
 - A storage CORS rule that admits `PUT` from this app's origins, since uploads go straight to the bucket.
 
@@ -51,14 +53,17 @@ Checks: `npm run typecheck`, `npm run lint`, `npm test` (Node's test runner over
 
 `@puckoops/camelot` is installed from `vendor/puckoops-camelot-0.1.0.tgz`, the same packed build orbit-fe uses. Its stylesheet is imported into a cascade layer (`src/app/globals.css`) between Tailwind's base and utilities. Tailwind is kept as the layout layer only: its colour palette and type scale are switched off, so colour comes from Camelot's role tokens (`bg-surface`, `border-hairline`, `text-ink-3`) and text size from Camelot's type classes (`small`, `caption`, `caps`, `num`).
 
-The Cesium scene's colours and materials (measurement palette, heatmap legend, draft and selection styling, site markers) are data rendering, not chrome, and live in `src/lib/viewer/sceneStyle.ts`, the one module allowed literal colours. The space around the globe takes the theme's `--canvas` token, so the viewer follows light and dark. The app opens in dark (a 3D viewer reads best there); Settings and the account menu switch it.
+The Cesium scene's colours and materials (measurement palette, heatmap legend, draft and selection styling, site markers) are data rendering, not chrome, and live in `src/lib/viewer/sceneStyle.ts`. That module and the landing page's `landing.module.css`, which has its own fixed dark palette, are the only places allowed literal colours. The space around the globe takes the theme's `--canvas` token, so the viewer follows light and dark. The app opens in dark (a 3D viewer reads best there); Settings and the account menu switch it.
 
 Where Camelot has no equivalent, these stay:
 
 - **`radix-ui` Collapsible** for the dense disclosure headers of the measurement tree and the layer sections (Camelot's Accordion is a full-height page section).
-- **framer-motion** for the draggable detail panel and the toolbar pills, animating transform and opacity only, under `MotionConfig reducedMotion="user"`.
+- **framer-motion** for the draggable detail panel and the toolbar pills, animating transform and opacity only, under `MotionConfig reducedMotion="user"`; and on the landing page for the two pinned sections, the Measure showcase (a spotlight moving across a row of cards) and the Industries deck (each card flies in from the right as the last leaves to the left, looping forward when idle). Both run on `useScrollSteps`: scroll progress (`useScroll`) drives a spring-smoothed step, and an idle loop steps on when scrolling stops.
 - **Plain elements** where no Camelot component fits: selectable list rows (site list, tree rows), the compass ring and drag handle, the measurement colour swatches, the command palette's options, the inline-editable measurement title, and the tag token input on Upload.
 - **The command palette** overlay (Camelot has none), built from `SearchInput` and tokens; the scene context menu is Camelot's `Menu` anchored at the cursor.
+- **The Orblode logo** (`src/components/brand/OrblodeLogo.tsx`) in place of Camelot's `BrandMark`, with its wordmark in Space Mono. `SidebarBrand` always draws `BrandMark`, so the rail's brand row is rebuilt in `shell.module.css` with the same breakpoints. The favicon (`src/app/icon.svg`) follows the OS light/dark setting; `src/app/apple-icon.png` is the white mark on black.
+- **The Orblode loader** (`src/components/brand/Loader.tsx`), the pulsing mark from the landing page's splash, in place of Camelot's skeletons for page- and panel-level waits: route `loading.tsx` files, the auth forms' Suspense fallbacks, Cesium loading on the globe and viewer, the survey scene until its manifest arrives, and the site, survey, file and survey-tree lists. Inline progress (layer rows, buttons, search, uploads) stays on Camelot's `ProgressCircle`, `Progress` and `Button loading`.
+- **The landing page** (`src/app/(marketing)/page.tsx`, `src/components/landing/`) is a marketing surface outside Camelot: a fixed dark palette, CSS modules, and a small client controller (`LandingMotion`) that reveals server-rendered sections on scroll. Every "Request a demo" opens one `<dialog>` (`DemoRequest.tsx`) whose form posts to `/api/leads`.
 
 ## Deployment
 
@@ -76,5 +81,5 @@ Vercel builds the repo as a Next.js project from its root (`npm install`, `npm r
 
 - Dropped: the marketing route group (per the spec), the disabled Google/Microsoft SSO buttons, the dead "Report" button on the site panel, and `MeasurementPanel`, a component fyns-fe no longer rendered (its draw types moved to `src/lib/viewer/draw.ts`).
 - Dropped because orblode-svc has no worker for them (`ORBLODE_PROCESSORS.md`): contour generation, GCP verification, GCP and drone-photo uploads (with the Survey upload type and the Images/GCPs toggles), design conformance, the co-register step (a DSM/DTM goes straight to terrain tiles), cross-section profiles and their chart, and every volume method but smart base and reference level, including the cross-survey compute in compare mode. Cross-section, contour and TIN measurements can still be drawn, saved, listed and deleted; designs are still registered and drawn.
-- Added: `/forgot-password`, `/reset-password`, `/verify`, a not-found page, and an appearance setting.
+- Added: the landing page at `/`, `/forgot-password`, `/reset-password`, `/verify`, a not-found page, and an appearance setting.
 - The viewer's URL state codec (`src/lib/viewer/urlState.ts`) is still the no-op seam it is in fyns-fe: camera, module and selection are not in the URL yet.

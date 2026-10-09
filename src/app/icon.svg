@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="9 7 86 86">
+  <style>
+    g { color: #000000; }
+    @media (prefers-color-scheme: dark) { g { color: #ffffff; } }
+  </style>
+  <g fill="none" stroke="currentColor" stroke-width="3.5">
+    <circle cx="38" cy="50" r="26" />
+    <line x1="12" y1="50" x2="88" y2="50" />
+    <circle cx="88" cy="50" r="5" fill="currentColor" stroke="none" />
+  </g>
+</svg>

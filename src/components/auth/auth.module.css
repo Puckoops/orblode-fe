@@ -1,6 +1,6 @@
 .page { position: relative; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: var(--space-10) var(--space-5); overflow: hidden; isolation: isolate; }
 .wash { position: absolute; z-index: -1; top: -440px; left: 50%; width: 960px; height: 960px; border-radius: 50%; transform: translateX(-50%); background: radial-gradient(closest-side, var(--wash-warm), transparent); pointer-events: none; }
-.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: 0.14em; color: var(--text-1); }
+.brand { display: inline-flex; color: var(--text-1); }
 .card {
   width: min(420px, 100%);
   margin: var(--space-16) 0 var(--space-8);

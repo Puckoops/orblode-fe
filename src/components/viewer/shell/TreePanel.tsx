@@ -14,8 +14,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft01Icon, Download01Icon, Layers01Icon } from "@hugeicons/core-free-icons";
-import { Alert, Button, EmptyState, IconButton, Skeleton, Tooltip } from "@puckoops/camelot";
+import { Alert, Button, EmptyState, IconButton, Tooltip } from "@puckoops/camelot";
 
+import { Loader } from "@/components/brand/Loader";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
 import {
@@ -81,12 +82,7 @@ export function TreePanel() {
           manifest ? (
             <SurveyTree projectId={manifest.survey.project_id} surveyId={surveyId} />
           ) : (
-            <div className="flex flex-col gap-3 p-4" aria-busy="true" aria-label="Loading survey">
-              <Skeleton width="60%" height={14} />
-              <Skeleton width="100%" height={36} />
-              <Skeleton width="100%" height={36} />
-              <Skeleton width="80%" height={14} />
-            </div>
+            <Loader label="Loading survey" />
           )
         ) : (
           <EmptyState

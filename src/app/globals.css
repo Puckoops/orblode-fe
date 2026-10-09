@@ -42,6 +42,7 @@
   --font-sans: var(--pk-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: var(--pk-serif), "Iowan Old Style", Georgia, serif;
   --font-mono: var(--pk-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-logotype: var(--pk-logotype), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* Cesium's credit strip, hidden on the dashboard globe as in GEOID. */
@@ -52,3 +53,17 @@
 .orblode-scene .cesium-widget,
 .orblode-scene .cesium-widget canvas { background-color: var(--canvas) !important; }
 .orblode-scene .cesium-viewer-bottom { display: none !important; }
+
+/* The landing page is always on its own dark ground, scrolls smoothly between anchors and snaps to sections. */
+html:has([data-landing]) {
+  color-scheme: dark;
+  background: #0a0908;
+  scroll-behavior: smooth;
+  scroll-snap-type: y proximity;
+  scroll-padding-top: 72px;
+}
+html:has([data-landing]) body { background: #0a0908; }
+@media (prefers-reduced-motion: reduce) {
+  html:has([data-landing]) { scroll-behavior: auto; }
+}
+html:has([data-landing] dialog[open]) { overflow: hidden; }

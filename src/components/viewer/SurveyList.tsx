@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, Select, Skeleton } from "@puckoops/camelot";
+import { Alert, Badge, Select } from "@puckoops/camelot";
+import { Loader } from "@/components/brand/Loader";
 import { StateChip } from "@/components/common/StateChip";
 import { listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { surveyState } from "@/lib/status";
@@ -70,10 +71,7 @@ export function SurveyList({
   }
   if (!surveys) {
     return (
-      <div className="flex flex-col gap-2 px-3 pt-3" aria-busy="true" aria-label="Loading surveys">
-        <Skeleton width="100%" height={36} />
-        <Skeleton width="100%" height={52} />
-      </div>
+      <Loader label="Loading surveys" />
     );
   }
   if (surveys.length === 0) {

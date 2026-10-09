@@ -4,6 +4,7 @@ import { Add01Icon, ArrowRight01Icon, Location01Icon } from "@hugeicons/core-fre
 import { Button, EmptyState, Glyph, Icon, SearchInput, Skeleton } from "@puckoops/camelot";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Loader } from "@/components/brand/Loader";
 import type { Project } from "@/lib/api/userSvc";
 import { listSurveys } from "@/lib/api/orblodeSvc";
 import { lifecycleState } from "@/lib/status";
@@ -65,13 +66,11 @@ export function ActiveSitesPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ul className="flex flex-col gap-1 px-3">
-          {visibleProjects === null &&
-            [0, 1, 2].map((i) => (
-              <li key={i} className="flex flex-col gap-2 px-2 py-3">
-                <Skeleton width="70%" height={16} />
-                <Skeleton width="45%" height={12} />
-              </li>
-            ))}
+          {visibleProjects === null && (
+            <li>
+              <Loader label="Loading sites" />
+            </li>
+          )}
           {visibleProjects?.length === 0 && (
             <li>
               {q ? (

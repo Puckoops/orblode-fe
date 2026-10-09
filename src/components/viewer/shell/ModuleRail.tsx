@@ -22,9 +22,10 @@ import {
   TruckIcon,
   UsersIcon,
 } from "@hugeicons/core-free-icons";
-import { BrandMark, IconButton, Tooltip, type IconDefinition } from "@puckoops/camelot";
+import { IconButton, Tooltip, type IconDefinition } from "@puckoops/camelot";
 import Link from "next/link";
 
+import { OrblodeMark } from "@/components/brand/OrblodeLogo";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import type { ModuleKey } from "@/lib/viewer/state/store";
 
@@ -67,7 +68,7 @@ export function ModuleRail() {
     <nav aria-label="Viewer modules" className="flex h-full w-12 shrink-0 flex-col items-center border-r border-hairline bg-surface py-3">
       <Tooltip content="Back to globe" side="right">
         <Link href="/globe" aria-label="Back to globe" className="flex size-9 items-center justify-center rounded-sm text-ink-1 hover:bg-surface-2">
-          <BrandMark size={22} />
+          <OrblodeMark size={18} />
         </Link>
       </Tooltip>
 

@@ -31,7 +31,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(token ? "/globe" : "/sign-in", request.url));
+    return token ? NextResponse.redirect(new URL("/globe", request.url)) : NextResponse.next();
   }
 
   if (matches(pathname, PROTECTED) && !token) {

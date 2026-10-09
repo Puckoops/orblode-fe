@@ -1,0 +1,11 @@
+.logo { display: inline-flex; align-items: center; gap: calc(var(--logo-size) * 0.46); color: inherit; }
+.wordmark {
+  font-family: var(--font-logotype);
+  font-size: calc(var(--logo-size) * 0.42);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.32em;
+  /* Cancels the tracking after the last letter so the lockup ends at the E. */
+  margin-right: -0.32em;
+  white-space: nowrap;
+}

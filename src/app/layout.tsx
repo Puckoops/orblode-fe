@@ -1,7 +1,7 @@
 import "./globals.css";
 import { themeScriptFor } from "@puckoops/camelot/helpers";
 import type { Metadata } from "next";
-import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { Instrument_Sans, Instrument_Serif, JetBrains_Mono, Space_Mono } from "next/font/google";
 import { InlineScript } from "@/components/InlineScript";
 import { DEFAULT_THEME } from "@/lib/theme";
 import { Providers } from "./providers";
@@ -10,6 +10,7 @@ const sans = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", "600"]
 // The display face only titles the auth pages, so it is not preloaded on every route.
 const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: "--pk-serif", display: "swap", preload: false });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--pk-mono", display: "swap" });
+const logotype = Space_Mono({ subsets: ["latin"], weight: "700", variable: "--pk-logotype", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Orblode", template: "%s · Orblode" },
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en-GB"
       data-theme={DEFAULT_THEME}
-      className={`${sans.variable} ${serif.variable} ${mono.variable}`}
+      className={`${sans.variable} ${serif.variable} ${mono.variable} ${logotype.variable}`}
       suppressHydrationWarning
     >
       <head>

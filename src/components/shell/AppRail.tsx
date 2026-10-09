@@ -1,9 +1,10 @@
 "use client";
 
 import { Menu01Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
-import { Avatar, IconButton, Sidebar, SidebarBrand, SidebarFooter, SidebarItem, SidebarSection, SidebarUser, Tooltip } from "@puckoops/camelot";
+import { Avatar, IconButton, Sidebar, SidebarFooter, SidebarItem, SidebarSection, SidebarUser, Tooltip } from "@puckoops/camelot";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { OrblodeLogo } from "@/components/brand/OrblodeLogo";
 import { useAuthClient, useAuthUser } from "@/hooks/useAuth";
 import styles from "./shell.module.css";
 import { NAV } from "./nav";
@@ -19,12 +20,20 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
   if (expanded) {
     return (
       <Sidebar aria-label="Primary">
-        <SidebarBrand
-          name="ORBLODE"
-          as={Link}
-          href="/globe"
-          end={<IconButton icon={SidebarLeftIcon} aria-label="Collapse navigation" aria-expanded variant="bare" size="sm" onClick={onToggle} />}
-        />
+        <div className={styles.brandRow}>
+          <Link href="/globe" className={styles.brand}>
+            <OrblodeLogo size={26} wordmarkClassName={styles.brandName} />
+          </Link>
+          <IconButton
+            icon={SidebarLeftIcon}
+            aria-label="Collapse navigation"
+            aria-expanded
+            variant="bare"
+            size="sm"
+            onClick={onToggle}
+            className={styles.brandEnd}
+          />
+        </div>
         <SidebarSection>
           {NAV.map((item) => (
             <SidebarItem key={item.href} as={Link} href={item.href} icon={item.icon} current={item.isActive(pathname)}>

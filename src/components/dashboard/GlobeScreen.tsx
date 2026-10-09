@@ -1,14 +1,14 @@
 "use client";
 
-import { Skeleton } from "@puckoops/camelot";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import { Loader } from "@/components/brand/Loader";
 import { useCesiumReady } from "@/hooks/useCesiumReady";
 import { listProjects, type Project } from "@/lib/api/userSvc";
 import { ActiveSitesPanel } from "./ActiveSitesPanel";
 import { SiteDetailPanel } from "./SiteDetailPanel";
 
-const CanvasPlaceholder = () => <Skeleton width="100%" height="100%" radius="0" />;
+const CanvasPlaceholder = () => <Loader variant="fill" label="Loading the globe" />;
 
 const DashboardGlobe = dynamic(() => import("./DashboardGlobe").then((mod) => mod.DashboardGlobe), {
   ssr: false,
