@@ -42,11 +42,22 @@ test("every kind is null or a member of the asset-svc enum", () => {
   }
 });
 
-test("no template pre-fills a base surface without an instant worker", () => {
+test("no template pre-fills a base surface orblode-svc does not compute", () => {
+  const computed = new Set([undefined, "smart_base", "reference_level", "previous_survey", "survey_terrain", "design"]);
   for (const t of MEASUREMENT_TEMPLATES) {
     const from = (t.params?.from as { type?: string } | undefined)?.type;
-    assert.ok(from === undefined || from === "smart_base" || from === "reference_level", `${t.id} uses ${from}`);
+    assert.ok(computed.has(from), `${t.id} uses ${from}`);
   }
+});
+
+test("cut_fill template carries explicit from/to params (§4.3)", () => {
+  const t = getTemplate("poly.cutfill-previous");
+  assert.ok(t);
+  assert.equal(t.kind, "cut_fill");
+  assert.deepEqual(t.params, {
+    from: { type: "previous_survey", surface: "dsm" },
+    to: { type: "survey_terrain", surface: "dsm" },
+  });
 });
 
 test("smart-base volume omits params (server §3.1 default applies)", () => {

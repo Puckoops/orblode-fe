@@ -13,8 +13,16 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft01Icon, Download01Icon, Layers01Icon } from "@hugeicons/core-free-icons";
-import { Alert, Button, EmptyState, IconButton, Tooltip } from "@puckoops/camelot";
+import {
+  ArrowLeft01Icon,
+  ChartLineData01Icon,
+  Copy01Icon,
+  Download01Icon,
+  Layers01Icon,
+  MoreHorizontalIcon,
+  PlayIcon,
+} from "@hugeicons/core-free-icons";
+import { Alert, Button, EmptyState, IconButton, Menu, MenuItem, MenuSeparator, Tooltip } from "@puckoops/camelot";
 
 import { Loader } from "@/components/brand/Loader";
 import { useViewerStore } from "@/lib/viewer/state/store";
@@ -29,6 +37,7 @@ import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import { LayerPanel } from "@/components/viewer/LayerPanel";
 import { SurveyList } from "@/components/viewer/SurveyList";
 import { WorkspaceTree } from "@/components/viewer/shell/WorkspaceTree";
+import { DesignsPanel } from "@/components/viewer/shell/DesignsPanel";
 import type { ModuleKey } from "@/lib/viewer/state/store";
 
 const MODULE_TITLES: Record<Exclude<ModuleKey, "measure" | "survey">, string> = {
@@ -65,6 +74,22 @@ export function TreePanel() {
         <Tooltip content="Export measurements">
           <IconButton icon={Download01Icon} aria-label="Export measurements" variant="bare" size="sm" onClick={actions.exportMeasurements} />
         </Tooltip>
+        <Menu align="end" minWidth={248} trigger={<IconButton icon={MoreHorizontalIcon} aria-label="Stockpile actions" variant="bare" size="sm" />}>
+          <MenuItem icon={PlayIcon} onSelect={() => void actions.computeAllStockpiles()}>
+            Compute all stockpiles
+          </MenuItem>
+          <MenuItem icon={Copy01Icon} onSelect={() => void actions.copyStockpilesForward()}>
+            Copy stockpiles from previous survey
+          </MenuItem>
+          {manifest && (
+            <>
+              <MenuSeparator />
+              <MenuItem icon={ChartLineData01Icon} asChild>
+                <Link href={`/reports?site=${encodeURIComponent(manifest.survey.project_id)}`}>Stockpile reports</Link>
+              </MenuItem>
+            </>
+          )}
+        </Menu>
         <Tooltip content="Collapse panel">
           <IconButton icon={ArrowLeft01Icon} aria-label="Collapse panel" variant="bare" size="sm" onClick={() => setTreePanelOpen(false)} />
         </Tooltip>
@@ -78,6 +103,8 @@ export function TreePanel() {
         ) : activeModule === "measure" ? (
           // Renders without a manifest: an empty tree is the valid no-data state.
           <WorkspaceTree />
+        ) : activeModule === "designs" ? (
+          manifest ? <DesignsPanel projectId={manifest.survey.project_id} /> : <Loader label="Loading designs" />
         ) : activeModule === "survey" ? (
           manifest ? (
             <SurveyTree projectId={manifest.survey.project_id} surveyId={surveyId} />

@@ -63,6 +63,14 @@ export interface Selection {
   feature?: Record<string, unknown>;
 }
 
+export interface HeatmapState {
+  measurementId: string;
+  status: "loading" | "ready" | "error";
+  scaleM?: number;
+  deadbandM?: number;
+  error?: string;
+}
+
 export interface ViewSettings {
   baseMap: "satellite" | "streets" | "dark";
   colorMap: string;
@@ -80,6 +88,10 @@ export interface ViewSettings {
   calcType: string | null;
   refMode: "custom" | "lowest_vertex" | "highest_vertex";
   refElevation: number | null;
+  surface: "dsm" | "dtm";
+  baseSurveyId: string | null;
+  baseDesignId: string | null;
+  materialId: string | null;
 }
 
 /** Field-wise URL restore payload (§5.6). The 1.4 codec parses the query
@@ -175,6 +187,9 @@ export interface ViewerShellData {
    * rest of the store, so a survey switch resets compare to off.
    */
   compareActive: boolean;
+  /** The selected measurement's cut/fill heatmap: asked for by the inspector's
+   * toggle, drawn and reported on by useMeasurementHeatmap. Transient. */
+  heatmap: HeatmapState | null;
   compareA: string | null;
   compareB: string | null;
   splitPosition: number;
@@ -239,6 +254,7 @@ export interface ViewerShellActions {
   setCompareB: (id: string | null) => void;
   /** Divider x-position, 0..1 (the caller clamps to a visible band). */
   setSplitPosition: (pos: number) => void;
+  setHeatmap: (heatmap: HeatmapState | null) => void;
 
   /** Camera projection (FR-06) — see `projection`. */
   setProjection: (mode: "perspective" | "orthographic") => void;
@@ -327,6 +343,7 @@ function defaultData(surveyId: string): ViewerShellData {
     estimates: {},
 
     compareActive: false,
+    heatmap: null,
     compareA: null,
     compareB: null,
     splitPosition: 0.5,
@@ -351,6 +368,10 @@ function defaultData(surveyId: string): ViewerShellData {
       calcType: null,
       refMode: "lowest_vertex",
       refElevation: null,
+      surface: "dsm",
+      baseSurveyId: null,
+      baseDesignId: null,
+      materialId: null,
     },
   };
 }
@@ -492,6 +513,7 @@ export function createViewerStore(
     setCompareA: (id) => set({ compareA: id }),
     setCompareB: (id) => set({ compareB: id }),
     setSplitPosition: (pos) => set({ splitPosition: pos }),
+    setHeatmap: (heatmap) => set({ heatmap }),
     setProjection: (mode) => set({ projection: mode }),
     setObliquePitch: (pitchDeg) => set({ obliquePitch: pitchDeg }),
 

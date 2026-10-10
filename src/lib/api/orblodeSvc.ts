@@ -166,6 +166,18 @@ export interface CreateDesignRequest {
   metadata?: Record<string, unknown>;
 }
 
+/** The design rasterized onto the survey grid by orblode-workers; a cut/fill
+ * can be measured against it once `status` is "ready". */
+export interface DesignSurface {
+  status: "processing" | "ready" | "failed";
+  error?: string;
+  method?: string; // "tin" | "linear_from_vertices"
+  triangle_count?: number;
+  z_min?: number;
+  z_max?: number;
+  updated_at?: EpochMs;
+}
+
 export interface DesignRecord {
   id: string;
   project_id: string;
@@ -174,6 +186,7 @@ export interface DesignRecord {
   file_url?: string;
   source_crs?: string;
   status?: string;
+  surface?: DesignSurface;
   created_at?: EpochMs;
   updated_at?: EpochMs;
   created_by?: Author;
@@ -182,6 +195,11 @@ export interface DesignRecord {
 
 export function createDesign(req: CreateDesignRequest): Promise<DesignRecord> {
   return apiFetch<DesignRecord>(BASE, "/designs", { method: "POST", body: req });
+}
+
+/** Queues the design's surface again (POST /designs/:id/process). */
+export function processDesign(designId: string): Promise<DesignRecord> {
+  return apiFetch<DesignRecord>(BASE, `/designs/${designId}/process`, { method: "POST", body: {} });
 }
 
 export async function listDesigns(projectId: string): Promise<{ designs: DesignRecord[] }> {
@@ -342,8 +360,12 @@ export interface Measurement {
   /** Per-calc-type memory: kind → that type's last SUCCESSFUL v1 doc. The type
    * dropdown is a view switch over this map; compute is explicit Run/Re-run. */
   results?: Record<string, MeasurementResultDoc>;
+  /** The stockpile's pile across surveys; `manual` when linked by hand, which matching never changes. */
+  pile_id?: string;
+  pile_link?: "auto" | "manual";
   created_at: EpochMs;
   updated_at: EpochMs;
+  computed_at?: EpochMs;
   created_by?: Author;
   edited_by?: Author;
 }
@@ -528,6 +550,21 @@ export interface EstimateResult {
   provenance: { engine: string; query_ms: number; tiles_scanned: number };
 }
 
+/** A volume measurement's cut/fill drawn by orblode-svc (GET /heatmap) from its
+ * current params: a PNG data URL covering `bounds` (west, south, east, north in
+ * WGS84), red at −scale_m (cut) through transparent within ±deadband_m to blue
+ * at +scale_m (fill). */
+export interface MeasurementHeatmap {
+  bounds: [number, number, number, number];
+  scale_m: number;
+  deadband_m: number;
+  image: string;
+}
+
+export function getMeasurementHeatmap(surveyId: string, measurementId: string): Promise<MeasurementHeatmap> {
+  return apiFetch<MeasurementHeatmap>(BASE, `/surveys/${surveyId}/measurements/${measurementId}/heatmap`);
+}
+
 /** Synchronous instant estimate (POST /estimate). Resolves in tens of ms for a
  * panel-scale boundary. A method no worker runs answers 422 with the reason;
  * an unregistered surface, timeout or busy tier answers 409/429/503/504. */
@@ -540,4 +577,221 @@ export function estimateMeasurement(
     `/surveys/${surveyId}/measurements/${measurementId}/estimate`,
     { method: "POST", body: {} }
   );
+}
+
+export interface Material {
+  id: string;
+  project_id: string;
+  name: string;
+  density_t_m3: number;
+  default_cut_factor: number;
+  default_fill_factor: number;
+  value_per_t: number;
+}
+
+export interface MaterialInput {
+  name: string;
+  density_t_m3: number;
+  default_cut_factor?: number;
+  default_fill_factor?: number;
+  value_per_t: number;
+}
+
+export async function listMaterials(projectId: string): Promise<Material[]> {
+  return listAll<Material>(`/materials?project_id=${encodeURIComponent(projectId)}`, "materials");
+}
+
+export function createMaterial(projectId: string, input: MaterialInput): Promise<Material> {
+  return apiFetch<Material>(BASE, "/materials", { method: "POST", body: { project_id: projectId, ...input } });
+}
+
+export function updateMaterial(materialId: string, input: Partial<MaterialInput>): Promise<Material> {
+  return apiFetch<Material>(BASE, `/materials/${materialId}`, { method: "PUT", body: input });
+}
+
+export async function deleteMaterial(materialId: string): Promise<void> {
+  await apiFetch<null>(BASE, `/materials/${materialId}`, { method: "DELETE" });
+}
+
+/** Links a stockpile by hand to one of the previous survey's piles; `""` makes it a pile of its own. */
+export function linkPile(surveyId: string, measurementId: string, pileId: string): Promise<Measurement> {
+  return apiFetch<Measurement>(BASE, `/surveys/${surveyId}/measurements/${measurementId}/pile`, {
+    method: "PUT",
+    body: { pile_id: pileId },
+  });
+}
+
+export function copyStockpilesForward(surveyId: string): Promise<Measurement[]> {
+  return apiFetch<Measurement[]>(BASE, `/surveys/${surveyId}/stockpiles/copy-forward`, { method: "POST" });
+}
+
+export interface ComputeStockpilesResult {
+  queued: string[];
+  current: number;
+  skipped: { measurement_id: string; name: string; reason: string }[];
+}
+
+/** Queues every stockpile of the survey without a current result to the background compute. */
+export function computeStockpiles(surveyId: string): Promise<ComputeStockpilesResult> {
+  return apiFetch<ComputeStockpilesResult>(BASE, `/surveys/${surveyId}/stockpiles/compute`, { method: "POST" });
+}
+
+export interface SurveyRef {
+  id: string;
+  date: string;
+}
+
+export type PileState = "computed" | "stale" | "computing" | "failed" | "not_computed";
+
+export interface InventoryPile {
+  measurement_id: string;
+  name: string;
+  pile_id: string;
+  pile_link?: "auto" | "manual";
+  material_id?: string;
+  material_name?: string;
+  state: PileState;
+  volume_m3?: number;
+  adjusted_volume_m3?: number;
+  tonnage_t?: number;
+  value?: number;
+  previous_volume_m3?: number;
+  previous_tonnage_t?: number;
+  delta_volume_m3?: number;
+  delta_tonnage_t?: number;
+}
+
+export interface MaterialTotal {
+  material_id: string;
+  name: string;
+  piles: number;
+  volume_m3: number;
+  tonnage_t: number;
+  value: number;
+  previous_tonnage_t?: number;
+  delta_tonnage_t?: number;
+}
+
+export interface InventoryReport {
+  survey: SurveyRef;
+  previous_survey?: SurveyRef;
+  piles: InventoryPile[];
+  removed_piles: InventoryPile[];
+  previous_piles: { pile_id: string; measurement_id: string; name: string }[];
+  materials: MaterialTotal[];
+  totals: {
+    piles: number;
+    computed: number;
+    volume_m3: number;
+    tonnage_t: number;
+    value: number;
+    previous_volume_m3?: number;
+    previous_tonnage_t?: number;
+    delta_volume_m3?: number;
+    delta_tonnage_t?: number;
+  };
+}
+
+export function getInventory(surveyId: string): Promise<InventoryReport> {
+  return apiFetch<InventoryReport>(BASE, `/reports/inventory?survey_id=${encodeURIComponent(surveyId)}`);
+}
+
+export interface VarianceThresholds {
+  green_pct: number;
+  amber_pct: number;
+}
+
+export interface ReconciliationRow {
+  material_id: string;
+  name: string;
+  opening_t: number;
+  mined_t: number;
+  dispatched_t: number;
+  mass_balance_t: number;
+  survey_closing_t: number;
+  variance_t: number;
+  variance_pct?: number;
+  status: "green" | "amber" | "red" | "unknown";
+}
+
+export interface ReconciliationReport {
+  project_id: string;
+  from: SurveyRef;
+  to: SurveyRef;
+  thresholds: VarianceThresholds;
+  materials: ReconciliationRow[];
+  overall: ReconciliationRow;
+  uncomputed: number;
+}
+
+export function getReconciliation(
+  projectId: string,
+  fromSurveyId: string,
+  toSurveyId: string,
+  thresholds?: VarianceThresholds
+): Promise<ReconciliationReport> {
+  const q = new URLSearchParams({ project_id: projectId, from_survey: fromSurveyId, to_survey: toSurveyId });
+  if (thresholds) {
+    q.set("green_pct", String(thresholds.green_pct));
+    q.set("amber_pct", String(thresholds.amber_pct));
+  }
+  return apiFetch<ReconciliationReport>(BASE, `/reports/reconciliation?${q}`);
+}
+
+export interface MaterialTrend {
+  material_id: string;
+  name: string;
+  points: { survey_id: string; date: string; tonnage_t: number; volume_m3: number }[];
+  slope_t_per_day?: number;
+  forecast: { date: string; tonnage_t: number; low_t?: number; high_t?: number }[];
+  depletion_date?: string;
+  anomalies: { survey_id: string; date: string; delta_t: number; z: number }[];
+}
+
+export interface TrendsReport {
+  project_id: string;
+  surveys: SurveyRef[];
+  materials: MaterialTrend[];
+  gaps: { from: SurveyRef; to: SurveyRef; days: number }[];
+}
+
+export function getTrends(projectId: string): Promise<TrendsReport> {
+  return apiFetch<TrendsReport>(BASE, `/reports/trends?project_id=${encodeURIComponent(projectId)}`);
+}
+
+export interface ProductionRecord {
+  id: string;
+  material_id: string;
+  period_start: string;
+  period_end: string;
+  mined_t: number;
+  dispatched_t: number;
+}
+
+export interface ProductionLine {
+  material_id: string;
+  mined_t: number;
+  dispatched_t: number;
+}
+
+export async function listProductionRecords(projectId: string): Promise<ProductionRecord[]> {
+  const res = await apiFetch<{ records: ProductionRecord[] | null }>(
+    BASE,
+    `/production-records?project_id=${encodeURIComponent(projectId)}`
+  );
+  return res.records ?? [];
+}
+
+/** Replaces exactly this period's records; an empty list clears it. */
+export async function putProductionRecords(
+  projectId: string,
+  periodStart: string,
+  periodEnd: string,
+  records: ProductionLine[]
+): Promise<ProductionRecord[]> {
+  const res = await apiFetch<{ records: ProductionRecord[] | null }>(BASE, "/production-records", {
+    method: "PUT",
+    body: { project_id: projectId, period_start: periodStart, period_end: periodEnd, records },
+  });
+  return res.records ?? [];
 }

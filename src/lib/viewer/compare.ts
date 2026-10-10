@@ -1,8 +1,9 @@
-// Compare Mode helpers (survey-compare swipe) — the pure, Cesium-free glue
-// shared by the two entry points (the bottom-center `SurveyCompare` swipe
-// control and the FloatingToolbar's Compare split-button). Kept in one module
-// so the epoch-sorting and activation-seeding have a single source of truth
-// and can be unit-tested without React.
+// Compare Mode helpers — the pure, Cesium-free glue shared by the two entry
+// points (the bottom-center `SurveyCompare` swipe control and the
+// FloatingToolbar's Compare split-button) plus the comparison card. Kept in one
+// module so the epoch-sorting, activation-seeding and temporal-pair detection
+// have a single source of truth and can be unit-tested without React. The
+// cross-survey SurfaceRef pair itself lives in calc.ts (`crossSurveyRefs`).
 
 import type { Survey } from "@/lib/api/orblodeSvc";
 
@@ -51,4 +52,21 @@ export function nextCompareSeed({
     b: compareB ?? surveyId,
     a: compareA ?? defaultBeforeId(surveys, surveyId),
   };
+}
+
+/** Detects a TEMPORAL compare measurement: params whose `from` and `to` both
+ * name explicit — and different — surveys via `survey_terrain` refs (what a
+ * draw-to-compare commit writes, `crossSurveyRefs`). Returns the ordered
+ * before/after survey ids, or null for a single-survey measurement (whose `to`
+ * carries no survey_id). The comparison card keys off this. */
+export function temporalComparePair(
+  params: Record<string, unknown> | null | undefined
+): { aId: string; bId: string } | null {
+  if (!params) return null;
+  const from = params.from as Record<string, unknown> | undefined;
+  const to = params.to as Record<string, unknown> | undefined;
+  const aId = from && from.type === "survey_terrain" && typeof from.survey_id === "string" ? from.survey_id : null;
+  const bId = to && to.type === "survey_terrain" && typeof to.survey_id === "string" ? to.survey_id : null;
+  if (!aId || !bId || aId === bId) return null;
+  return { aId, bId };
 }

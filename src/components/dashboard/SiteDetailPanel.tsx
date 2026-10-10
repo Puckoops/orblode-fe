@@ -6,13 +6,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
 import { getProject, type Project } from "@/lib/api/userSvc";
-import { listSurveys, type Survey } from "@/lib/api/orblodeSvc";
+import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { lifecycleState, surveyState } from "@/lib/status";
 import { formatSurveyDate } from "@/lib/utils";
 
 export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const [projectData, setProjectData] = useState<Project | null>(null);
   const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [stockpiles, setStockpiles] = useState<{ surveyId: string; count: number } | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -36,9 +37,22 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
     };
   }, [projectId]);
 
-  if (!projectData) return null;
-
   const latestSurveyId = surveys[0]?.id;
+
+  useEffect(() => {
+    if (!latestSurveyId) return;
+    let cancelled = false;
+    getInventory(latestSurveyId)
+      .then((inv) => {
+        if (!cancelled) setStockpiles({ surveyId: latestSurveyId, count: inv.totals.piles });
+      })
+      .catch((err) => console.error("Failed to fetch the inventory:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [latestSurveyId]);
+
+  if (!projectData) return null;
 
   return (
     <aside
@@ -63,7 +77,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
 
         <dl className="mb-8 grid grid-cols-3 gap-2">
           <Stat value={String(surveys.length)} label="surveys" />
-          <Stat value="-" label="stockpiles" />
+          <Stat value={stockpiles?.surveyId === latestSurveyId ? String(stockpiles.count) : "-"} label="stockpiles" />
           <Stat value="-" label="open issues" />
         </dl>
 
@@ -109,6 +123,9 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
       </div>
 
       <div className="flex items-center gap-4 border-t border-hairline p-6">
+        <Button asChild variant="ghost">
+          <Link href={`/reports?site=${encodeURIComponent(projectId)}`}>Reports</Link>
+        </Button>
         {latestSurveyId ? (
           <Button asChild variant="primary" className="flex-1">
             <Link href={`/viewer/${latestSurveyId}`}>Open viewer</Link>

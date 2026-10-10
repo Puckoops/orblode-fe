@@ -22,11 +22,14 @@ import {
   Checkbox,
   Chip,
   Field,
+  HelperText,
   Icon,
   IconButton,
   Input,
   Select,
+  Skeleton,
   Slider,
+  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -41,6 +44,9 @@ import type { EstimateResult, Measurement } from "@/lib/api/orblodeSvc";
 import type { PanelMeasurement } from "@/lib/viewer/sampleData";
 import { geometryLocalStats } from "@/lib/viewer/measure";
 import { CalcConfig } from "@/components/viewer/CalcConfig";
+import { ComparisonCard } from "@/components/viewer/shell/ComparisonCard";
+import { PileLinkField } from "@/components/viewer/shell/PileLinkField";
+import { temporalComparePair } from "@/lib/viewer/compare";
 import {
   CalcParamsError,
   DEFAULT_METHOD_STATE,
@@ -50,18 +56,20 @@ import {
   isComputeStuck,
   isVolumeKind,
   methodFromParams,
-  LEAN_RENDER,
   metricsOf,
   provenanceOf,
   resultErrorOf,
   resultForKind,
-  surfaceRefsForMethod,
+  hasDesignBase,
+  volumeParams,
   type CalcMethodState,
 } from "@/lib/viewer/calc";
 import { useComputeClock } from "@/components/viewer/shell/hooks/useComputeClock";
 import { UNIT_SYSTEMS, convertForDisplay, unitSystemOf, type UnitSystem } from "@/lib/viewer/units";
 import { STYLE_SWATCHES, styleOf, type MeasurementStyle } from "@/lib/viewer/style";
 import { formatTimestamp } from "@/lib/time";
+import { HEATMAP_RAMP } from "@/lib/viewer/sceneStyle";
+import type { HeatmapState } from "@/lib/viewer/state/store";
 
 // Right contextual inspector — the DESIGN panel (SP-12 mock): header title with
 // pencil-rename; a type dropdown (re-template, teardown §2 "type is mutable
@@ -77,6 +85,13 @@ interface FeatureInspectorProps {
   measurement: Measurement | PanelMeasurement | null;
   /** Property bag of a non-measurement feature picked on the map. */
   feature?: Record<string, unknown> | null;
+  /** The survey's project and the survey itself, for the survey picker and the
+   * comparison card. */
+  projectId?: string | null;
+  surveyId?: string;
+  /** The cut/fill heatmap of this measurement, when it is on. */
+  heatmap?: HeatmapState | null;
+  onToggleHeatmap?: (on: boolean) => void;
   onClose: () => void;
   /** Optional collapse control rendered next to the close button. */
   onCollapse?: () => void;
@@ -90,6 +105,8 @@ interface FeatureInspectorProps {
     body: { name?: string; kind?: string; params?: Record<string, unknown>; draft?: boolean }
   ) => Promise<void>;
   onDelete?: (id: string) => void;
+  /** Link a stockpile by hand to a pile of the previous survey; "" for a new pile. */
+  onLinkPile?: (id: string, pileId: string) => Promise<void>;
   onCompute?: (
     id: string,
     override?: Record<string, unknown>,
@@ -144,8 +161,8 @@ const METRIC_LABELS: [key: string, label: string][] = [
 // numbers for that kind. For a stockpile the cut/fill/net/moved keys just
 // restate Volume, so they are deliberately omitted here.
 const METRICS_BY_KIND: Record<string, [key: string, label: string][]> = {
-  volume: [["volume_m3", "Volume"], ["fill_tonnage_t", "Tonnage"], ["area_m2", "Area"]],
-  stockpile: [["volume_m3", "Volume"], ["fill_tonnage_t", "Tonnage"], ["area_m2", "Area"]],
+  volume: [["volume_m3", "Volume"], ["tonnage_t", "Tonnage"], ["value", "Value"], ["area_m2", "Area"]],
+  stockpile: [["volume_m3", "Volume"], ["tonnage_t", "Tonnage"], ["value", "Value"], ["area_m2", "Area"]],
   cut_fill: [
     ["cut_volume_m3", "Cut"],
     ["fill_volume_m3", "Fill"],
@@ -153,6 +170,19 @@ const METRICS_BY_KIND: Record<string, [key: string, label: string][]> = {
     ["area_m2", "Area"],
   ],
 };
+
+// A cut/fill against a design, relabelled for earthworks. orblode-svc takes
+// the difference as surface − base, so with the design as the base its fill is
+// the material standing ABOVE the design (what you cut to reach it) and its cut
+// is the void BELOW it (what you fill). Only the labels move; the numbers are
+// the engine's.
+const METRICS_CUT_FILL_DESIGN: [key: string, label: string][] = [
+  ["fill_volume_m3", "Cut to design"],
+  ["cut_volume_m3", "Fill to design"],
+  // net = engine fill − engine cut = displayed cut − displayed fill.
+  ["net_change_m3", "Net (cut − fill)"],
+  ["area_m2", "Area"],
+];
 
 // Internal / debug metrics never shown in the grid (they are provenance, not
 // results — sample_count, and the material-adjusted splits which surface as
@@ -181,11 +211,13 @@ function prettifyKey(key: string): string {
 
 /** Metric map → display rows, converted into the measurement's unit system.
  * A `kind` with a curated grid shows ONLY that grid; other kinds fall back to
- * the generic label table plus any remaining (non-internal) keys. */
+ * the generic label table plus any remaining (non-internal) keys. `designBase`
+ * puts a cut/fill on the earthworks-named design grid. */
 function resultMetrics(
   result: Record<string, number>,
   system: UnitSystem,
-  kind?: string
+  kind?: string,
+  designBase = false
 ): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = [];
   const seen = new Set<string>();
@@ -193,7 +225,7 @@ function resultMetrics(
     const c = convertForDisplay(key, value, system);
     rows.push({ label, value: `${formatMetric(c.value)}${c.unit ? ` ${c.unit}` : ""}` });
   };
-  const curated = kind ? METRICS_BY_KIND[kind] : undefined;
+  const curated = designBase && kind === "cut_fill" ? METRICS_CUT_FILL_DESIGN : kind ? METRICS_BY_KIND[kind] : undefined;
   for (const [key, label] of curated ?? METRIC_LABELS) {
     const value = result[key];
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -374,15 +406,50 @@ function PickedFeatureView({
   );
 }
 
+/** The heatmap's colour scale, matching orblode-svc's ramp: red below the base
+ * (cut), blue above it (fill), clear within the deadband. */
+function HeatmapLegend({
+  scaleM,
+  deadbandM,
+  system,
+  designBase,
+}: {
+  scaleM: number;
+  deadbandM: number;
+  system: UnitSystem;
+  designBase: boolean;
+}) {
+  const fmt = (m: number) => {
+    const c = convertForDisplay("scale_m", m, system);
+    return `${formatMetric(c.value)}${c.unit ? ` ${c.unit}` : ""}`;
+  };
+  const gradient = `linear-gradient(to right, ${HEATMAP_RAMP.cut}, ${HEATMAP_RAMP.cutLight} 46%, transparent 50%, ${HEATMAP_RAMP.fillLight} 54%, ${HEATMAP_RAMP.fill})`;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="h-2 rounded-xs border border-hairline" style={{ background: gradient }} />
+      <div className="caption flex justify-between text-ink-3">
+        <span>{designBase ? `${fmt(scaleM)} below design` : `−${fmt(scaleM)} cut`}</span>
+        <span>{designBase ? `${fmt(scaleM)} above design` : `+${fmt(scaleM)} fill`}</span>
+      </div>
+      {deadbandM > 0 && <p className="caption text-ink-4">Changes under {fmt(deadbandM)} are left clear.</p>}
+    </div>
+  );
+}
+
 export function FeatureInspector({
   measurement,
   feature,
+  projectId = null,
+  surveyId = "",
+  heatmap = null,
+  onToggleHeatmap,
   onClose,
   onCollapse,
   collapsed = false,
   onSave,
   onPatch,
   onDelete,
+  onLinkPile,
   onCompute,
   onEditGeometry,
   onCommitGeometry,
@@ -438,6 +505,9 @@ export function FeatureInspector({
   const demo = (measurement as PanelMeasurement).demo === true;
   const isDraft = !demo && measurement.draft === true;
   const isVolume = isVolumeKind(measurement.kind);
+  // A temporal compare (params.from/to name two different surveys) gets the
+  // A→B comparison card in the Properties tab.
+  const comparePair = demo ? null : temporalComparePair(measurement.params);
   const canPatch = !demo && !!onPatch;
   // Only the volume family is computed (instant methods); every other kind is
   // drawn, saved and listed without a Run row rather than offering a 422.
@@ -484,6 +554,7 @@ export function FeatureInspector({
     !demo && !doc && !showingEstimate && measurement.geometry
       ? geometryLocalStats(measurement.geometry)
       : null;
+  const designBase = !demo && hasDesignBase(measurement.params);
   const metrics = demo
     ? [
         { label: "Volume", value: "12,840 m³" },
@@ -491,7 +562,7 @@ export function FeatureInspector({
         { label: "Area", value: "1,420 m²" },
         { label: "Perimeter", value: "142 m" },
       ]
-    : resultMetrics(localStats ?? estimateMetricMap ?? resultMetricMap, unitSystem, measurement.kind);
+    : resultMetrics(localStats ?? estimateMetricMap ?? resultMetricMap, unitSystem, measurement.kind, designBase);
 
   const computeError = showFailure ? resultErrorOf(measurement.result) : null;
   const receipt = demo ? null : provenanceOf(doc);
@@ -526,11 +597,7 @@ export function FeatureInspector({
       // Re-templating snaps the base method onto the new kind's list.
       const cfg = coerceMethodForKind(calcCfg ?? DEFAULT_METHOD_STATE, kind);
       try {
-        const refs = surfaceRefsForMethod(cfg);
-        params.volume_method = cfg.method;
-        params.from = refs.from;
-        params.to = refs.to;
-        params.render = LEAN_RENDER;
+        Object.assign(params, volumeParams(cfg));
       } catch (err) {
         if (err instanceof CalcParamsError) {
           toast.warning(err.message);
@@ -569,19 +636,7 @@ export function FeatureInspector({
     // persists the merge, so the row states what ran (§6.1).
     if (isVolume && calcCfg) {
       try {
-        const refs = surfaceRefsForMethod(calcCfg);
-        onCompute(
-          measurement.id,
-          {
-            volume_method: calcCfg.method,
-            from: refs.from,
-            to: refs.to,
-            // Lean run: skip the gdal2tiles pyramid — the panel needs the
-            // number + receipt; heatmap tiles are the result-views phase.
-            render: LEAN_RENDER,
-          },
-          opts
-        );
+        onCompute(measurement.id, volumeParams(calcCfg), opts);
       } catch (err) {
         if (err instanceof CalcParamsError) toast.warning(err.message);
         else throw err;
@@ -658,6 +713,8 @@ export function FeatureInspector({
                 {measurement.folder && <Badge variant="tag">{measurement.folder}</Badge>}
               </div>
 
+              {comparePair && <ComparisonCard measurement={measurement} projectId={projectId} pair={comparePair} />}
+
               {/* Failure reason — the LATEST run's error, only while the
                   selected kind has no successful doc of its own. */}
               {showFailure && (
@@ -695,6 +752,13 @@ export function FeatureInspector({
                 </p>
               )}
 
+              {designBase && measurement.kind === "cut_fill" && !localStats && metrics.length > 0 && (
+                <p className="caption -mt-1 text-ink-4">
+                  Measured against the design: <span className="text-ink-2">Cut</span> is material above the design (to remove),{" "}
+                  <span className="text-ink-2">Fill</span> is volume still below it (to add).
+                </p>
+              )}
+
               {/* Metadata block (design): Material / Density / Base method /
                   Calculated. Base method discloses the shared CalcConfig. */}
               <div className="caption flex flex-col gap-1 text-ink-3">
@@ -728,10 +792,16 @@ export function FeatureInspector({
                   <CalcConfig
                     idPrefix="inspect"
                     kind={measurement.kind}
+                    projectId={projectId}
+                    surveyId={surveyId}
                     value={calcCfg}
                     onChange={(patch) => setCalcCfg((c) => ({ ...(c ?? DEFAULT_METHOD_STATE), ...patch }))}
                   />
                 </div>
+              )}
+
+              {onLinkPile && !demo && measurement.kind === "stockpile" && !isDraft && measurement.geometry && (
+                <PileLinkField surveyId={surveyId} measurement={measurement} onLink={onLinkPile} />
               )}
 
               {/* Action rows (design): Receipt · Run · Save (drafts) · Delete. */}
@@ -767,6 +837,16 @@ export function FeatureInspector({
                           {JSON.stringify(receipt.effective, null, 2)}
                         </pre>
                       </>
+                    )}
+                  </div>
+                )}
+                {isVolume && !demo && !isDraft && onToggleHeatmap && (
+                  <div className="flex flex-col gap-2 rounded-md border border-hairline bg-surface-2 p-2.5">
+                    <Switch size="sm" label="Cut / fill heatmap" checked={!!heatmap} onCheckedChange={onToggleHeatmap} />
+                    {heatmap?.status === "loading" && <Skeleton width="100%" height={28} />}
+                    {heatmap?.status === "error" && <HelperText tone="error">{heatmap.error}</HelperText>}
+                    {heatmap?.status === "ready" && heatmap.scaleM !== undefined && (
+                      <HeatmapLegend scaleM={heatmap.scaleM} deadbandM={heatmap.deadbandM ?? 0} system={unitSystem} designBase={designBase} />
                     )}
                   </div>
                 )}

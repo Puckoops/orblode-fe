@@ -11,6 +11,7 @@ import {
   BanIcon,
   BoxIcon,
   HexagonIcon,
+  Layers02Icon,
   MapPinIcon,
   PyramidIcon,
   Route01Icon,
@@ -113,6 +114,19 @@ export const MEASUREMENT_TEMPLATES: readonly MeasurementTemplate[] = [
     icon: PyramidIcon,
     kind: "stockpile",
     folder: "Stockpiles",
+  },
+  {
+    id: "poly.cutfill-previous",
+    primitive: "polygon",
+    label: "Cut / fill vs previous",
+    hint: "Cut and fill against the previous survey",
+    icon: Layers02Icon,
+    kind: "cut_fill",
+    // §3.1 gives cut_fill NO defaults — from/to MUST be explicit (§4.3).
+    params: {
+      from: { type: "previous_survey", surface: "dsm" },
+      to: { type: "survey_terrain", surface: "dsm" },
+    },
   },
   {
     id: "poly.area",

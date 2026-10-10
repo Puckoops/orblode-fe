@@ -6,6 +6,7 @@ import {
   defaultBeforeId,
   nextCompareSeed,
   sortSurveysChronological,
+  temporalComparePair,
 } from "../compare.ts";
 
 // Minimal fixture — the compare helpers only read id + survey_date.
@@ -56,4 +57,29 @@ test("nextCompareSeed preserves an already-picked A/B (idempotent toggle)", () =
     nextCompareSeed({ surveyId: "c", surveys, compareA: "a", compareB: "b" }),
     { a: "a", b: "b" }
   );
+});
+
+test("temporalComparePair detects a two-survey diff and orders A→B", () => {
+  const params = {
+    from: { type: "survey_terrain", survey_id: "a-1", surface: "dsm" },
+    to: { type: "survey_terrain", survey_id: "b-2", surface: "dsm" },
+  };
+  assert.deepEqual(temporalComparePair(params), { aId: "a-1", bId: "b-2" });
+});
+
+test("temporalComparePair rejects single-survey and same-survey params", () => {
+  assert.equal(temporalComparePair({ from: { type: "smart_base" }, to: { type: "survey_terrain", surface: "dsm" } }), null);
+  assert.equal(
+    temporalComparePair({ from: { type: "previous_survey", surface: "dsm" }, to: { type: "survey_terrain", surface: "dsm" } }),
+    null
+  );
+  assert.equal(
+    temporalComparePair({
+      from: { type: "survey_terrain", survey_id: "x", surface: "dsm" },
+      to: { type: "survey_terrain", survey_id: "x", surface: "dsm" },
+    }),
+    null
+  );
+  assert.equal(temporalComparePair(null), null);
+  assert.equal(temporalComparePair({}), null);
 });

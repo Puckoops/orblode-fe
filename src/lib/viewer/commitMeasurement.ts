@@ -20,10 +20,11 @@ import {
   CalcParamsError,
   LEAN_RENDER,
   coerceMethodForKind,
+  crossSurveyRefs,
   defaultKindFor,
   isVolumeKind,
   kindForCalcType,
-  surfaceRefsForMethod,
+  volumeParams,
 } from "@/lib/viewer/calc";
 import { fromPromise } from "xstate";
 
@@ -83,8 +84,24 @@ export async function commitDraftMeasurement(
     throw new CommitRejected("too few points");
   }
 
-  // Kind: template preset → panel calcType (validated for this geometry) →
-  // primitive default. When EDITING, the row's stored kind always wins.
+  // Compare Mode (draw-to-compare): a polygon created while compare is active
+  // is a cut/fill between epoch A and epoch B inside the boundary. Editing an
+  // existing row keeps its kind and params. With A/B unpicked or identical
+  // there is nothing to diff: warn and commit a normal measurement so the drawn
+  // shape is never lost.
+  const { compareActive, compareA, compareB } = store.getState();
+  const compareDraw = compareActive && mode === "polygon" && !input.measurementId;
+  const compareRefs =
+    compareDraw && compareA && compareB && compareA !== compareB
+      ? crossSurveyRefs(compareA, compareB, store.getState().view.surface)
+      : null;
+  if (compareDraw && !compareRefs) {
+    toast.warning("Pick two different surveys to compare");
+  }
+
+  // Kind: a compare draw is cut_fill; else template preset → panel calcType
+  // (validated for this geometry) → primitive default. When EDITING, the row's
+  // stored kind always wins.
   const kind =
     input.template?.defaultKind ??
     kindForCalcType(store.getState().view.calcType, mode) ??
@@ -92,11 +109,15 @@ export async function commitDraftMeasurement(
   const existing = input.measurementId
     ? store.getState().measurements.find((m) => m.id === input.measurementId)
     : null;
-  const resolvedKind = existing?.kind ?? kind;
+  const resolvedKind = existing?.kind ?? (compareRefs ? "cut_fill" : kind);
 
   const params: Record<string, unknown> = {};
   if (input.template?.drawOpts?.slope) params.slope = true;
-  if (isVolumeKind(resolvedKind)) {
+  if (compareRefs) {
+    params.from = compareRefs.from;
+    params.to = compareRefs.to;
+    params.render = LEAN_RENDER;
+  } else if (isVolumeKind(resolvedKind)) {
     const view = store.getState().view;
     // Coerced onto the kind's method list — what persists always equals what
     // the panel displayed (a stale cut/fill pick never rides along).
@@ -105,15 +126,15 @@ export async function commitDraftMeasurement(
         method: view.volumeMethod,
         refMode: view.refMode,
         refElevation: view.refElevation,
+        surface: view.surface,
+        baseSurveyId: view.baseSurveyId,
+        baseDesignId: view.baseDesignId,
+        materialId: view.materialId,
       },
       resolvedKind
     );
-    params.volume_method = cfg.method;
-    params.render = LEAN_RENDER; // number-only compute; tiles are a later, explicit ask
     try {
-      const refs = surfaceRefsForMethod(cfg);
-      params.from = refs.from;
-      params.to = refs.to;
+      Object.assign(params, volumeParams(cfg));
     } catch (err) {
       if (err instanceof CalcParamsError) {
         // Invalid panel config (e.g. custom RL without a value): keep the draw

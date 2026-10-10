@@ -83,6 +83,10 @@ export function DetailContent({
   const busyIds = useViewerStore((s) => s.busyIds);
   const estimates = useViewerStore((s) => s.estimates);
   const clearEstimate = useViewerStore((s) => s.clearEstimate);
+  const projectId = useViewerStore((s) => s.manifest?.survey.project_id ?? null);
+  const surveyId = useViewerStore((s) => s.surveyId);
+  const heatmap = useViewerStore((s) => s.heatmap);
+  const setHeatmap = useViewerStore((s) => s.setHeatmap);
 
   const actions = useViewerActions();
 
@@ -125,12 +129,17 @@ export function DetailContent({
     <FeatureInspector
       measurement={inspectMeasurement}
       feature={inspectFeature}
+      projectId={projectId}
+      surveyId={surveyId}
+      heatmap={heatmap && heatmap.measurementId === inspectMeasurement?.id ? heatmap : null}
+      onToggleHeatmap={(on) => setHeatmap(on && inspectMeasurement ? { measurementId: inspectMeasurement.id, status: "loading" } : null)}
       onClose={actions.cancelDraw}
       onCollapse={onCollapse}
       collapsed={collapsed}
       onSave={actions.saveMeasurement}
       onPatch={actions.patchMeasurement}
       onDelete={actions.removeMeasurement}
+      onLinkPile={actions.linkPile}
       onCompute={actions.triggerCompute}
       onEditGeometry={actions.editGeometry}
       onCommitGeometry={actions.commitGeometry}

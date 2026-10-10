@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "orblode_session";
-const PROTECTED = ["/globe", "/viewer", "/upload", "/files", "/settings"];
+const PROTECTED = ["/globe", "/viewer", "/upload", "/files", "/reports", "/settings"];
 const SIGNED_OUT_ONLY = ["/sign-in", "/sign-up"];
 const FILES_PREFIX = "/files/";
 // Ranges and conditional GETs keep tile and point-cloud streaming cheap; nothing else of the browser's reaches orblode-svc.
@@ -49,5 +49,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/globe", "/viewer/:path*", "/upload", "/files", "/files/:path*", "/settings", "/sign-in", "/sign-up"],
+  matcher: ["/", "/globe", "/viewer/:path*", "/upload", "/files", "/files/:path*", "/reports", "/settings", "/sign-in", "/sign-up"],
 };

@@ -40,7 +40,7 @@ interface ModuleDef {
 const MODULES: ModuleDef[] = [
   { key: "measure", label: "Measure", icon: RulerIcon, live: true },
   { key: "survey", label: "Survey", icon: Layers01Icon, live: true },
-  { key: "designs", label: "Designs", icon: DraftingCompassIcon, live: false },
+  { key: "designs", label: "Designs", icon: DraftingCompassIcon, live: true },
   { key: "media", label: "Media", icon: Image01Icon, live: false },
   { key: "hydro", label: "Hydro", icon: DropletsIcon, live: false },
   { key: "crew", label: "Crew", icon: UsersIcon, live: false },

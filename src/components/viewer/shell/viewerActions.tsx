@@ -55,6 +55,12 @@ export interface ViewerActions {
     body: { name?: string; folder?: string; kind?: string; params?: Record<string, unknown>; draft?: boolean }
   ) => Promise<void>;
   exportMeasurements: () => void;
+  /** Link a stockpile by hand to a pile of the previous survey ("" for a new pile), then refresh. */
+  linkPile: (id: string, pileId: string) => Promise<void>;
+  /** Queue every stockpile of the survey without a current result, then refresh. */
+  computeAllStockpiles: () => Promise<void>;
+  /** Copy the previous survey's stockpiles into this one, then refresh. */
+  copyStockpilesForward: () => Promise<void>;
 
   // Layer / view interaction (scene side effects live in ViewerCanvas).
   handleToggle: (key: string) => void;

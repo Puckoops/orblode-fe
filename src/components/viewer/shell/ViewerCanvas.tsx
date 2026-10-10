@@ -43,9 +43,11 @@ import { toast } from "@/lib/toast";
 
 import {
   computeMeasurement,
+  computeStockpiles,
+  copyStockpilesForward,
   deleteMeasurement,
-  estimateMeasurement,
   getManifest,
+  linkPile,
   listMeasurements,
   updateMeasurement,
   type ComputeMeasurementBody,
@@ -74,7 +76,6 @@ import { ShortcutSheet } from "@/components/viewer/shell/ShortcutSheet";
 import { CommandPalette } from "@/components/viewer/shell/CommandPalette";
 import { useViewerHotkeys } from "@/components/viewer/shell/hooks/useViewerHotkeys";
 import {
-  isVolumeKind,
   metricsOf,
   resultForKind,
 } from "@/lib/viewer/calc";
@@ -123,6 +124,7 @@ import { useDrawInteraction } from "@/components/viewer/shell/hooks/useDrawInter
 import { useScenePicking } from "@/components/viewer/shell/hooks/useScenePicking";
 import { useLayerLifecycle } from "@/components/viewer/shell/hooks/useLayerLifecycle";
 import { useCompareLayers } from "@/components/viewer/shell/hooks/useCompareLayers";
+import { useMeasurementHeatmap } from "@/components/viewer/shell/hooks/useMeasurementHeatmap";
 
 // Zoom-button step: a fraction of the camera's CURRENT altitude, not a fixed
 // meter amount, so one click feels the same whether orbiting the whole site or
@@ -202,6 +204,9 @@ export function ViewerCanvas() {
   const projection = useViewerStore((s) => s.projection);
   const baseMap = useViewerStore((s) => s.view.baseMap);
   const compareActive = useViewerStore((s) => s.compareActive);
+  const heatmapId = useViewerStore((s) => s.heatmap?.measurementId ?? null);
+  const selectedMeasurementId = useViewerStore((s) => (s.selection?.kind === "measurement" ? s.selection.measurementIds[0] : null));
+  const heatmapStamp = useViewerStore((s) => String(s.measurements.find((m) => m.id === s.heatmap?.measurementId)?.updated_at ?? ""));
   const compareA = useViewerStore((s) => s.compareA);
   const compareB = useViewerStore((s) => s.compareB);
   const splitPosition = useViewerStore((s) => s.splitPosition);
@@ -988,37 +993,16 @@ export function ViewerCanvas() {
     [store, cleanupDraw]
   );
 
-  // Best-effort instant estimate for a volume measurement's CURRENT stored
-  // params (call AFTER any override is persisted). Sets the ephemeral store
-  // estimate on success. A 422 (a method no worker runs) shows the server's
-  // reason; a transient refusal (unregistered surface, timeout, busy) is
-  // dropped quietly. Superseded by the computed doc once it lands.
-  const runEstimate = useCallback(
-    async (id: string) => {
-      const m = store.getState().measurements.find((x) => x.id === id);
-      if (!m || !isVolumeKind(m.kind)) return;
-      try {
-        const est = await estimateMeasurement(surveyId, id);
-        store.getState().setEstimate(id, m.kind, est);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 422) {
-          toast.warning(`Can't estimate: ${stripErrNamespace(err.message)}`);
-        }
-      }
-    },
-    [surveyId, store]
-  );
-
   const triggerCompute = useCallback(
     async (id: string, override?: Record<string, unknown>, opts?: { force?: boolean }) => {
       store.getState().setBusy(id, true);
       try {
-        // computeMeasurement persists the override (§6.1). An instant method
-        // returns status "completed" — computed synchronously in PostGIS and
-        // already persisted, so the refresh below shows the final doc. Anything
-        // else means the server is still working: fire the instant estimate so
-        // a number appears meanwhile. `force` (ORB-39) bypasses the in-flight
-        // 409 so a row stranded in `computing` can be re-run.
+        // computeMeasurement persists the override (§6.1). It returns
+        // "completed" with the result already stored, or "computing" when the
+        // boundary is too large (or too slow) for the request and orblode-svc's
+        // daemon runs it; the 5s poll then picks the result up. No estimate is
+        // fired for that case: the server only queues what an estimate could
+        // not answer in time either.
         const body: ComputeMeasurementBody = {};
         if (override) body.params = override;
         if (opts?.force) body.force = true;
@@ -1027,12 +1011,7 @@ export function ViewerCanvas() {
         if (res.status === "completed") {
           toast.success("Computed");
         } else {
-          void runEstimate(id);
-          toast.info(
-            opts?.force
-              ? "Forced re-run dispatched — result will appear when ready"
-              : "Compute dispatched — result will appear when ready"
-          );
+          toast.info("Large area — computing in the background; the result will appear when it's ready");
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 422) {
@@ -1048,7 +1027,7 @@ export function ViewerCanvas() {
         refreshMeasurements();
       }
     },
-    [surveyId, store, refreshMeasurements, runEstimate]
+    [surveyId, store, refreshMeasurements]
   );
 
   // Re-point the commit actor's deps slot at the current closures after every
@@ -1150,6 +1129,48 @@ export function ViewerCanvas() {
     },
     [surveyId, refreshMeasurements]
   );
+
+  const linkMeasurementPile = useCallback(
+    async (id: string, pileId: string) => {
+      try {
+        await linkPile(surveyId, id, pileId);
+        toast.success(pileId ? "Linked to the previous survey's pile" : "Made a pile of its own");
+        await refreshMeasurements();
+      } catch (err) {
+        if (err instanceof Error) toast.error(err.message);
+      }
+    },
+    [surveyId, refreshMeasurements]
+  );
+
+  const computeAllStockpiles = useCallback(async () => {
+    try {
+      const out = await computeStockpiles(surveyId);
+      toast.success(
+        out.queued.length
+          ? `Computing ${out.queued.length} stockpile${out.queued.length === 1 ? "" : "s"} in the background`
+          : "Every stockpile is already computed"
+      );
+      for (const skipped of out.skipped) toast.info(`${skipped.name}: ${skipped.reason}`);
+      await refreshMeasurements();
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    }
+  }, [surveyId, refreshMeasurements]);
+
+  const copyStockpiles = useCallback(async () => {
+    try {
+      const created = await copyStockpilesForward(surveyId);
+      toast.success(
+        created.length
+          ? `Copied ${created.length} stockpile${created.length === 1 ? "" : "s"}; adjust their outlines, then compute`
+          : "This survey already has every pile of the previous survey"
+      );
+      await refreshMeasurements();
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    }
+  }, [surveyId, refreshMeasurements]);
 
   const removeMeasurement = useCallback(
     async (id: string) => {
@@ -1293,6 +1314,15 @@ export function ViewerCanvas() {
     viewerRef,
     handlesRef,
   });
+  useMeasurementHeatmap({
+    viewerReady,
+    viewerRef,
+    store,
+    surveyId,
+    measurementId: heatmapId,
+    selectedMeasurementId,
+    stamp: heatmapStamp,
+  });
   const actions = useMemo<ViewerActions>(
     () => ({
       startProbe,
@@ -1308,6 +1338,9 @@ export function ViewerCanvas() {
       saveMeasurement,
       patchMeasurement,
       exportMeasurements,
+      linkPile: linkMeasurementPile,
+      computeAllStockpiles,
+      copyStockpilesForward: copyStockpiles,
       handleToggle,
       handleOpacity,
       handleToggleDesign,
@@ -1335,6 +1368,9 @@ export function ViewerCanvas() {
       saveMeasurement,
       patchMeasurement,
       exportMeasurements,
+      linkMeasurementPile,
+      computeAllStockpiles,
+      copyStockpiles,
       handleToggle,
       handleOpacity,
       handleToggleDesign,

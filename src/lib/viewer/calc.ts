@@ -6,10 +6,10 @@
 // Calculation panel, the FeatureInspector's editable config, and the save path.
 //
 // The SurfaceRef shapes mirror docs/contracts/surface-ref.md §3.1: from = the
-// BASE surface, to = the current survey DSM (matching the backend's own
+// BASE surface, to = the current survey's surface (matching the backend's own
 // stockpile default of from:smart_base / to:survey_terrain·dsm). Only the
-// instant methods orblode-svc computes in PostGIS (smart_base, reference_level)
-// are offered; any other method answers 422.
+// methods orblode-svc computes in PostGIS are offered: smart_base,
+// reference_level, previous_survey and survey_terrain.
 
 import type { MeasurementResultDoc } from "@/lib/api/orblodeSvc";
 import { isEpochMs, type EpochMs } from "../time.ts";
@@ -89,14 +89,18 @@ export function isVolumeKind(kind: string): boolean {
 export const VOLUME_METHODS = [
   { id: "smart-base", label: "Smart base" },
   { id: "reference-rl", label: "Reference RL" },
+  { id: "previous-survey", label: "Previous survey" },
+  { id: "other-survey", label: "Another survey" },
+  { id: "design-surface", label: "Design surface" },
 ] as const;
 
-// Every volume kind offers the two instant methods, smart base first — the same
-// default the drawing panel and a row without a stored method fall back to.
+// Smart base leads every list — the same default the drawing panel and a row
+// without a stored method fall back to. Only cut/fill compares against another
+// survey: a stockpile "against the previous survey" would just be cut/fill.
 const METHODS_FOR_KIND: Record<string, string[]> = {
   stockpile: ["smart-base", "reference-rl"],
   volume: ["smart-base", "reference-rl"],
-  cut_fill: ["smart-base", "reference-rl"],
+  cut_fill: ["smart-base", "reference-rl", "previous-survey", "other-survey", "design-surface"],
 };
 
 export function methodsForKind(kind: string): { id: string; label: string }[] {
@@ -124,17 +128,31 @@ export function coerceMethodForKind(state: CalcMethodState, kind: string): CalcM
 
 export type RefMode = "custom" | "lowest_vertex" | "highest_vertex";
 
-/** The base-surface configuration as edited in the panel / inspector. */
+export type SurfaceKind = "dsm" | "dtm";
+
+/** The base-surface configuration as edited in the panel / inspector.
+ * `surface` is the terrain both sides are read from; `baseSurveyId` and
+ * `baseDesignId` are what an "other-survey" or "design-surface" cut/fill
+ * compares against. */
 export interface CalcMethodState {
   method: string;
   refMode: RefMode;
   refElevation: number | null;
+  surface: SurfaceKind;
+  baseSurveyId: string | null;
+  baseDesignId: string | null;
+  /** A material of the project's sheet, for tonnage and value; null for none. */
+  materialId: string | null;
 }
 
 export const DEFAULT_METHOD_STATE: CalcMethodState = {
   method: "smart-base",
   refMode: "lowest_vertex",
   refElevation: null,
+  surface: "dsm",
+  baseSurveyId: null,
+  baseDesignId: null,
+  materialId: null,
 };
 
 /** Panel-driven computes request a LEAN render: metrics + receipt only. The
@@ -149,13 +167,13 @@ export const LEAN_RENDER = { heatmap: false } as const;
 export class CalcParamsError extends Error {}
 
 /** Method state → explicit `params.from`/`params.to` SurfaceRefs (§3.1).
- * from = base, to = current survey DSM. Throws CalcParamsError when the
- * method's required input is missing. */
+ * from = base, to = the current survey's surface. Throws CalcParamsError when
+ * the method's required input is missing. */
 export function surfaceRefsForMethod(s: CalcMethodState): {
   from: Record<string, unknown>;
   to: Record<string, unknown>;
 } {
-  const to = { type: "survey_terrain", surface: "dsm" };
+  const to = { type: "survey_terrain", surface: s.surface };
   switch (s.method) {
     case "smart-base":
       return { from: { type: "smart_base" }, to };
@@ -167,9 +185,51 @@ export function surfaceRefsForMethod(s: CalcMethodState): {
         return { from: { type: "reference_level", elevation_m: s.refElevation }, to };
       }
       return { from: { type: "reference_level", derive: s.refMode }, to };
+    case "previous-survey":
+      return { from: { type: "previous_survey", surface: s.surface }, to };
+    case "other-survey":
+      if (!s.baseSurveyId) {
+        throw new CalcParamsError("Pick the survey to compare against.");
+      }
+      return { from: { type: "survey_terrain", survey_id: s.baseSurveyId, surface: s.surface }, to };
+    case "design-surface":
+      if (!s.baseDesignId) {
+        throw new CalcParamsError("Pick the design surface to compare against.");
+      }
+      return { from: { type: "design", design_id: s.baseDesignId }, to };
     default:
       throw new CalcParamsError(`"${s.method}" is not an instant base method.`);
   }
+}
+
+/** The params a volume compute sends for s. Params deep-merge server-side, so
+ * no material is sent as material_id "" to clear a stored one. */
+export function volumeParams(s: CalcMethodState): Record<string, unknown> {
+  const refs = surfaceRefsForMethod(s);
+  return { volume_method: s.method, from: refs.from, to: refs.to, render: LEAN_RENDER, material_id: s.materialId ?? "" };
+}
+
+/** Cross-survey SurfaceRef pair for Compare Mode (draw-to-compare): from =
+ * epoch A ("before"), to = epoch B ("after"), both named explicitly. */
+export function crossSurveyRefs(
+  aId: string,
+  bId: string,
+  surface: SurfaceKind = "dsm"
+): {
+  from: Record<string, unknown>;
+  to: Record<string, unknown>;
+} {
+  return {
+    from: { type: "survey_terrain", survey_id: aId, surface },
+    to: { type: "survey_terrain", survey_id: bId, surface },
+  };
+}
+
+/** A cut/fill against a design: its sides read the other way round in
+ * earthworks terms (see FeatureInspector's design grid). */
+export function hasDesignBase(params: Record<string, unknown> | null | undefined): boolean {
+  const from = params?.from;
+  return !!from && typeof from === "object" && (from as { type?: unknown }).type === "design";
 }
 
 /** Inverse of surfaceRefsForMethod for the inspector: recover the editable
@@ -180,23 +240,39 @@ export function methodFromParams(
 ): CalcMethodState | null {
   if (!params) return null;
   const from = params.from as Record<string, unknown> | undefined;
+  const to = params.to as Record<string, unknown> | undefined;
+  const surface: SurfaceKind = to?.surface === "dtm" || from?.surface === "dtm" ? "dtm" : "dsm";
+  const materialId = typeof params.material_id === "string" && params.material_id ? params.material_id : null;
+  const base = { ...DEFAULT_METHOD_STATE, surface, materialId };
   if (from && typeof from === "object" && typeof from.type === "string") {
     switch (from.type) {
       case "smart_base":
-        return { ...DEFAULT_METHOD_STATE, method: "smart-base" };
+        return { ...base, method: "smart-base" };
       case "reference_level": {
         const elevation = typeof from.elevation_m === "number" ? from.elevation_m : null;
         const derive = from.derive === "highest_vertex" ? "highest_vertex" : "lowest_vertex";
         return {
+          ...base,
           method: "reference-rl",
           refMode: elevation !== null ? "custom" : derive,
           refElevation: elevation,
         };
       }
+      case "previous_survey":
+        return { ...base, method: "previous-survey" };
+      case "survey_terrain":
+        if (typeof from.survey_id === "string") {
+          return { ...base, method: "other-survey", baseSurveyId: from.survey_id };
+        }
+        break;
+      case "design":
+        if (typeof from.design_id === "string") {
+          return { ...base, method: "design-surface", baseDesignId: from.design_id };
+        }
     }
   }
   if (typeof params.volume_method === "string") {
-    return { ...DEFAULT_METHOD_STATE, method: params.volume_method };
+    return { ...DEFAULT_METHOD_STATE, method: params.volume_method, materialId };
   }
   return null;
 }
@@ -259,18 +335,13 @@ export function provenanceOf(result: MeasurementResultDoc | null | undefined) {
 /** How long a measurement may sit in `computing` before the UI offers a FORCED
  * re-run.
  *
- * Once a compute job dies server-side the row is stranded: the inspector drops
- * the Run row for `computing` and the tree's Play button only shows for
- * draft/failed, so there is otherwise no way back. orblode-svc's compute endpoint
- * already accepts `force` to bypass the compute-in-flight 409 — this threshold
- * decides when to surface it.
- *
- * Sized off the observable cadence in this codebase rather than a guess: the
- * measurement poll runs every 5s while anything is computing
- * (useMeasurementsPoll) and the manifest refresh is 30s, so a healthy compute is
- * expected to settle within a handful of poll cycles. 3 minutes is ~36 cycles —
- * far past any normal run, while still letting someone recover quickly. */
-export const STUCK_COMPUTE_MS = 3 * 60_000;
+ * A row is `computing` only while orblode-svc's daemon runs it in the
+ * background, which it allows 10 minutes of PostGIS time; the daemon itself
+ * fails a row still computing after 20. In between, the inspector drops the Run
+ * row for `computing` and the tree's Play button only shows for draft/failed,
+ * so this threshold decides when a re-run (which replaces the queued compute)
+ * is offered instead. */
+export const STUCK_COMPUTE_MS = 15 * 60_000;
 
 /** True when `m` has been `computing` for longer than {@link STUCK_COMPUTE_MS}.
  * `updated_at` (epoch ms) is the dispatch stamp — the server persists the params

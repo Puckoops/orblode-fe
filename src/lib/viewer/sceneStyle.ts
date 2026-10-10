@@ -25,6 +25,15 @@ export const DRAFT_LABEL_BACKGROUND = "#18181B";
 /** Vector overlays: contours, boundaries and other uploaded vectors. */
 export const VECTOR_OVERLAY = "#7DD3FC";
 
+/** The ramp orblode-svc draws a measurement heatmap with (orblode_heatmap):
+ * strong and light cut below the base, light and strong fill above it. */
+export const HEATMAP_RAMP = {
+  cut: "rgb(178, 24, 43)",
+  cutLight: "rgb(239, 138, 98)",
+  fillLight: "rgb(103, 169, 207)",
+  fill: "rgb(33, 102, 172)",
+} as const;
+
 /** A design file's outline overlay. */
 export const DESIGN_OVERLAY = "#A78BFA";
 

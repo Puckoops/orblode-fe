@@ -30,7 +30,7 @@ export function surveyState(status: string | null | undefined): StateStyle {
   const s = (status ?? "").toLowerCase();
   if (s === "completed" || s === "approved" || s === "ready" || s === "published") return { label: humanize(s), tone: "teal", glyph: "check" };
   if (s === "locked") return { label: "Locked", tone: "neutral", glyph: "square-filled" };
-  if (s === "under_qa" || s === "ready_to_approve") return { label: humanize(s), tone: "amber", glyph: "diamond" };
+  if (s === "ready_to_approve") return { label: humanize(s), tone: "amber", glyph: "diamond" };
   if (s === "failed" || s === "error" || s === "rejected") return { label: humanize(s), tone: "red", glyph: "triangle" };
   if (s === "processing" || s === "ingesting" || s === "uploading" || s === "running" || s === "computing")
     return { label: humanize(s), tone: "blue", glyph: "circle-half" };
@@ -60,3 +60,33 @@ export const UPLOAD_ROW: Record<"uploading" | "uploaded" | "error", StateStyle> 
   uploaded: { label: "Done", tone: "teal", glyph: "check" },
   error: { label: "Failed", tone: "red", glyph: "triangle" },
 };
+
+/** A stockpile's place in the inventory: whether its numbers match its outline. */
+export function pileState(state: string | null | undefined): StateStyle {
+  switch (state) {
+    case "computed":
+      return { label: "Computed", tone: "teal", glyph: "check" };
+    case "stale":
+      return { label: "Edited since", tone: "amber", glyph: "circle-half" };
+    case "computing":
+      return { label: "Computing", tone: "blue", glyph: "circle-half" };
+    case "failed":
+      return { label: "Failed", tone: "red", glyph: "triangle" };
+    default:
+      return { label: "Not computed", tone: "neutral", glyph: "circle-dashed" };
+  }
+}
+
+/** A reconciliation variance against its thresholds. */
+export function varianceState(status: string | null | undefined): StateStyle {
+  switch (status) {
+    case "green":
+      return { label: "Within", tone: "teal", glyph: "check" };
+    case "amber":
+      return { label: "Watch", tone: "amber", glyph: "diamond" };
+    case "red":
+      return { label: "Outside", tone: "red", glyph: "triangle" };
+    default:
+      return { label: "No balance", tone: "neutral", glyph: "circle-dashed" };
+  }
+}
