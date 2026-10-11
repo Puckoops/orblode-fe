@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import type { RefObject } from "react";
 import {
   Cartesian2,
   Cartesian3,
@@ -15,21 +16,18 @@ import {
   Math as CesiumMath,
   PolylineMaterialAppearance,
   Ray,
+  type Viewer as CesiumViewer,
 } from "cesium";
+import type { StoreApi } from "zustand/vanilla";
 
 import {
   containsExtent,
-  edgeCrossings,
   formatGridSpacing,
-  formatGridValue,
   gridLevel,
   gridValues,
-  labelStep,
   minorOpacity,
-  spreadAlong,
   squareAround,
   visibleSpacing,
-  type EdgeSample,
   type Extent,
   type GridLevel,
 } from "@/lib/viewer/grid";
@@ -41,8 +39,7 @@ import {
   type WorkingTransform,
 } from "@/lib/viewer/projection";
 import { GRID_INK, GRID_INK_ON_LIGHT_MAP, GRID_OPACITY } from "@/lib/viewer/sceneStyle";
-import { useCesiumViewer } from "@/lib/viewer/state/cesiumContext";
-import { useViewerStore, useViewerStoreApi } from "@/lib/viewer/state/store";
+import { useViewerStore, type ViewerShellState } from "@/lib/viewer/state/store";
 
 /** How far lines reach from the screen centre, in half canvas diagonals at the centre's scale. */
 const MINOR_REACH = 1.1;
@@ -52,13 +49,6 @@ const MINOR_MIN_OPACITY = 0.03;
 /** Past this major spacing the view is regional and the grid steps aside. */
 const MAX_MAJOR_M = 10_000;
 const SEGMENT_M = 2_000;
-const LABEL_STEP_PX = 48;
-const LABEL_INSET_PX = 12;
-const LABEL_GAP_BOTTOM_PX = 96;
-const LABEL_GAP_RIGHT_PX = 40;
-const LABEL_CORNER_PX = 104;
-const LABEL_HALF_WIDTH_PX = 48;
-const SETTLE_MS = 50;
 
 interface Lines {
   primitive: GroundPolylinePrimitive;
@@ -73,31 +63,17 @@ interface Build {
   major: Lines | null;
 }
 
-interface GridLabel {
-  key: string;
-  edge: "bottom" | "right";
-  at: number;
-  text: string;
-}
-
-interface LabelState {
-  items: GridLabel[];
-  shown: boolean;
-}
-
-const NO_LABELS: LabelState = { items: [], shown: false };
-
 const covers = (have: Extent | null, want: Extent | null) => !want || (!!have && containsExtent(have, want));
-const within = (v: number, lo: number, hi: number) => v >= lo && v <= hi;
 
 /** Lines of constant easting and northing in the working CRS, draped on the surface, spaced by the zoom. */
-export function ViewGrid() {
-  const { viewerRef, viewerReady } = useCesiumViewer();
-  const store = useViewerStoreApi();
+export function useViewGrid(
+  viewerRef: RefObject<CesiumViewer | null>,
+  viewerReady: boolean,
+  store: StoreApi<ViewerShellState>
+): void {
   const visible = useViewerStore((s) => s.gridVisible);
   const hasManifest = useViewerStore((s) => s.manifest !== null);
   const workingCrs = useViewerStore((s) => s.manifest?.survey.working_crs || null);
-  const [labels, setLabels] = useState<LabelState>(NO_LABELS);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -113,12 +89,7 @@ export function ViewGrid() {
     let ground: Ellipsoid | null = null;
     let current: Build | null = null;
     let pending: Build | null = null;
-    let unitsPerPx = 0;
-    let moving = false;
-    let size = "";
     let spacingShown: string | null = null;
-    let labelled = false;
-    let labelTimer: ReturnType<typeof setTimeout> | null = null;
 
     const adopt = (t: WorkingTransform | null) => {
       if (!alive) return;
@@ -261,97 +232,13 @@ export function ViewGrid() {
         if (b.major) b.major.primitive.show = false;
       }
       publish(null);
-      if (labelled) {
-        labelled = false;
-        setLabels(NO_LABELS);
-      }
-    };
-
-    const placeLabels = () => {
-      labelTimer = null;
-      if (!alive || moving || viewer.isDestroyed()) return;
-      const b = current;
-      if (!b || !transform || !(unitsPerPx > 0) || spacingShown === null) return;
-      const spacing = visibleSpacing(b.level, unitsPerPx);
-      const extent = spacing === b.level.minor && b.minorExtent ? b.minorExtent : b.majorExtent;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-
-      const sampleEdge = (length: number, point: (at: number) => Cartesian2) => {
-        const samples: ({ at: number; e: number; n: number } | null)[] = [];
-        for (let at = 0; at <= length; at += LABEL_STEP_PX) {
-          const p = pickScenePosition(viewer, point(at));
-          const en = p && toGrid(p);
-          samples.push(en ? { at, e: en[0], n: en[1] } : null);
-        }
-        return samples;
-      };
-
-      const labelEdge = (
-        edge: GridLabel["edge"],
-        length: number,
-        point: (at: number) => Cartesian2,
-        gap: number,
-        from: number,
-        to: number
-      ) => {
-        const step = labelStep(spacing, unitsPerPx, gap);
-        const samples = sampleEdge(length, point);
-        const onE = samples.map((s): EdgeSample | null => s && { at: s.at, value: s.e, other: s.n });
-        const onN = samples.map((s): EdgeSample | null => s && { at: s.at, value: s.n, other: s.e });
-        const found: { at: number; text: string }[] = [];
-        for (const c of edgeCrossings(onE, step)) {
-          if (within(c.value, extent.minE, extent.maxE) && within(c.other, extent.minN, extent.maxN)) {
-            found.push({ at: c.at, text: `E ${formatGridValue(c.value, step)}` });
-          }
-        }
-        for (const c of edgeCrossings(onN, step)) {
-          if (within(c.value, extent.minN, extent.maxN) && within(c.other, extent.minE, extent.maxE)) {
-            found.push({ at: c.at, text: `N ${formatGridValue(c.value, step)}` });
-          }
-        }
-        return spreadAlong(
-          found.filter((f) => f.at > from && f.at < to),
-          gap
-        ).map((f, i) => ({ ...f, edge, key: `${edge}-${i}-${f.text}` }));
-      };
-
-      const bottom = labelEdge(
-        "bottom",
-        w,
-        (x) => new Cartesian2(x, h - LABEL_INSET_PX),
-        LABEL_GAP_BOTTOM_PX,
-        LABEL_HALF_WIDTH_PX,
-        w - LABEL_CORNER_PX
-      );
-      const right = labelEdge(
-        "right",
-        h,
-        (y) => new Cartesian2(w - LABEL_INSET_PX, y),
-        LABEL_GAP_RIGHT_PX,
-        LABEL_INSET_PX,
-        h - 2 * LABEL_INSET_PX
-      );
-      const items = [...bottom, ...right];
-      labelled = items.length > 0;
-      setLabels({ items, shown: true });
-    };
-
-    const scheduleLabels = () => {
-      if (labelTimer) clearTimeout(labelTimer);
-      labelTimer = setTimeout(placeLabels, SETTLE_MS);
     };
 
     const frame = () => {
-      const nextSize = `${canvas.clientWidth}x${canvas.clientHeight}`;
-      if (nextSize !== size) {
-        size = nextSize;
-        if (!moving) scheduleLabels();
-      }
       const view = measure();
       const level = view && gridLevel(view.unitsPerPx);
       if (!view || !level || level.major / view.unitsPerMetre > MAX_MAJOR_M) return hide();
-      unitsPerPx = view.unitsPerPx;
+      const { unitsPerPx } = view;
 
       const reach = view.halfDiagonalPx * unitsPerPx;
       const wantMinor =
@@ -376,7 +263,6 @@ export function ViewGrid() {
         if (current) discard(current);
         current = pending;
         pending = null;
-        if (!moving) scheduleLabels();
       }
       // An async primitive only advances when the scene renders.
       if (pending) scene.requestRender();
@@ -390,17 +276,9 @@ export function ViewGrid() {
     };
 
     const removePreRender = scene.preRender.addEventListener(frame);
-    const removeMoveStart = camera.moveStart.addEventListener(() => {
-      moving = true;
-      if (labelTimer) clearTimeout(labelTimer);
-      labelTimer = null;
-      if (labelled) setLabels((l) => ({ ...l, shown: false }));
-    });
     const removeMoveEnd = camera.moveEnd.addEventListener(() => {
-      moving = false;
       refreshGround();
       scene.requestRender();
-      scheduleLabels();
     });
     const start = setTimeout(() => {
       refreshGround();
@@ -410,39 +288,11 @@ export function ViewGrid() {
     return () => {
       alive = false;
       clearTimeout(start);
-      if (labelTimer) clearTimeout(labelTimer);
       removePreRender();
-      removeMoveStart();
       removeMoveEnd();
       for (const b of [current, pending]) if (b) discard(b);
       store.getState().setGridSpacing(null);
-      setLabels(NO_LABELS);
       if (!viewer.isDestroyed()) scene.requestRender();
     };
   }, [viewerRef, viewerReady, visible, hasManifest, workingCrs, store]);
-
-  if (!visible || labels.items.length === 0) return null;
-
-  return (
-    <div
-      aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 overflow-hidden transition-opacity duration-150 ${
-        labels.shown ? "opacity-100" : "opacity-0"
-      }`}
-    >
-      {labels.items.map((l) => (
-        <span
-          key={l.key}
-          className="num-sm absolute rounded-xs bg-surface/80 px-1 whitespace-nowrap text-ink-2"
-          style={
-            l.edge === "bottom"
-              ? { left: l.at, bottom: 4, transform: "translateX(-50%)" }
-              : { right: 4, top: l.at, transform: "translateY(-50%)" }
-          }
-        >
-          {l.text}
-        </span>
-      ))}
-    </div>
-  );
 }

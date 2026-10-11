@@ -67,6 +67,7 @@ import { machineWithCommit } from "@/lib/viewer/commitMeasurement";
 import { useInteractionAdapter } from "@/components/viewer/shell/hooks/useInteractionAdapter";
 import { useDraftRenderer } from "@/components/viewer/shell/hooks/useDraftRenderer";
 import { useSurfaceCursor } from "@/components/viewer/shell/hooks/useSurfaceCursor";
+import { useViewGrid } from "@/components/viewer/shell/hooks/useViewGrid";
 import {
   useSelectionHandles,
   type SelectionSeed,
@@ -113,7 +114,6 @@ import { SurveyCompare } from "@/components/viewer/shell/SurveyCompare";
 import { DetailPanel } from "@/components/viewer/shell/DetailPanel";
 import { Loader } from "@/components/brand/Loader";
 import { StatusBar } from "@/components/viewer/shell/StatusBar";
-import { ViewGrid } from "@/components/viewer/shell/ViewGrid";
 import { CameraJoystick } from "@/components/viewer/CameraJoystick";
 
 import { useManifestLoad } from "@/components/viewer/shell/hooks/useManifestLoad";
@@ -189,6 +189,7 @@ export function ViewerCanvas() {
     editGhostEntitiesRef
   );
   useSurfaceCursor(viewerRef, viewerReady, interactionActor, store, adapterRefs);
+  useViewGrid(viewerRef, viewerReady, store);
 
   const surveyId = useViewerStore((s) => s.surveyId);
   const manifest = useViewerStore((s) => s.manifest);
@@ -1459,7 +1460,6 @@ export function ViewerCanvas() {
                   style={{ width: "100%", height: "100%" }}
                 />
               </div>
-              <ViewGrid />
               {(!viewerReady || !manifest) && !manifestError && <Loader variant="fill" label="Loading the survey" />}
 
               {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}

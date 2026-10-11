@@ -41,15 +41,14 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   ArrowUp01Icon,
-  BoxIcon,
   GridIcon,
+  GridOffIcon,
   Home01Icon,
   Maximize01Icon,
   Minimize01Icon,
   MinusSignIcon,
   Orbit01Icon,
   PlusSignIcon,
-  SquareIcon,
 } from "@hugeicons/core-free-icons";
 import { Icon, IconButton } from "@puckoops/camelot";
 
@@ -427,28 +426,29 @@ export function CameraJoystick({
         </div>
       </div>
 
-      {onToggleProjection && (
-        <IconButton
-          icon={projection === "orthographic" ? SquareIcon : BoxIcon}
-          size="sm"
-          onClick={onToggleProjection}
-          aria-label={projection === "orthographic" ? "Switch to 3D perspective view" : "Switch to 2D top-down view"}
-          aria-pressed={projection === "orthographic"}
-          title={projection === "orthographic" ? "3D perspective" : "2D top-down"}
-          className={`${hudButton} ${projection === "orthographic" ? "border-hairline-strong text-ink-1" : ""}`}
-        />
-      )}
-
       {onToggleGrid && (
         <IconButton
-          icon={GridIcon}
+          icon={gridVisible ? GridIcon : GridOffIcon}
           size="sm"
           onClick={onToggleGrid}
           aria-label={gridVisible ? "Hide the grid" : "Show the grid"}
           aria-pressed={gridVisible}
           title={gridVisible ? "Hide grid (Shift+G)" : "Show grid (Shift+G)"}
-          className={`${hudButton} ${gridVisible ? "border-hairline-strong text-ink-1" : ""}`}
+          className={hudButton}
         />
+      )}
+
+      {/* Labelled with the view it switches to, as map apps do. */}
+      {onToggleProjection && (
+        <button
+          type="button"
+          onClick={onToggleProjection}
+          aria-label={projection === "orthographic" ? "Switch to 3D perspective view" : "Switch to 2D top-down view"}
+          title={projection === "orthographic" ? "3D perspective (O)" : "2D top-down (O)"}
+          className="caps flex size-6 items-center justify-center rounded-full border border-hairline bg-surface/90 tracking-normal text-ink-3 backdrop-blur-xl hover:bg-surface-2 hover:text-ink-1 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+        >
+          {projection === "orthographic" ? "3D" : "2D"}
+        </button>
       )}
 
       {onHome && (
