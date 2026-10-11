@@ -30,3 +30,8 @@
 @media (max-width: 560px) {
   .row { grid-template-columns: minmax(0, 1fr); }
 }
+
+.locked[readonly] { color: var(--text-2); }
+.reveal { animation: reveal 180ms ease-out; }
+@keyframes reveal { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .reveal { animation: none; } }

@@ -43,13 +43,13 @@ export async function login(email: string, password: string, remember = false): 
 }
 
 /** Signs in through the BFF with the credential from Google's button, as login does with a password. */
-export async function loginWithGoogle(credential: string, remember = false): Promise<LoginResponse> {
+export async function loginWithGoogle(code: string, remember = false): Promise<LoginResponse> {
   let res: Response;
   try {
     res = await fetch("/api/auth/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential, remember }),
+      body: JSON.stringify({ code, remember }),
       credentials: "same-origin",
     });
   } catch {
