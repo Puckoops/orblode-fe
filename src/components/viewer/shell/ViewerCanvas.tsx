@@ -66,6 +66,7 @@ import { attachStoreBridge } from "@/lib/viewer/interaction/bridge";
 import { machineWithCommit } from "@/lib/viewer/commitMeasurement";
 import { useInteractionAdapter } from "@/components/viewer/shell/hooks/useInteractionAdapter";
 import { useDraftRenderer } from "@/components/viewer/shell/hooks/useDraftRenderer";
+import { useSurfaceCursor } from "@/components/viewer/shell/hooks/useSurfaceCursor";
 import {
   useSelectionHandles,
   type SelectionSeed,
@@ -186,6 +187,7 @@ export function ViewerCanvas() {
     editHandleEntitiesRef,
     editGhostEntitiesRef
   );
+  useSurfaceCursor(viewerRef, viewerReady, interactionActor, store, adapterRefs);
 
   const surveyId = useViewerStore((s) => s.surveyId);
   const manifest = useViewerStore((s) => s.manifest);

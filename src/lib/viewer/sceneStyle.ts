@@ -16,8 +16,12 @@ export const SITE_MARKER = { fill: "#FF8A4C", outline: "#FFFFFF", pixelSize: 14,
 export const HANDLE_FILL = "#FFFFFF";
 export const HANDLE_OUTLINE = "#000000";
 
-/** The ring over a vertex the cursor is snapping to. */
+/** The ring over a vertex the cursor is snapping to, and the surface cursor while it snaps. */
 export const SNAP_HALO = "#00FFFF";
+
+/** The surface cursor (the Orblode mark laid on the scene) and the dark edge that keeps it legible over imagery. */
+export const CURSOR_INK = "#FFFFFF";
+export const CURSOR_EDGE = "rgba(0, 0, 0, 0.55)";
 
 /** The backdrop behind draft segment labels. */
 export const DRAFT_LABEL_BACKGROUND = "#18181B";
