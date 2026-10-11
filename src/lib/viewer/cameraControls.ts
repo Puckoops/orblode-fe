@@ -155,12 +155,12 @@ export function cardinalMarksByDepth(headingDeg: number, pitchDeg: number): Card
   return cardinalMarks(headingDeg, pitchDeg).sort((a, b) => b.depth - a.depth);
 }
 
-export type ProjectionMode = "perspective" | "orthographic";
+/** 2D draws the site flat and looks straight down on it; 3D draws its relief, mesh and points. */
+export type ViewMode = "2d" | "3d";
 
-/** FR-06's orthographic view is a 90° top-down plan. */
 export const TOP_DOWN_PITCH_DEG = -90;
 
-/** The oblique pitch to restore when leaving orthographic. Clamped into the
+/** The oblique pitch to restore when returning to 3D. Clamped into the
  * joystick's own usable band (-89°…-8°) so returning to 3D can never land the
  * camera underground or gimbal-flipped. */
 export function restorePitch(storedPitchDeg: number | null): number {

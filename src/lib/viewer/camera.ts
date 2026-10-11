@@ -26,7 +26,7 @@ import {
   needsNorthReset,
   restorePitch,
   shortestBearingDelta,
-  type ProjectionMode,
+  type ViewMode,
 } from "./cameraControls.ts";
 
 /** Read the live camera into the serialization format. positionCartographic →
@@ -203,37 +203,23 @@ export function resetToNorth(
 
 /** FR-06's morph duration — long enough to read as a transition, short enough
  * not to feel like waiting. */
-export const PROJECTION_MORPH_MS = 400;
+export const VIEW_MODE_MORPH_MS = 400;
 
 /**
- * FR-06 — switch between a 3D perspective orbit and a 90° top-down orthographic
- * plan view.
- *
- * Deliberately NOT `scene.morphTo2D`: Cesium's SCENE2D mode cannot render 3D
- * tilesets, which would blank the site model, terrain mesh and point cloud the
- * moment the user pressed the button. Swapping the camera's frustum instead
- * keeps the scene in SCENE3D — everything carries on rendering — while giving a
- * true orthographic projection, which is what "orthographic" actually means
- * here.
- *
- * The pitch animates alongside the swap so the focal point is never lost.
+ * FR-06 — swing the camera for a view mode: straight down for 2D, back to the
+ * user's own tilt for 3D. The site is flattened by vertical exaggeration in
+ * useLayerLifecycle rather than Cesium's SCENE2D, which cannot render 3D
+ * tilesets. A flat site seen straight down needs no orthographic frustum:
+ * nothing stands up, so perspective adds no parallax, and flights and wheel
+ * zoom keep working.
  */
-export function applyProjectionMode(
+export function applyViewMode(
   viewer: CesiumViewer,
-  mode: ProjectionMode,
+  mode: ViewMode,
   restorePitchDeg: number | null
 ): CancelAnimation {
-  const camera = viewer.camera;
-  if (mode === "orthographic") {
-    camera.switchToOrthographicFrustum();
-    return animateCameraOrbit(viewer, {
-      toPitchDeg: TOP_DOWN_PITCH_DEG,
-      durationMs: PROJECTION_MORPH_MS,
-    });
-  }
-  camera.switchToPerspectiveFrustum();
   return animateCameraOrbit(viewer, {
-    toPitchDeg: restorePitch(restorePitchDeg),
-    durationMs: PROJECTION_MORPH_MS,
+    toPitchDeg: mode === "2d" ? TOP_DOWN_PITCH_DEG : restorePitch(restorePitchDeg),
+    durationMs: VIEW_MODE_MORPH_MS,
   });
 }

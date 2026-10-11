@@ -62,6 +62,8 @@ interface LayerPanelProps {
   processing: boolean;
   surveyStatus?: string;
   terrainExaggeration: number;
+  /** 2D draws the site flat, so there is no relief to exaggerate. */
+  exaggerationDisabled?: boolean;
   baseMap: string;
   colorMap: string;
   shading: string;
@@ -457,6 +459,7 @@ export function LayerPanel({
   processing,
   surveyStatus,
   terrainExaggeration,
+  exaggerationDisabled = false,
   baseMap,
   colorMap,
   shading,
@@ -569,6 +572,7 @@ export function LayerPanel({
             max={3}
             step={0.1}
             format={(v) => `${v.toFixed(1)}x`}
+            disabled={exaggerationDisabled}
             onValueChange={([v]) => onTerrainExaggeration(v)}
           />
         </div>

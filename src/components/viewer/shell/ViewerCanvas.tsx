@@ -68,6 +68,9 @@ import { useInteractionAdapter } from "@/components/viewer/shell/hooks/useIntera
 import { useDraftRenderer } from "@/components/viewer/shell/hooks/useDraftRenderer";
 import { useSurfaceCursor } from "@/components/viewer/shell/hooks/useSurfaceCursor";
 import { useViewGrid } from "@/components/viewer/shell/hooks/useViewGrid";
+import { useSurfaceHeightSource } from "@/components/viewer/shell/hooks/useSurfaceHeightSource";
+import { SurfaceHeightsProvider } from "@/components/viewer/shell/surfaceHeightsContext";
+import { SurfaceHeights } from "@/lib/viewer/surfaceHeights";
 import {
   useSelectionHandles,
   type SelectionSeed,
@@ -82,7 +85,8 @@ import {
   resultForKind,
 } from "@/lib/viewer/calc";
 import { applySceneBackground } from "@/lib/viewer/cesiumScene";
-import { applyProjectionMode, resetToNorth } from "@/lib/viewer/camera";
+import { applyViewMode, resetToNorth } from "@/lib/viewer/camera";
+import { TOP_DOWN_PITCH_DEG } from "@/lib/viewer/cameraControls";
 import { buildPointCloudStyle } from "@/lib/viewer/pointcloud";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import {
@@ -180,13 +184,15 @@ export function ViewerCanvas() {
     selectionHandlesRef,
     selectionSeedRef
   );
+  const [surfaceHeights] = useState(() => new SurfaceHeights());
   useDraftRenderer(
     viewerRef,
     viewerReady,
     interactionActor,
     adapterRefs,
     editHandleEntitiesRef,
-    editGhostEntitiesRef
+    editGhostEntitiesRef,
+    surfaceHeights
   );
   useSurfaceCursor(viewerRef, viewerReady, interactionActor, store, adapterRefs);
   useViewGrid(viewerRef, viewerReady, store);
@@ -205,7 +211,7 @@ export function ViewerCanvas() {
   const treePanelOpen = useViewerStore((s) => s.treePanelOpen);
   const activeModule = useViewerStore((s) => s.activeModule);
   const selectionKind = useViewerStore((s) => s.selection?.kind ?? null);
-  const projection = useViewerStore((s) => s.projection);
+  const viewMode = useViewerStore((s) => s.viewMode);
   const gridVisible = useViewerStore((s) => s.gridVisible);
   const baseMap = useViewerStore((s) => s.view.baseMap);
   const compareActive = useViewerStore((s) => s.compareActive);
@@ -386,6 +392,12 @@ export function ViewerCanvas() {
     }
   }, [viewerRef]);
 
+  // The survey's first framing is oblique in 3D; 2D stays straight down.
+  const framingPitch = useCallback(
+    () => CesiumMath.toRadians(store.getState().viewMode === "2d" ? TOP_DOWN_PITCH_DEG : -45),
+    [store]
+  );
+
   const registerSurveyBounds = useCallback(
     (tileset: Cesium3DTileset) => {
       const viewer = viewerRef.current;
@@ -399,10 +411,10 @@ export function ViewerCanvas() {
       const sphere = surveyBoundsRef.current;
       viewer.camera.flyToBoundingSphere(sphere, {
         duration: 1.8,
-        offset: new HeadingPitchRange(0, CesiumMath.toRadians(-45), sphere.radius * 2.8),
+        offset: new HeadingPitchRange(0, framingPitch(), sphere.radius * 2.8),
       });
     },
-    [viewerRef]
+    [viewerRef, framingPitch]
   );
 
   const flyToRectangle = useCallback(
@@ -417,7 +429,7 @@ export function ViewerCanvas() {
   /** Reset to the survey's first framing (bbox → tileset bounds → default center). */
   // FR-03 — swing the camera to true North over 300ms, holding the pivot point
   // and altitude. Any in-flight camera animation is cancelled first so a double
-  // press (or a projection switch mid-swing) can't leave two rAF loops fighting
+  // press (or a 2D/3D switch mid-swing) can't leave two rAF loops fighting
   // over the same camera.
   const cameraAnimRef = useRef<(() => void) | null>(null);
   const resetNorth = useCallback(() => {
@@ -427,21 +439,31 @@ export function ViewerCanvas() {
     cameraAnimRef.current = resetToNorth(viewer);
   }, [viewerRef]);
 
-  // FR-06 — toggle between the 3D perspective orbit and the 90° top-down
-  // orthographic plan. Leaving 3D stores the current tilt so returning restores
-  // the user's own view rather than a canned angle.
-  const toggleProjection = useCallback(() => {
+  // FR-06 — toggle between the flat 2D site and the 3D one. Leaving 3D stores
+  // the current tilt so returning restores the user's own view rather than a
+  // canned angle.
+  const toggleViewMode = useCallback(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
     const st = store.getState();
-    const next = st.projection === "orthographic" ? "perspective" : "orthographic";
-    if (next === "orthographic") {
+    const next = st.viewMode === "2d" ? "3d" : "2d";
+    if (next === "2d") {
       st.setObliquePitch(CesiumMath.toDegrees(viewer.camera.pitch));
     }
     cameraAnimRef.current?.();
-    cameraAnimRef.current = applyProjectionMode(viewer, next, store.getState().obliquePitch);
-    st.setProjection(next);
+    cameraAnimRef.current = applyViewMode(viewer, next, store.getState().obliquePitch);
+    st.setViewMode(next);
   }, [viewerRef, store]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewerReady || !viewer || viewer.isDestroyed()) return;
+    const controller = viewer.scene.screenSpaceCameraController;
+    controller.enableTilt = viewMode === "3d";
+    controller.enableLook = viewMode === "3d";
+  }, [viewerRef, viewerReady, viewMode]);
+
+  useSurfaceHeightSource(surfaceHeights, viewerRef, viewerReady, viewMode);
 
   // A camera animation outliving its viewer would keep requesting frames on a
   // destroyed scene.
@@ -477,7 +499,7 @@ export function ViewerCanvas() {
     if (sphere) {
       viewer.camera.flyToBoundingSphere(sphere, {
         duration: 1.8,
-        offset: new HeadingPitchRange(0, CesiumMath.toRadians(-45), sphere.radius * 2.8),
+        offset: new HeadingPitchRange(0, framingPitch(), sphere.radius * 2.8),
       });
       return;
     }
@@ -490,7 +512,7 @@ export function ViewerCanvas() {
       ),
       duration: 2.0,
     });
-  }, [viewerRef, manifest, flyToRectangle]);
+  }, [viewerRef, manifest, flyToRectangle, framingPitch]);
 
   const zoomIn = useCallback(() => {
     const viewer = viewerRef.current;
@@ -1264,6 +1286,7 @@ export function ViewerCanvas() {
     drawMode,
     rightPanel: detailPanel,
     setProbePoint,
+    surfaceHeights,
     probeEntityRef,
     cancelDraw,
     cleanupDraw,
@@ -1289,6 +1312,7 @@ export function ViewerCanvas() {
     measurements,
     measurementVisibility,
     terrainExaggeration,
+    viewMode,
     sunLightingEnabled,
     sunHour,
     clipInputsVersion,
@@ -1343,7 +1367,7 @@ export function ViewerCanvas() {
       selectMeasurementRow,
       triggerCompute,
       resetNorth,
-      toggleProjection,
+      toggleViewMode,
       removeMeasurement,
       saveMeasurement,
       patchMeasurement,
@@ -1373,7 +1397,7 @@ export function ViewerCanvas() {
       selectMeasurementRow,
       triggerCompute,
       resetNorth,
-      toggleProjection,
+      toggleViewMode,
       removeMeasurement,
       saveMeasurement,
       patchMeasurement,
@@ -1418,104 +1442,106 @@ export function ViewerCanvas() {
 
   return (
     <InteractionProvider value={interactionActor}>
-      <ViewerActionsProvider value={actions}>
-        <MotionConfig reducedMotion="user">
-          <div
-            ref={shellRef}
-            className="grid h-full w-full bg-canvas"
-            style={{
-              gridTemplateColumns: `48px ${leftPanelVisible ? "280px" : "0px"} minmax(0, 1fr)`,
-              gridTemplateRows: "minmax(0, 1fr) 24px",
-            }}
-          >
-            {/* Zone 1 — module rail (full height, both rows) */}
-            <div className="row-span-2 min-h-0">
-              <ModuleRail />
-            </div>
-
-            {/* Zone 2 — LEFT dock: the module's list — measurements tree (measure),
-                layers (survey), empty-states elsewhere. Collapsible via the header
-                chevron / re-clicking the rail module. */}
-            <div className="min-h-0 min-w-0 overflow-hidden">{leftPanelVisible && <TreePanel />}</div>
-
-            {/* Zone 3 — canvas cell: floating toolbar + draggable detail overlay;
-                neither resizes this cell. */}
-            <div className="relative min-h-0 min-w-0">
-              <div className="orblode-scene absolute inset-0">
-                <Viewer
-                  ref={handleViewerRef}
-                  full
-                  requestRenderMode
-                  timeline={false}
-                  animation={false}
-                  geocoder={false}
-                  baseLayer={false}
-                  baseLayerPicker={false}
-                  navigationHelpButton={false}
-                  homeButton={false}
-                  sceneModePicker={false}
-                  fullscreenButton={false}
-                  infoBox={false}
-                  selectionIndicator={false}
-                  style={{ width: "100%", height: "100%" }}
-                />
-              </div>
-              {(!viewerReady || !manifest) && !manifestError && <Loader variant="fill" label="Loading the survey" />}
-
-              {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}
-              {isMeasure && <FloatingToolbar />}
-
-              {/* Compare swipe — floating control that overlays two epochs' orthos
-                  split by a draggable divider (before | after) over this project. */}
-              {manifest && <SurveyCompare projectId={manifest.survey.project_id} />}
-
-              {/* Zero-size top-left anchor for the camera control (orbit joystick +
-                  compass ring + orientation axes). The wrapper has no area, so it
-                  never intercepts canvas pointer events. */}
-              <div className="absolute top-0 left-0 h-0 w-0">
-                <CameraJoystick
-                  viewerRef={viewerRef}
-                  ready={viewerReady}
-                  onHome={goHome}
-                  onZoomIn={zoomIn}
-                  onZoomOut={zoomOut}
-                  isFullscreen={isFullscreen}
-                  onToggleFullscreen={toggleFullscreen}
-                  projection={projection}
-                  onToggleProjection={toggleProjection}
-                  onResetNorth={resetNorth}
-                  gridVisible={gridVisible}
-                  onToggleGrid={toggleGrid}
-                />
+      <SurfaceHeightsProvider value={surfaceHeights}>
+        <ViewerActionsProvider value={actions}>
+          <MotionConfig reducedMotion="user">
+            <div
+              ref={shellRef}
+              className="grid h-full w-full bg-canvas"
+              style={{
+                gridTemplateColumns: `48px ${leftPanelVisible ? "280px" : "0px"} minmax(0, 1fr)`,
+                gridTemplateRows: "minmax(0, 1fr) 24px",
+              }}
+            >
+              {/* Zone 1 — module rail (full height, both rows) */}
+              <div className="row-span-2 min-h-0">
+                <ModuleRail />
               </div>
 
-              {/* Zone 5 — draggable floating detail (expanded or compact). */}
-              <DetailPanel />
+              {/* Zone 2 — LEFT dock: the module's list — measurements tree (measure),
+                  layers (survey), empty-states elsewhere. Collapsible via the header
+                  chevron / re-clicking the rail module. */}
+              <div className="min-h-0 min-w-0 overflow-hidden">{leftPanelVisible && <TreePanel />}</div>
 
-              {/* Right-click context menu on a measurement (Edit / Redraw / Delete). */}
-              <MeasurementContextMenu />
+              {/* Zone 3 — canvas cell: floating toolbar + draggable detail overlay;
+                  neither resizes this cell. */}
+              <div className="relative min-h-0 min-w-0">
+                <div className="orblode-scene absolute inset-0">
+                  <Viewer
+                    ref={handleViewerRef}
+                    full
+                    requestRenderMode
+                    timeline={false}
+                    animation={false}
+                    geocoder={false}
+                    baseLayer={false}
+                    baseLayerPicker={false}
+                    navigationHelpButton={false}
+                    homeButton={false}
+                    sceneModePicker={false}
+                    fullscreenButton={false}
+                    infoBox={false}
+                    selectionIndicator={false}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                </div>
+                {(!viewerReady || !manifest) && !manifestError && <Loader variant="fill" label="Loading the survey" />}
 
-              {/* `?` keyboard cheat sheet + the drawing-assistance preference. */}
-              <ShortcutSheet open={sheetOpen} onClose={closeSheet} />
+                {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}
+                {isMeasure && <FloatingToolbar />}
 
-              {/* ⌘K command palette — fuzzy jump to tools/lenses/measurements. */}
-              <CommandPalette
-                open={paletteOpen}
-                onClose={closePalette}
-                actor={interactionActor}
-                store={store}
-                actions={actions}
-                onShowSheet={showSheetFromPalette}
-              />
+                {/* Compare swipe — floating control that overlays two epochs' orthos
+                    split by a draggable divider (before | after) over this project. */}
+                {manifest && <SurveyCompare projectId={manifest.survey.project_id} />}
+
+                {/* Zero-size top-left anchor for the camera control (orbit joystick +
+                    compass ring + orientation axes). The wrapper has no area, so it
+                    never intercepts canvas pointer events. */}
+                <div className="absolute top-0 left-0 h-0 w-0">
+                  <CameraJoystick
+                    viewerRef={viewerRef}
+                    ready={viewerReady}
+                    onHome={goHome}
+                    onZoomIn={zoomIn}
+                    onZoomOut={zoomOut}
+                    isFullscreen={isFullscreen}
+                    onToggleFullscreen={toggleFullscreen}
+                    viewMode={viewMode}
+                    onToggleViewMode={toggleViewMode}
+                    onResetNorth={resetNorth}
+                    gridVisible={gridVisible}
+                    onToggleGrid={toggleGrid}
+                  />
+                </div>
+
+                {/* Zone 5 — draggable floating detail (expanded or compact). */}
+                <DetailPanel />
+
+                {/* Right-click context menu on a measurement (Edit / Redraw / Delete). */}
+                <MeasurementContextMenu />
+
+                {/* `?` keyboard cheat sheet + the drawing-assistance preference. */}
+                <ShortcutSheet open={sheetOpen} onClose={closeSheet} />
+
+                {/* ⌘K command palette — fuzzy jump to tools/lenses/measurements. */}
+                <CommandPalette
+                  open={paletteOpen}
+                  onClose={closePalette}
+                  actor={interactionActor}
+                  store={store}
+                  actions={actions}
+                  onShowSheet={showSheetFromPalette}
+                />
+              </div>
+
+              {/* Zone 6 — status bar, docked, spanning cols 2–3 */}
+              <div className="col-span-2 min-w-0">
+                <StatusBar />
+              </div>
             </div>
-
-            {/* Zone 6 — status bar, docked, spanning cols 2–3 */}
-            <div className="col-span-2 min-w-0">
-              <StatusBar />
-            </div>
-          </div>
-        </MotionConfig>
-      </ViewerActionsProvider>
+          </MotionConfig>
+        </ViewerActionsProvider>
+      </SurfaceHeightsProvider>
     </InteractionProvider>
   );
 }

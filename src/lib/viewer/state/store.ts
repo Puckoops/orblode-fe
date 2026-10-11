@@ -29,6 +29,7 @@ import type { Project } from "@/lib/api/userSvc";
 import type { LayerControl, DesignControl } from "@/components/viewer/LayerPanel";
 import type { DrawMode, DrawOptions } from "@/lib/viewer/draw";
 import type { LngLatHeight } from "@/lib/viewer/measure";
+import type { ViewMode } from "@/lib/viewer/cameraControls";
 
 /** Key for the ephemeral `estimates` map — one instant estimate per
  * (measurement, kind), mirroring the per-kind results map. */
@@ -200,12 +201,12 @@ export interface ViewerShellData {
   splitPosition: number;
 
   /**
-   * Camera projection (FR-06). "perspective" is the 3D orbit; "orthographic" is
-   * the 90° top-down plan view. `obliquePitch` remembers the tilt the user left
-   * 3D at, so switching back restores their view instead of snapping to a
-   * canned angle. Per-mount, like the rest of the viewer's transient state.
+   * FR-06. "2d" draws the site flat and looks straight down on it; "3d" draws its
+   * relief, mesh and points. `obliquePitch` remembers the tilt the user left 3D
+   * at, so switching back restores their view instead of snapping to a canned
+   * angle. Per-mount, like the rest of the viewer's transient state.
    */
-  projection: "perspective" | "orthographic";
+  viewMode: ViewMode;
   obliquePitch: number | null;
 
   busyIds: Set<string>;
@@ -263,8 +264,7 @@ export interface ViewerShellActions {
   setSplitPosition: (pos: number) => void;
   setHeatmap: (heatmap: HeatmapState | null) => void;
 
-  /** Camera projection (FR-06) — see `projection`. */
-  setProjection: (mode: "perspective" | "orthographic") => void;
+  setViewMode: (mode: ViewMode) => void;
   setObliquePitch: (pitchDeg: number | null) => void;
 
   setView: (patch: Partial<ViewSettings>) => void;
@@ -367,7 +367,7 @@ function defaultData(surveyId: string): ViewerShellData {
     compareA: null,
     compareB: null,
     splitPosition: 0.5,
-    projection: "perspective",
+    viewMode: "3d",
     obliquePitch: null,
 
     busyIds: new Set<string>(),
@@ -543,7 +543,7 @@ export function createViewerStore(
     setCompareB: (id) => set({ compareB: id }),
     setSplitPosition: (pos) => set({ splitPosition: pos }),
     setHeatmap: (heatmap) => set({ heatmap }),
-    setProjection: (mode) => set({ projection: mode }),
+    setViewMode: (mode) => set({ viewMode: mode }),
     setObliquePitch: (pitchDeg) => set({ obliquePitch: pitchDeg }),
 
     setView: (patch) => set({ view: { ...get().view, ...patch } }),

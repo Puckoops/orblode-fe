@@ -122,7 +122,10 @@ export function MeasurePalette({
                 <>
                   <ReadoutRow label="Latitude" value={`${readout.point.latitude.toFixed(6)}°`} />
                   <ReadoutRow label="Longitude" value={`${readout.point.longitude.toFixed(6)}°`} />
-                  <ReadoutRow label="Elevation" value={`${readout.point.height.toFixed(2)} m`} />
+                  <ReadoutRow
+                    label="Elevation"
+                    value={Number.isFinite(readout.point.height) ? `${readout.point.height.toFixed(2)} m` : "—"}
+                  />
                 </>
               ) : (
                 <p className="caption text-ink-4">Click the site to sample a point.</p>

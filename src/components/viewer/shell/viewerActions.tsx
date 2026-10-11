@@ -78,9 +78,8 @@ export interface ViewerActions {
   /** FR-03 — ease the camera bearing to 0.0° True North over 300ms, keeping the
    * pivot point and altitude. */
   resetNorth: () => void;
-  /** FR-06 — toggle between the 3D perspective orbit and the 90° top-down
-   * orthographic plan view. */
-  toggleProjection: () => void;
+  /** FR-06 — toggle between the flat 2D site and the 3D one. */
+  toggleViewMode: () => void;
 }
 
 const ViewerActionsContext = createContext<ViewerActions | null>(null);

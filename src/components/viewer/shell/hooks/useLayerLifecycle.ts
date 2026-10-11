@@ -17,7 +17,9 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import {
   BoundingSphere,
+  Cartesian2,
   Cartesian3,
+  Cartographic,
   Cesium3DTileset,
   ClippingPolygon,
   ClippingPolygonCollection,
@@ -58,6 +60,8 @@ import { computeTilesetFootprint } from "@/lib/viewer/footprint";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import { configureCesiumScene, makeBaseImageryProvider } from "@/lib/viewer/cesiumScene";
 import { SAMPLE_DESIGNS } from "@/lib/viewer/sampleData";
+import { pickScenePosition } from "@/lib/viewer/measure";
+import type { ViewMode } from "@/lib/viewer/cameraControls";
 import {
   ACCENT,
   HANDLE,
@@ -80,6 +84,7 @@ export function useLayerLifecycle(deps: {
   measurements: import("@/lib/api/orblodeSvc").Measurement[];
   measurementVisibility: Record<string, boolean>;
   terrainExaggeration: number;
+  viewMode: ViewMode;
   sunLightingEnabled: boolean;
   sunHour: number;
   clipInputsVersion: number;
@@ -112,6 +117,7 @@ export function useLayerLifecycle(deps: {
     measurements,
     measurementVisibility,
     terrainExaggeration,
+    viewMode,
     sunLightingEnabled,
     sunHour,
     clipInputsVersion,
@@ -591,14 +597,23 @@ export function useLayerLifecycle(deps: {
   }, [viewerReady, anySiteMeshVisible, anySurveyTerrainVisible, clipInputsVersion]);
 
   // Terrain exaggeration (ported): scales heights around the ellipsoid so
-  // subtle relief reads at a glance. ×1 is true scale.
+  // subtle relief reads at a glance. ×1 is true scale. 2D squashes the whole
+  // site (terrain, mesh and points alike) flat at the ground under the screen
+  // centre, picked before it flattens, so the camera keeps its height over it.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewerReady || !viewer || viewer.isDestroyed()) return;
-    viewer.scene.verticalExaggeration = terrainExaggeration;
-    viewer.scene.verticalExaggerationRelativeHeight = 0;
-    viewer.scene.requestRender();
-  }, [viewerReady, terrainExaggeration]);
+    const { scene } = viewer;
+    if (viewMode === "2d") {
+      const ground = pickScenePosition(viewer, new Cartesian2(scene.canvas.clientWidth / 2, scene.canvas.clientHeight / 2));
+      scene.verticalExaggerationRelativeHeight = ground ? Cartographic.fromCartesian(ground).height : 0;
+      scene.verticalExaggeration = 0;
+    } else {
+      scene.verticalExaggeration = terrainExaggeration;
+      scene.verticalExaggerationRelativeHeight = 0;
+    }
+    scene.requestRender();
+  }, [viewerReady, terrainExaggeration, viewMode]);
 
   // Sun position: globe lighting + clock time-of-day slider.
   useEffect(() => {

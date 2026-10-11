@@ -135,6 +135,7 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
   const designControls = useViewerStore((s) => s.designControls);
   const project = useViewerStore((s) => s.project);
   const view = useViewerStore((s) => s.view);
+  const viewMode = useViewerStore((s) => s.viewMode);
   const actions = useViewerActions();
 
   const availableColorMaps = useMemo(() => {
@@ -181,6 +182,7 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
         processing={manifestLayersEmpty(manifest)}
         surveyStatus={manifest?.survey.status}
         terrainExaggeration={view.terrainExaggeration}
+        exaggerationDisabled={viewMode === "2d"}
         baseMap={view.baseMap}
         colorMap={view.colorMap}
         shading={view.shading}
