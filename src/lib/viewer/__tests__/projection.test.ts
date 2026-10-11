@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { getWorkingTransform } from "../projection.ts";
+import { getWorkingTransform, projectedUnits, utmEpsgCode } from "../projection.ts";
 
 test("EPSG:32756 resolves via computed UTM and forwards lon/lat→E/N", async () => {
   const t = await getWorkingTransform("EPSG:32756");
@@ -16,6 +16,14 @@ test("EPSG:32756 resolves via computed UTM and forwards lon/lat→E/N", async ()
   const [E, N] = t.forward([151.2093, -33.8688]);
   assert.ok(Math.abs(E - 334368.63) < 1.0, `E=${E}`);
   assert.ok(Math.abs(N - 6250948.35) < 1.0, `N=${N}`);
+});
+
+test("inverse takes E/N back to lon/lat", async () => {
+  const t = await getWorkingTransform("EPSG:32756");
+  assert.ok(t);
+  const [lon, lat] = t.inverse(t.forward([151.2093, -33.8688]));
+  assert.ok(Math.abs(lon - 151.2093) < 1e-9, `lon=${lon}`);
+  assert.ok(Math.abs(lat + 33.8688) < 1e-9, `lat=${lat}`);
 });
 
 test("bare numeric code and northern-hemisphere UTM (32633) omit +south", async () => {
@@ -65,4 +73,17 @@ test("unknown numeric code with a failing epsg.io lookup resolves to null", asyn
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("utmEpsgCode picks the zone and hemisphere", () => {
+  assert.equal(utmEpsgCode(151.2093, -33.8688), 32756);
+  assert.equal(utmEpsgCode(77.5946, 12.9716), 32643);
+  assert.equal(utmEpsgCode(-180, 10), 32601);
+  assert.equal(utmEpsgCode(180, 10), 32660);
+});
+
+test("projectedUnits reads the def's units", () => {
+  assert.equal(projectedUnits("+proj=utm +zone=56 +south +datum=WGS84 +units=m +no_defs"), "m");
+  assert.equal(projectedUnits("+proj=lcc +lat_1=33 +datum=NAD83 +units=us-ft +no_defs"), "US ft");
+  assert.equal(projectedUnits("+proj=tmerc +lat_0=0 +lon_0=173"), "m");
 });

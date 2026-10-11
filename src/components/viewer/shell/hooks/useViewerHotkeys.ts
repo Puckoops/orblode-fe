@@ -139,6 +139,11 @@ export function useViewerHotkeys(
         actions.toggleProjection();
         return;
       }
+      if (key === "g" && e.shiftKey) {
+        e.preventDefault();
+        s.setGridVisible(!s.gridVisible);
+        return;
+      }
 
       if (key === "1") {
         e.preventDefault();

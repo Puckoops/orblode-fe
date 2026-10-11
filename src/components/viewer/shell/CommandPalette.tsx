@@ -99,6 +99,7 @@ export function CommandPalette({
       { id: "tool-snap", label: s.snapEnabled ? "Turn snapping off" : "Turn snapping on", keywords: "snap magnet vertices", section: "Tools", hint: "S", run: () => toggleSnap(store) },
       { id: "cam-north", label: "Reset camera to North", keywords: "compass bearing heading orient 0 degrees", section: "View", hint: "N", run: () => actions.resetNorth() },
       { id: "cam-projection", label: "Toggle 2D / 3D view", keywords: "orthographic perspective top-down plan projection", section: "View", hint: "O", run: () => actions.toggleProjection() },
+      { id: "view-grid", label: s.gridVisible ? "Hide grid" : "Show grid", keywords: "graticule lines coordinates spacing easting northing", section: "View", hint: "⇧G", run: () => s.setGridVisible(!s.gridVisible) },
       { id: "lens-ramp", label: "Toggle elevation ramp", keywords: "colormap terrain viridis lens height", section: "View", hint: "1", run: () => toggleElevationRamp(store, actions) },
       { id: "lens-hillshade", label: "Toggle hillshade", keywords: "shading relief lens", section: "View", hint: "2", run: () => toggleHillshade(store, actions) },
       { id: "lens-contours", label: "Cycle contour interval", keywords: "isolines lens", section: "View", hint: "3", run: () => cycleContours(store, actions) },
