@@ -1,7 +1,8 @@
 import "./globals.css";
 import { themeScriptFor } from "@puckoops/camelot/helpers";
 import type { Metadata } from "next";
-import { Instrument_Sans, Instrument_Serif, Geist_Mono, Space_Mono } from "next/font/google";
+import { Instrument_Sans, Instrument_Serif, Space_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { InlineScript } from "@/components/InlineScript";
 import { DEFAULT_THEME } from "@/lib/theme";
 import { Providers } from "./providers";
@@ -9,7 +10,7 @@ import { Providers } from "./providers";
 const sans = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--pk-sans", display: "swap" });
 // The display face only titles the auth pages, so it is not preloaded on every route.
 const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: "--pk-serif", display: "swap", preload: false });
-const mono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--pk-mono", display: "swap" });
+const mono = localFont({ src: "./fonts/GeistMono-Variable.woff2", weight: "100 900", variable: "--pk-mono", display: "swap" });
 const logotype = Space_Mono({ subsets: ["latin"], weight: "700", variable: "--pk-logotype", display: "swap" });
 
 export const metadata: Metadata = {
