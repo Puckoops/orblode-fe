@@ -113,6 +113,7 @@ import { SurveyCompare } from "@/components/viewer/shell/SurveyCompare";
 import { DetailPanel } from "@/components/viewer/shell/DetailPanel";
 import { Loader } from "@/components/brand/Loader";
 import { StatusBar } from "@/components/viewer/shell/StatusBar";
+import { ViewGrid } from "@/components/viewer/shell/ViewGrid";
 import { CameraJoystick } from "@/components/viewer/CameraJoystick";
 
 import { useManifestLoad } from "@/components/viewer/shell/hooks/useManifestLoad";
@@ -204,6 +205,7 @@ export function ViewerCanvas() {
   const activeModule = useViewerStore((s) => s.activeModule);
   const selectionKind = useViewerStore((s) => s.selection?.kind ?? null);
   const projection = useViewerStore((s) => s.projection);
+  const gridVisible = useViewerStore((s) => s.gridVisible);
   const baseMap = useViewerStore((s) => s.view.baseMap);
   const compareActive = useViewerStore((s) => s.compareActive);
   const heatmapId = useViewerStore((s) => s.heatmap?.measurementId ?? null);
@@ -443,6 +445,11 @@ export function ViewerCanvas() {
   // A camera animation outliving its viewer would keep requesting frames on a
   // destroyed scene.
   useEffect(() => () => cameraAnimRef.current?.(), []);
+
+  const toggleGrid = useCallback(() => {
+    const s = store.getState();
+    s.setGridVisible(!s.gridVisible);
+  }, [store]);
 
   const goHome = useCallback(() => {
     const viewer = viewerRef.current;
@@ -1452,6 +1459,7 @@ export function ViewerCanvas() {
                   style={{ width: "100%", height: "100%" }}
                 />
               </div>
+              <ViewGrid />
               {(!viewerReady || !manifest) && !manifestError && <Loader variant="fill" label="Loading the survey" />}
 
               {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}
@@ -1476,6 +1484,8 @@ export function ViewerCanvas() {
                   projection={projection}
                   onToggleProjection={toggleProjection}
                   onResetNorth={resetNorth}
+                  gridVisible={gridVisible}
+                  onToggleGrid={toggleGrid}
                 />
               </div>
 

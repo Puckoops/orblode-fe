@@ -20,12 +20,13 @@
 type Proj4 = typeof import("proj4");
 
 /** A resolved forward projection for the working CRS. `forward([lon, lat])`
- * returns projected `[easting, northing]` in the CRS's units. */
+ * returns projected `[easting, northing]` in the CRS's units; `inverse` undoes it. */
 export interface WorkingTransform {
   code: number | null;
   def: string;
   source: "manifest" | "utm" | "curated" | "epsg.io";
   forward(lonLat: [number, number]): [number, number];
+  inverse(eastNorth: [number, number]): [number, number];
 }
 
 let proj4Promise: Promise<Proj4> | null = null;
@@ -145,7 +146,21 @@ function buildTransform(
     def,
     source,
     forward: (lonLat) => converter.forward(lonLat) as [number, number],
+    inverse: (eastNorth) => converter.inverse(eastNorth) as [number, number],
   };
+}
+
+/** The WGS84 / UTM zone code (326zz north, 327zz south) covering a point. */
+export function utmEpsgCode(lon: number, lat: number): number {
+  const zone = Math.min(60, Math.max(1, Math.floor((lon + 180) / 6) + 1));
+  return (lat < 0 ? 32700 : 32600) + zone;
+}
+
+/** The unit a proj4 def projects into, as shown beside a length. */
+export function projectedUnits(def: string): string {
+  const units = /\+units=([\w-]+)/.exec(def)?.[1];
+  if (units === "us-ft") return "US ft";
+  return units ?? "m";
 }
 
 /**

@@ -137,6 +137,11 @@ export interface ViewerShellData {
    * meaning. Persisted to localStorage. */
   drawingAssistance: "assisted" | "precise";
 
+  /** The view grid, whose spacing follows the zoom. Persisted to localStorage. */
+  gridVisible: boolean;
+  /** The grid cell a reader sees right now, formatted with its units; null while the grid is off or out of range. */
+  gridSpacing: string | null;
+
   /**
    * When set, the live draw session is EDITING this measurement's geometry (not
    * drawing a fresh one) — mirrors ViewerCanvas's `editingMeasurementIdRef` so
@@ -236,6 +241,8 @@ export interface ViewerShellActions {
   setSnapEnabled: (enabled: boolean) => void;
   /** Persists to localStorage and re-seeds the snap default for the new level. */
   setDrawingAssistance: (level: "assisted" | "precise") => void;
+  setGridVisible: (visible: boolean) => void;
+  setGridSpacing: (spacing: string | null) => void;
 
   setLayerVisible: (key: string, visible: boolean) => void;
   setLayerOpacity: (key: string, opacity: number) => void;
@@ -303,6 +310,17 @@ function readAssistancePref(): "assisted" | "precise" {
   }
 }
 
+const GRID_STORAGE_KEY = "orblode.viewGrid";
+
+function readGridPref(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(GRID_STORAGE_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
 function defaultData(surveyId: string): ViewerShellData {
   return {
     surveyId,
@@ -322,6 +340,8 @@ function defaultData(surveyId: string): ViewerShellData {
     probePoint: null,
     snapEnabled: readAssistancePref() !== "precise",
     drawingAssistance: readAssistancePref(),
+    gridVisible: readGridPref(),
+    gridSpacing: null,
     editingMeasurementId: null,
 
     draft: { points: [], hover: null },
@@ -462,6 +482,15 @@ export function createViewerStore(
       // Re-seed the layer-2 default; the user can still flip snap right back.
       set({ drawingAssistance: level, snapEnabled: level !== "precise" });
     },
+    setGridVisible: (visible) => {
+      try {
+        window.localStorage.setItem(GRID_STORAGE_KEY, visible ? "on" : "off");
+      } catch {
+        // the preference still applies for the session
+      }
+      set({ gridVisible: visible });
+    },
+    setGridSpacing: (spacing) => set({ gridSpacing: spacing }),
 
     openContextMenu: (x, y, measurementId) => set({ contextMenu: { x, y, measurementId } }),
     closeContextMenu: () => set({ contextMenu: null }),

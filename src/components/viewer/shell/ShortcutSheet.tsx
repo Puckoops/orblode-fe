@@ -86,6 +86,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () =>
         <Group title="Camera">
           <Row keys={<Key>N</Key>}>Reset bearing to North</Row>
           <Row keys={<Key>O</Key>}>2D top-down · 3D perspective</Row>
+          <Row keys={<><Key>Shift</Key><Key>G</Key></>}>Grid, spaced by the zoom</Row>
         </Group>
       </div>
 

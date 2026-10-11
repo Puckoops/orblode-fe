@@ -26,6 +26,11 @@ export const CURSOR_EDGE = "rgba(0, 0, 0, 0.55)";
 /** The backdrop behind draft segment labels. */
 export const DRAFT_LABEL_BACKGROUND = "#18181B";
 
+/** The view grid: light over imagery and the dark map, dark over the light street map. Minor lines fade in up to the same opacity. */
+export const GRID_INK = "#FFFFFF";
+export const GRID_INK_ON_LIGHT_MAP = "#27272A";
+export const GRID_OPACITY = 0.55;
+
 /** Vector overlays: contours, boundaries and other uploaded vectors. */
 export const VECTOR_OVERLAY = "#7DD3FC";
 

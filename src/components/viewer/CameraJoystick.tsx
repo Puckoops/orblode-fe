@@ -42,6 +42,7 @@ import {
   ArrowRight01Icon,
   ArrowUp01Icon,
   BoxIcon,
+  GridIcon,
   Home01Icon,
   Maximize01Icon,
   Minimize01Icon,
@@ -159,6 +160,8 @@ interface CameraJoystickProps {
   onToggleProjection?: () => void;
   /** FR-03 — ease the camera bearing to 0.0° True North. Wired to the ring. */
   onResetNorth?: () => void;
+  gridVisible?: boolean;
+  onToggleGrid?: () => void;
 }
 
 /**
@@ -231,6 +234,8 @@ export function CameraJoystick({
   projection = "perspective",
   onToggleProjection,
   onResetNorth,
+  gridVisible = false,
+  onToggleGrid,
 }: CameraJoystickProps) {
   const [active, setActive] = useState(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
@@ -431,6 +436,18 @@ export function CameraJoystick({
           aria-pressed={projection === "orthographic"}
           title={projection === "orthographic" ? "3D perspective" : "2D top-down"}
           className={`${hudButton} ${projection === "orthographic" ? "border-hairline-strong text-ink-1" : ""}`}
+        />
+      )}
+
+      {onToggleGrid && (
+        <IconButton
+          icon={GridIcon}
+          size="sm"
+          onClick={onToggleGrid}
+          aria-label={gridVisible ? "Hide the grid" : "Show the grid"}
+          aria-pressed={gridVisible}
+          title={gridVisible ? "Hide grid (Shift+G)" : "Show grid (Shift+G)"}
+          className={`${hudButton} ${gridVisible ? "border-hairline-strong text-ink-1" : ""}`}
         />
       )}
 

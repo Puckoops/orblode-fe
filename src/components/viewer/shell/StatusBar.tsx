@@ -213,6 +213,7 @@ export function StatusBar() {
   const { viewerRef, viewerReady } = useCesiumViewer();
   const manifest = useViewerStore((s) => s.manifest);
   const project = useViewerStore((s) => s.project);
+  const gridSpacing = useViewerStore((s) => (s.gridVisible ? s.gridSpacing : null));
 
   const workingCrs = manifest?.survey.working_crs ?? null;
   const verticalDatum = manifest?.survey.vertical_datum ?? null;
@@ -373,6 +374,7 @@ export function StatusBar() {
       {/* RIGHT — scale bar, ALT, north arrow + heading, survey date. */}
       <div className="flex shrink-0 items-center gap-3">
         <ScaleBar />
+        {gridSpacing && <span title="Grid spacing">GRID {gridSpacing}</span>}
         {camera && <span>ALT {formatAltitude(camera.heightMeters)}</span>}
         {viewerReady && (
           <span className="flex items-center gap-1" title="North">
