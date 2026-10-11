@@ -77,7 +77,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
 
         <dl className="mb-8 grid grid-cols-3 gap-2">
           <Stat value={String(surveys.length)} label="surveys" />
-          <Stat value={stockpiles?.surveyId === latestSurveyId ? String(stockpiles.count) : "-"} label="stockpiles" />
+          <Stat value={stockpiles && stockpiles.surveyId === latestSurveyId ? String(stockpiles.count) : "-"} label="stockpiles" />
           <Stat value="-" label="open issues" />
         </dl>
 
