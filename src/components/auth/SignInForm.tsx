@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Checkbox, Field, GoogleSignIn, Input, TextLink, toast } from "@puckoops/camelot";
+import { Button, Checkbox, Field, Input, TextLink, toast } from "@puckoops/camelot";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
@@ -8,6 +8,7 @@ import { login, loginWithGoogle } from "@/lib/api/userSvc";
 import { looksLikeEmail, normalizeEmail } from "@/lib/email";
 import styles from "./auth.module.css";
 import { FormAlert } from "./FormAlert";
+import { GoogleButton } from "./GoogleButton";
 import { PasswordInput } from "./PasswordInput";
 import { postJson, safeNextPath } from "./post";
 
@@ -52,11 +53,11 @@ export function SignInForm() {
     emailRef.current?.focus();
   };
 
-  const signInWithGoogle = async (credential: string) => {
+  const signInWithGoogle = async (code: string) => {
     setPending(true);
     clearNotices();
     try {
-      await loginWithGoogle(credential, remember);
+      await loginWithGoogle(code, remember);
       toast.success("Signed in");
       router.push(next);
       router.refresh();
@@ -104,7 +105,7 @@ export function SignInForm() {
       <p className={`small ${styles.lede}`}>Welcome back. Enter your {step} to continue.</p>
       {GOOGLE_CLIENT_ID && (
         <div className={styles.sso}>
-          <GoogleSignIn clientId={GOOGLE_CLIENT_ID} onCredential={signInWithGoogle} />
+          <GoogleButton clientId={GOOGLE_CLIENT_ID} onCode={signInWithGoogle} onError={setError} disabled={pending} />
           <p className={`small ${styles.or}`}>or with your email</p>
         </div>
       )}
