@@ -4,7 +4,10 @@ import assert from "node:assert/strict";
 import type { InventoryReport, Material, MaterialTrend } from "../../api/orblodeSvc.ts";
 import {
   defaultReconciliationPair,
+  formatCubic,
   formatDelta,
+  formatTonnes,
+  formatValue,
   inventoryCsv,
   parseCsv,
   parseProductionCsv,
@@ -79,23 +82,23 @@ test("defaultReconciliationPair takes the latest two surveys in date order", () 
   );
 });
 
-test("trendSeries draws the fitted line through the forecast anchor", () => {
+test("trendSeries draws the fitted line the report sends", () => {
   const trend = {
     material_id: "m1",
     name: "Coal",
     points: [
-      { survey_id: "a", date: "2026-01-01", tonnage_t: 100, volume_m3: 60 },
-      { survey_id: "b", date: "2026-01-11", tonnage_t: 80, volume_m3: 50 },
+      { survey_id: "a", date: "2026-01-01", tonnage_t: 100, volume_m3: 60, fitted_t: 98 },
+      { survey_id: "b", date: "2026-01-11", tonnage_t: 80, volume_m3: 50, fitted_t: 82 },
     ],
-    slope_t_per_day: -2,
-    forecast: [{ date: "2026-02-10", tonnage_t: 20 }],
+    slope_t_per_day: -1.6,
+    forecast: [{ date: "2026-02-10", tonnage_t: 0 }],
     anomalies: [],
   } satisfies MaterialTrend;
   assert.deepEqual(trendSeries(trend), {
     unit: "t",
     data: [
-      { label: "2026-01-01", value: 100, comparison: 100 },
-      { label: "2026-01-11", value: 80, comparison: 80 },
+      { label: "2026-01-01", value: 100, comparison: 98 },
+      { label: "2026-01-11", value: 80, comparison: 82 },
     ],
   });
   const noDensity = { ...trend, points: trend.points.map((p) => ({ ...p, tonnage_t: 0 })) };
@@ -107,4 +110,11 @@ test("formatDelta spells out the sign", () => {
   assert.equal(formatDelta(-1234.56, "t"), "−1,234.6 t");
   assert.equal(formatDelta(0, "m³"), "±0.0 m³");
   assert.equal(formatDelta(undefined, "t"), "—");
+});
+
+test("levels use the same minus sign as changes", () => {
+  assert.equal(formatTonnes(-295.6), "−295.6 t");
+  assert.equal(formatCubic(-12.34), "−12.3 m³");
+  assert.equal(formatValue(-7390), "−7,390");
+  assert.equal(formatTonnes(711.4), "711.4 t");
 });

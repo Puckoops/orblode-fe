@@ -11,17 +11,18 @@ const fixed = (digits: number) =>
   new Intl.NumberFormat("en-GB", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const one = fixed(1);
 const whole = fixed(0);
+const minus = (s: string) => s.replace(/^-/, "−");
 
 export function formatTonnes(v: number | null | undefined): string {
-  return v == null ? "—" : `${one.format(v)} t`;
+  return v == null ? "—" : `${minus(one.format(v))} t`;
 }
 
 export function formatCubic(v: number | null | undefined): string {
-  return v == null ? "—" : `${one.format(v)} m³`;
+  return v == null ? "—" : `${minus(one.format(v))} m³`;
 }
 
 export function formatValue(v: number | null | undefined): string {
-  return v == null ? "—" : whole.format(v);
+  return v == null ? "—" : minus(whole.format(v));
 }
 
 export function formatPercent(v: number | null | undefined): string {
@@ -205,9 +206,6 @@ export function defaultReconciliationPair(surveys: SurveyRef[]): [string, string
   return [sorted[sorted.length - 2].id, sorted[sorted.length - 1].id];
 }
 
-const DAY_MS = 86_400_000;
-const dayOf = (date: string) => Date.parse(`${date}T00:00:00Z`) / DAY_MS;
-
 export interface TrendSeries {
   unit: "t" | "m³";
   data: { label: string; value: number; comparison: number | null }[];
@@ -216,21 +214,16 @@ export interface TrendSeries {
 /**
  * A material's surveyed stock against its fitted line, in tonnes, or in cubic metres when the
  * material has no density and every tonnage is 0. The fitted line is only drawn in tonnes, since
- * the slope the report fits is in tonnes per day.
+ * the report fits tonnes.
  */
 export function trendSeries(trend: MaterialTrend): TrendSeries {
   const inTonnes = trend.points.some((p) => p.tonnage_t !== 0);
-  const anchor = trend.forecast[0];
-  const fitted = (date: string): number | null =>
-    inTonnes && anchor && trend.slope_t_per_day != null
-      ? anchor.tonnage_t + trend.slope_t_per_day * (dayOf(date) - dayOf(anchor.date))
-      : null;
   return {
     unit: inTonnes ? "t" : "m³",
     data: trend.points.map((p) => ({
       label: p.date,
       value: inTonnes ? p.tonnage_t : p.volume_m3,
-      comparison: fitted(p.date),
+      comparison: inTonnes && p.fitted_t != null ? p.fitted_t : null,
     })),
   };
 }

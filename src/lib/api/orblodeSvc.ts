@@ -738,10 +738,11 @@ export function getReconciliation(
   return apiFetch<ReconciliationReport>(BASE, `/reports/reconciliation?${q}`);
 }
 
+/** Forecast stock and its range are floored at 0 t. */
 export interface MaterialTrend {
   material_id: string;
   name: string;
-  points: { survey_id: string; date: string; tonnage_t: number; volume_m3: number }[];
+  points: { survey_id: string; date: string; tonnage_t: number; volume_m3: number; fitted_t?: number }[];
   slope_t_per_day?: number;
   forecast: { date: string; tonnage_t: number; low_t?: number; high_t?: number }[];
   depletion_date?: string;
