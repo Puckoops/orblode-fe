@@ -18,13 +18,6 @@ export interface Extent {
   maxN: number;
 }
 
-/** A sample along a screen edge: its position along the edge, and the grid coordinate there on each axis. */
-export interface EdgeSample {
-  at: number;
-  value: number;
-  other: number;
-}
-
 /** The grid for a scale in CRS units per pixel, or null when the scale is unusable. */
 export function gridLevel(unitsPerPx: number): GridLevel | null {
   if (!(unitsPerPx > 0) || !Number.isFinite(unitsPerPx)) return null;
@@ -41,15 +34,6 @@ export function minorOpacity(minor: number, unitsPerPx: number): number {
 /** The spacing a reader sees: the minor lines once they show, the major lines before that. */
 export function visibleSpacing(level: GridLevel, unitsPerPx: number): number {
   return minorOpacity(level.minor, unitsPerPx) >= 0.15 ? level.minor : level.major;
-}
-
-/** The smallest 1, 2 or 5 × 10ⁿ multiple of `spacing` whose lines are at least `gapPx` apart. */
-export function labelStep(spacing: number, unitsPerPx: number, gapPx: number): number {
-  for (let power = 1; ; power *= 10) {
-    for (const m of [1, 2, 5]) {
-      if ((spacing * m * power) / unitsPerPx >= gapPx || power >= 1e6) return spacing * m * power;
-    }
-  }
 }
 
 /** Multiples of `spacing` within [min, max], leaving out every `skipEvery`th one when it is set. */
@@ -74,64 +58,8 @@ export function containsExtent(outer: Extent, inner: Extent): boolean {
   );
 }
 
-/**
- * Where the multiples of `spacing` fall between consecutive samples along an edge, interpolated linearly.
- * Lines that run nearly along the edge, over the whole edge or between two samples, are left out: their
- * value changes less than `minSlope` times the other axis, so where they meet the edge is down to noise
- * in the samples, and the other edge labels them.
- */
-export function edgeCrossings(
-  samples: (EdgeSample | null)[],
-  spacing: number,
-  { minSlope = 0.5, maxPerGap = 50 } = {}
-): EdgeSample[] {
-  const crossings: EdgeSample[] = [];
-  const present = samples.filter((s): s is EdgeSample => s !== null);
-  if (present.length < 2) return crossings;
-  const first = present[0];
-  const last = present[present.length - 1];
-  if (Math.abs(last.value - first.value) < minSlope * Math.abs(last.other - first.other)) return crossings;
-  for (let i = 1; i < samples.length; i++) {
-    const a = samples[i - 1];
-    const b = samples[i];
-    if (!a || !b || a.value === b.value) continue;
-    if (Math.abs(b.value - a.value) < minSlope * Math.abs(b.other - a.other)) continue;
-    const first = Math.floor(Math.min(a.value, b.value) / spacing) + 1;
-    const last = Math.floor(Math.max(a.value, b.value) / spacing);
-    // Near the horizon one pixel step can cover kilometres; labels there would be noise.
-    if (last - first >= maxPerGap) continue;
-    for (let k = first; k <= last; k++) {
-      const value = k * spacing;
-      const t = (value - a.value) / (b.value - a.value);
-      crossings.push({ at: a.at + t * (b.at - a.at), value, other: a.other + t * (b.other - a.other) });
-    }
-  }
-  return crossings;
-}
-
-/** Keeps items at least `gap` apart along an edge, earliest first. */
-export function spreadAlong<T extends { at: number }>(items: T[], gap: number): T[] {
-  const kept: T[] = [];
-  for (const item of [...items].sort((a, b) => a.at - b.at)) {
-    if (kept.length === 0 || item.at - kept[kept.length - 1].at >= gap) kept.push(item);
-  }
-  return kept;
-}
-
-export function spacingDecimals(spacing: number): number {
-  return Math.max(0, Math.ceil(-Math.log10(spacing) - 1e-9));
-}
-
-export function formatGridValue(value: number, spacing: number): string {
-  const digits = spacingDecimals(spacing);
-  // -0 === 0, so this folds negative zero, which would otherwise print as "-0".
-  return (value === 0 ? 0 : value).toLocaleString("en-US", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-}
-
 export function formatGridSpacing(spacing: number, units: string): string {
-  if (units === "m" && spacing >= 1000) return `${formatGridValue(spacing / 1000, spacing / 1000)} km`;
-  return `${formatGridValue(spacing, spacing)} ${units}`;
+  const [value, unit] = units === "m" && spacing >= 1000 ? [spacing / 1000, "km"] : [spacing, units];
+  const digits = Math.max(0, Math.ceil(-Math.log10(value) - 1e-9));
+  return `${value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${unit}`;
 }
