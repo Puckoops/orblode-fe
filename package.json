@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.3.5",
-    "@puckoops/camelot": "file:vendor/puckoops-camelot-0.1.0.tgz",
+    "@puckoops/camelot": "file:vendor/puckoops-camelot-0.2.0.tgz",
     "@xstate/react": "^6.1.0",
     "cesium": "^1.141.0",
     "framer-motion": "^12.40.0",

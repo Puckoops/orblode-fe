@@ -12,8 +12,8 @@ importers:
         specifier: ^4.3.5
         version: 4.3.5
       '@puckoops/camelot':
-        specifier: file:vendor/puckoops-camelot-0.1.0.tgz
-        version: file:vendor/puckoops-camelot-0.1.0.tgz(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: file:vendor/puckoops-camelot-0.2.0.tgz
+        version: file:vendor/puckoops-camelot-0.2.0.tgz(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@xstate/react':
         specifier: ^6.1.0
         version: 6.1.0(@types/react@19.3.0)(react@19.2.4)(xstate@5.33.2)
@@ -531,9 +531,9 @@ packages:
   '@petamoriken/float16@3.9.3':
     resolution: {integrity: sha512-8awtpHXCx/bNpFt4mt2xdkgtgVvKqty8VbjHI/WWWQuEw+KLzFot3f4+LkQY9YmOtq7A5GdOnqoIC8Pdygjk2g==}
 
-  '@puckoops/camelot@file:vendor/puckoops-camelot-0.1.0.tgz':
-    resolution: {integrity: sha512-MRVq50KMe5IqjQuFjJZMHYTj3y4AeLXtE6lC9SyFkkz9FCn9z4SibfR6jLyYGZtGRMYfYiJQKi6h6kqiOdtj1A==, tarball: file:vendor/puckoops-camelot-0.1.0.tgz}
-    version: 0.1.0
+  '@puckoops/camelot@file:vendor/puckoops-camelot-0.2.0.tgz':
+    resolution: {integrity: sha512-i8L20kTWqXUvqoZUn8lwztBy8LX3U9ZMG2BsM7uDzr1tleVUYmEsqPoJS0sU4nXsKNbOZb811ZHXY1g6YjDLUQ==, tarball: file:vendor/puckoops-camelot-0.2.0.tgz}
+    version: 0.2.0
     engines: {node: '>=20'}
     peerDependencies:
       react: ^19.0.0
@@ -3500,7 +3500,7 @@ snapshots:
 
   '@petamoriken/float16@3.9.3': {}
 
-  '@puckoops/camelot@file:vendor/puckoops-camelot-0.1.0.tgz(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@puckoops/camelot@file:vendor/puckoops-camelot-0.2.0.tgz(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@hugeicons/core-free-icons': 4.3.5
       '@hugeicons/react': 1.1.10(react@19.2.4)

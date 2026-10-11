@@ -1,15 +1,17 @@
 "use client";
 
-import { Button, Checkbox, Field, Input, TextLink, toast } from "@puckoops/camelot";
+import { Button, Checkbox, Field, GoogleSignIn, Input, TextLink, toast } from "@puckoops/camelot";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { login } from "@/lib/api/userSvc";
+import { login, loginWithGoogle } from "@/lib/api/userSvc";
 import { looksLikeEmail, normalizeEmail } from "@/lib/email";
 import styles from "./auth.module.css";
 import { FormAlert } from "./FormAlert";
 import { PasswordInput } from "./PasswordInput";
 import { postJson, safeNextPath } from "./post";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 export function SignInForm() {
   const router = useRouter();
@@ -32,6 +34,22 @@ export function SignInForm() {
     setPending(false);
     if (res?.ok) setResent(true);
     else setError("We couldn't send a new link. Try again in a moment.");
+  };
+
+  const signInWithGoogle = async (credential: string) => {
+    setPending(true);
+    setError(null);
+    setUnconfirmed(null);
+    setResent(false);
+    try {
+      await loginWithGoogle(credential, remember);
+      toast.success("Signed in");
+      router.push(next);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "That didn't work. Try again.");
+      setPending(false);
+    }
   };
 
   const submit = async (e: FormEvent) => {
@@ -63,6 +81,12 @@ export function SignInForm() {
     <>
       <h1 className="quote">Sign in to Orblode</h1>
       <p className={`small ${styles.lede}`}>Welcome back. Enter your credentials to continue.</p>
+      {GOOGLE_CLIENT_ID && (
+        <div className={styles.sso}>
+          <GoogleSignIn clientId={GOOGLE_CLIENT_ID} onCredential={signInWithGoogle} />
+          <p className={`small ${styles.or}`}>or with your email</p>
+        </div>
+      )}
       <form className={styles.form} onSubmit={submit} noValidate>
         <FormAlert message={error} />
         {unconfirmed && (

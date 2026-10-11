@@ -6,7 +6,7 @@ The web app for **Orblode**, GEOID's site-survey platform running on Orbit: sign
 
 The browser only ever calls this app. The session token lives in an httpOnly cookie (`orblode_session`) and is attached on the server:
 
-- **Accounts** come from Orbit's [user-svc](../user-svc). `/api/auth/*` signs people in, confirms email addresses, resets passwords and creates organisations, always with `"type": "orblode"`. The login response's user and client are kept in a second httpOnly cookie (`orblode_profile`) for display (sidebar, topbar, settings) and handed to client components by the signed-in layouts.
+- **Accounts** come from Orbit's [user-svc](../user-svc). `/api/auth/*` signs people in, confirms email addresses, resets passwords and creates organisations, always with `"type": "orblode"`. "Sign in with Google" on `/sign-in` sends Google's credential to `/api/auth/google`, which exchanges it at user-svc's `/user/oauth`; it signs in people whose email already belongs to an organisation, and never creates one. The login response's user and client are kept in a second httpOnly cookie (`orblode_profile`) for display (sidebar, topbar, settings) and handed to client components by the signed-in layouts.
 - **Orblode's domain** in user-svc (projects, members, permissions, viewer presets and bookmarks) is reached through `/api/users/*`, which forwards `/orblode/*` and `/users/*` with the session as a bearer token.
 - **Everything else** comes from [orblode-svc](../orblode-svc) through `/api/orblode/*`, following [`ORBLODE_API_CONTRACT.md`](../ORBLODE_API_CONTRACT.md).
 - **Demo requests** from the landing page go through `/api/leads`, the one route that needs no session. It forwards `{name, email, company, message, website}` to orblode-svc's public `POST /leads` (stored in the `leads` collection) with the visitor's `X-Forwarded-For`, so the service's per-address rate limit counts people rather than this server; `website` is a hidden honeypot.
@@ -46,12 +46,13 @@ npm run dev                   # http://localhost:3100
 | `USER_SVC_URL` | server, at request time | user-svc's API base, e.g. `https://api.dev.puckoops.com/user-svc-smm/api/v1` |
 | `ORBLODE_SVC_URL` | server, at request time | orblode-svc's API base, e.g. `https://api.dev.puckoops.com/orblode-svc/api/v1` |
 | `NEXT_PUBLIC_CESIUM_ION_TOKEN` | browser, inlined at build time | Cesium ion token for World Terrain and the Digital Twin layer; optional |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | browser, inlined at build time | The Google OAuth client user-svc's `GOOGLE_CLIENT_ID` names; empty hides "Sign in with Google". Its authorised JavaScript origins must list this app's origin, `http://localhost:3100` included. |
 
 Checks: `npm run typecheck`, `npm run lint`, `npm test` (Node's test runner over `src/lib/**/*.test.ts`) and `npm run build`.
 
 ## Camelot
 
-`@puckoops/camelot` is installed from `vendor/puckoops-camelot-0.1.0.tgz`, the same packed build orbit-fe uses. Its stylesheet is imported into a cascade layer (`src/app/globals.css`) between Tailwind's base and utilities. Tailwind is kept as the layout layer only: its colour palette and type scale are switched off, so colour comes from Camelot's role tokens (`bg-surface`, `border-hairline`, `text-ink-3`) and text size from Camelot's type classes (`small`, `caption`, `caps`, `num`).
+`@puckoops/camelot` is installed from `vendor/puckoops-camelot-0.2.0.tgz`, the same packed build orbit-fe uses. Its stylesheet is imported into a cascade layer (`src/app/globals.css`) between Tailwind's base and utilities. Tailwind is kept as the layout layer only: its colour palette and type scale are switched off, so colour comes from Camelot's role tokens (`bg-surface`, `border-hairline`, `text-ink-3`) and text size from Camelot's type classes (`small`, `caption`, `caps`, `num`).
 
 The Cesium scene's colours and materials (measurement palette, heatmap legend, draft and selection styling, site markers) are data rendering, not chrome, and live in `src/lib/viewer/sceneStyle.ts`. That module and the landing page's `landing.module.css`, which has its own fixed dark palette, are the only places allowed literal colours. The space around the globe takes the theme's `--canvas` token, so the viewer follows light and dark. The app opens in dark (a 3D viewer reads best there); Settings and the account menu switch it.
 
@@ -67,7 +68,7 @@ Where Camelot has no equivalent, these stay:
 
 ## Deployment
 
-Vercel builds the repo as a Next.js project from its root (`npm install`, `npm run build`), with `USER_SVC_URL` and `ORBLODE_SVC_URL` set for Production and Preview and `NEXT_PUBLIC_CESIUM_ION_TOKEN` set before the build. `src/proxy.ts` runs on the Node.js runtime and rewrites `/files/*` to the external orblode-svc URL, which Vercel supports for proxy rewrites. The build needs about 8 GB of heap (`NODE_OPTIONS` in the build script) because of the viewer.
+Vercel builds the repo as a Next.js project from its root (`npm install`, `npm run build`), with `USER_SVC_URL` and `ORBLODE_SVC_URL` set for Production and Preview and `NEXT_PUBLIC_CESIUM_ION_TOKEN` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID` set before the build. Google accepts only the origins listed on its client, so the Google button works on `www.orblode.com` (where `orblode.com` redirects) and not on preview URLs. `src/proxy.ts` runs on the Node.js runtime and rewrites `/files/*` to the external orblode-svc URL, which Vercel supports for proxy rewrites. The build needs about 8 GB of heap (`NODE_OPTIONS` in the build script) because of the viewer.
 
 ## Deviations from the port spec
 

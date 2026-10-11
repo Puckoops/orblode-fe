@@ -42,6 +42,22 @@ export async function login(email: string, password: string, remember = false): 
   return readBody<LoginResponse>(res.status, res.ok, await res.text());
 }
 
+/** Signs in through the BFF with the credential from Google's button, as login does with a password. */
+export async function loginWithGoogle(credential: string, remember = false): Promise<LoginResponse> {
+  let res: Response;
+  try {
+    res = await fetch("/api/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential, remember }),
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiError(502, "We couldn't reach Orblode. Check your connection and try again.");
+  }
+  return readBody<LoginResponse>(res.status, res.ok, await res.text());
+}
+
 export function listProjects(): Promise<Project[]> {
   return apiFetch<Project[]>(USERS_API, "/orblode/projects");
 }
