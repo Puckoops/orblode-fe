@@ -23,6 +23,7 @@ import {
   type LngLatHeight,
 } from "@/lib/viewer/measure";
 import type { DrawMode } from "@/lib/viewer/draw";
+import type { SurfaceHeights } from "@/lib/viewer/surfaceHeights";
 import { ACCENT, HANDLE } from "@/components/viewer/shell/sceneHelpers";
 
 export function useDrawInteraction(deps: {
@@ -32,6 +33,7 @@ export function useDrawInteraction(deps: {
   drawMode: DrawMode | null;
   rightPanel: "measure" | "inspect" | null;
   setProbePoint: (p: LngLatHeight | null) => void;
+  surfaceHeights: SurfaceHeights;
   probeEntityRef: RefObject<Entity | null>;
   cancelDraw: () => void;
   cleanupDraw: () => void;
@@ -43,6 +45,7 @@ export function useDrawInteraction(deps: {
     drawMode,
     rightPanel,
     setProbePoint,
+    surfaceHeights,
     probeEntityRef,
     cancelDraw,
     cleanupDraw,
@@ -53,10 +56,20 @@ export function useDrawInteraction(deps: {
     if (!probing || !viewerReady || !viewer || viewer.isDestroyed()) return;
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    let probe = 0;
     handler.setInputAction((event: ScreenSpaceEventHandler.PositionedEvent) => {
       const position = pickScenePosition(viewer, event.position);
       if (!position) return;
-      setProbePoint(toLngLatHeight(position));
+      const point = toLngLatHeight(position);
+      if (surfaceHeights.active) {
+        // A flat (2D) scene picks the plane, not the ground; the height comes from the survey surface.
+        const thisProbe = ++probe;
+        surfaceHeights.sample(position).then((height) => {
+          if (thisProbe === probe) setProbePoint({ ...point, height: height ?? Number.NaN });
+        });
+      } else {
+        setProbePoint(point);
+      }
       if (!probeEntityRef.current) {
         probeEntityRef.current = viewer.entities.add({
           position,
@@ -77,7 +90,7 @@ export function useDrawInteraction(deps: {
     handler.setInputAction(() => cancelDraw(), ScreenSpaceEventType.RIGHT_CLICK);
 
     return () => handler.destroy();
-  }, [probing, viewerReady, cancelDraw]);
+  }, [probing, viewerReady, cancelDraw, surfaceHeights]);
 
   // ESC discards an in-flight or right-click-locked drawing / closes the detail
   // panel. Inputs are excluded so Escape means "leave the field", not discard.

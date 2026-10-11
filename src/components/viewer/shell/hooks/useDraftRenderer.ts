@@ -32,6 +32,7 @@ import type { ActorRefFrom } from "xstate";
 import { INTERACTION_V2 } from "@/lib/viewer/interaction/flag";
 import type { interactionMachine } from "@/lib/viewer/interaction/machine";
 import { computeDistanceMeters, computeGrade } from "@/lib/viewer/measure";
+import type { SurfaceHeights } from "@/lib/viewer/surfaceHeights";
 import { ACCENT, HANDLE, LABEL_BG, SNAP } from "@/components/viewer/shell/sceneHelpers";
 import type { AdapterRefs } from "./useInteractionAdapter";
 
@@ -47,7 +48,9 @@ export function useDraftRenderer(
   handleEntitiesRef: RefObject<Entity[]>,
   /** Populated with the midpoint "ghost" entities (edge order) while editing —
    * click one to insert a vertex on that edge (adapter GPU-picks it). */
-  ghostEntitiesRef: RefObject<Entity[]>
+  ghostEntitiesRef: RefObject<Entity[]>,
+  /** Ground heights for the readouts while the site is drawn flat (2D). */
+  surfaceHeights: SurfaceHeights
 ): void {
   useEffect(() => {
     if (!INTERACTION_V2 || !viewerReady) return;
@@ -59,6 +62,10 @@ export function useDraftRenderer(
     const ringOpen = () => actor.getSnapshot().context.ringOpen;
     const isPolygon = () => actor.getSnapshot().context.primitive === "polygon";
     const isSlope = () => actor.getSnapshot().context.template?.drawOpts?.slope === true;
+    const onGround = (pts: Cartesian3[]) => {
+      surfaceHeights.request(pts);
+      return surfaceHeights.lift(pts);
+    };
 
     let base: Entity[] = [];
     let dots: Entity[] = [];
@@ -124,7 +131,7 @@ export function useDraftRenderer(
               const pts = draft();
               const hover = hoverRef.current;
               if (!hover || pts.length === 0) return "";
-              const segment = [pts[pts.length - 1], hover];
+              const segment = onGround([pts[pts.length - 1], hover]);
               const distance = computeDistanceMeters(segment);
               const grade = isSlope() ? computeGrade(segment) : null;
               if (!grade) return `${distance.toFixed(2)} m`;
@@ -205,11 +212,12 @@ export function useDraftRenderer(
           })
         );
         if (i > 0) {
+          const ends = [pts[i - 1], pts[i]];
           segmentLabels.push(
             viewer.entities.add({
-              position: Cartesian3.midpoint(pts[i - 1], pts[i], new Cartesian3()),
+              position: Cartesian3.midpoint(ends[0], ends[1], new Cartesian3()),
               label: {
-                text: `${computeDistanceMeters([pts[i - 1], pts[i]]).toFixed(2)} m`,
+                text: new CallbackProperty(() => `${computeDistanceMeters(onGround(ends)).toFixed(2)} m`, false),
                 font: "14px sans-serif",
                 fillColor: HANDLE,
                 showBackground: true,
@@ -283,6 +291,10 @@ export function useDraftRenderer(
       if (!viewer.isDestroyed()) viewer.scene.requestRender();
     };
 
+    const stopHeights = surfaceHeights.subscribe(() => {
+      if (!viewer.isDestroyed()) viewer.scene.requestRender();
+    });
+
     const sub = actor.subscribe((snap) => {
       const val = snap.value;
       const editing = typeof val === "object" && val !== null && "editing" in val;
@@ -338,7 +350,8 @@ export function useDraftRenderer(
 
     return () => {
       sub.unsubscribe();
+      stopHeights();
       teardown();
     };
-  }, [actor, refs, viewerRef, viewerReady, handleEntitiesRef, ghostEntitiesRef]);
+  }, [actor, refs, viewerRef, viewerReady, handleEntitiesRef, ghostEntitiesRef, surfaceHeights]);
 }

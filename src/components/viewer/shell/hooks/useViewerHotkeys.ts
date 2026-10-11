@@ -136,7 +136,7 @@ export function useViewerHotkeys(
       }
       if (key === "o" && !e.shiftKey) {
         e.preventDefault();
-        actions.toggleProjection();
+        actions.toggleViewMode();
         return;
       }
       if (key === "g" && e.shiftKey) {

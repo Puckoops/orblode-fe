@@ -12,7 +12,7 @@
 // is persisted immediately as a draft row, so the inspector target is always
 // id-based store selection — the old draftMeasurement prop threading is gone.
 
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { AnimatePresence, motion, useDragControls, useIsPresent } from "framer-motion";
 
 import { useSelector } from "@xstate/react";
@@ -20,6 +20,7 @@ import { useSelector } from "@xstate/react";
 import { estimateKey, useViewerStore } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
 import { useInteractionActor } from "@/components/viewer/shell/interactionContext";
+import { useSurfaceHeights } from "@/components/viewer/shell/surfaceHeightsContext";
 import { MeasurePalette, type LiveReadout } from "@/components/viewer/MeasurePalette";
 import { FeatureInspector } from "@/components/viewer/FeatureInspector";
 import {
@@ -39,11 +40,17 @@ function useLiveReadout(): LiveReadout {
   const drawMode = useViewerStore((s) => s.drawMode);
   const draft = useViewerStore((s) => s.draft);
   const activeDrawOpts = useViewerStore((s) => s.activeDrawOpts);
+  const surfaceHeights = useSurfaceHeights();
+  const heightsVersion = useSyncExternalStore(surfaceHeights.subscribe, surfaceHeights.version, surfaceHeights.version);
+
+  useEffect(() => {
+    if (drawMode) surfaceHeights.request(draft.hover ? [...draft.points, draft.hover] : draft.points);
+  }, [surfaceHeights, drawMode, draft]);
 
   return useMemo<LiveReadout>(() => {
     if (probing) return { mode: "probe", vertexCount: 0, point: probePoint };
     if (drawMode) {
-      const pts = draft.hover ? [...draft.points, draft.hover] : draft.points;
+      const pts = surfaceHeights.lift(draft.hover ? [...draft.points, draft.hover] : draft.points);
       if (drawMode === "polygon") {
         return {
           mode: "polygon",
@@ -60,7 +67,8 @@ function useLiveReadout(): LiveReadout {
       };
     }
     return { mode: "idle", vertexCount: 0 };
-  }, [probing, probePoint, drawMode, draft, activeDrawOpts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- heightsVersion re-runs this when sampled heights land
+  }, [probing, probePoint, drawMode, draft, activeDrawOpts, surfaceHeights, heightsVersion]);
 }
 
 /** The inner detail switch, host-agnostic. `mode` is passed by the host (which

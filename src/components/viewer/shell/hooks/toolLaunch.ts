@@ -27,9 +27,9 @@ export interface HotkeyActions {
   handleShadingChange: (value: string) => void;
   handleContourIntervalChange: (intervalM: number) => void;
   handleSunLightingChange: (enabled: boolean, hour: number) => void;
-  /** FR-03 / FR-06 — camera bearing reset and projection toggle. */
+  /** FR-03 / FR-06 — camera bearing reset and the 2D/3D toggle. */
   resetNorth: () => void;
-  toggleProjection: () => void;
+  toggleViewMode: () => void;
 }
 
 const RAMP_NAMES = ["viridis", "terrain", "plasma", "grayscale"];

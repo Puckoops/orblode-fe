@@ -56,7 +56,7 @@ import { screenCenterPivot } from "@/lib/viewer/camera";
 import {
   GIZMO_FADE_MS,
   cardinalMarksByDepth,
-  type ProjectionMode,
+  type ViewMode,
 } from "@/lib/viewer/cameraControls";
 import { useCameraOrientation } from "@/components/viewer/shell/hooks/useCameraOrientation";
 
@@ -153,10 +153,9 @@ interface CameraJoystickProps {
   isFullscreen?: boolean;
   /** Toggle fullscreen on the viewer shell. */
   onToggleFullscreen?: () => void;
-  /** FR-06 — active camera projection, so the button shows the right icon. */
-  projection?: ProjectionMode;
-  /** FR-06 — switch between the 3D orbit and the top-down orthographic plan. */
-  onToggleProjection?: () => void;
+  /** FR-06 — 2D keeps the camera straight down, so the joystick only turns it. */
+  viewMode?: ViewMode;
+  onToggleViewMode?: () => void;
   /** FR-03 — ease the camera bearing to 0.0° True North. Wired to the ring. */
   onResetNorth?: () => void;
   gridVisible?: boolean;
@@ -230,8 +229,8 @@ export function CameraJoystick({
   onZoomOut,
   isFullscreen,
   onToggleFullscreen,
-  projection = "perspective",
-  onToggleProjection,
+  viewMode = "3d",
+  onToggleViewMode,
   onResetNorth,
   gridVisible = false,
   onToggleGrid,
@@ -277,7 +276,7 @@ export function CameraJoystick({
 
         if (x !== 0) camera.rotateRight(x * YAW_RATE * dt);
 
-        if (y !== 0) {
+        if (y !== 0 && viewMode === "3d") {
           // Knob up (y < 0) eases toward the horizon; down returns top-down.
           const prevPitch = camera.pitch;
           const delta = y * PITCH_RATE * dt;
@@ -299,7 +298,7 @@ export function CameraJoystick({
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [active, viewerRef]);
+  }, [active, viewerRef, viewMode]);
 
   const updateFromPointer = useCallback((clientX: number, clientY: number) => {
     const base = baseRef.current;
@@ -406,8 +405,12 @@ export function CameraJoystick({
           <div className="pointer-events-none absolute top-1/2 right-2.5 left-2.5 h-px -translate-y-1/2 bg-hairline" />
 
           {/* Directional hints — brighten toward the side being pushed */}
-          <Icon icon={ArrowUp01Icon} size={16} className={`${hint(dy < -0.2)} -top-1 left-1/2 -translate-x-1/2`} />
-          <Icon icon={ArrowDown01Icon} size={16} className={`${hint(dy > 0.15)} -bottom-1 left-1/2 -translate-x-1/2`} />
+          {viewMode === "3d" && (
+            <>
+              <Icon icon={ArrowUp01Icon} size={16} className={`${hint(dy < -0.2)} -top-1 left-1/2 -translate-x-1/2`} />
+              <Icon icon={ArrowDown01Icon} size={16} className={`${hint(dy > 0.15)} -bottom-1 left-1/2 -translate-x-1/2`} />
+            </>
+          )}
           <Icon icon={ArrowLeft01Icon} size={16} className={`${hint(dx < -0.15)} top-1/2 -left-1 -translate-y-1/2`} />
           <Icon icon={ArrowRight01Icon} size={16} className={`${hint(dx > 0.15)} top-1/2 -right-1 -translate-y-1/2`} />
 
@@ -439,15 +442,15 @@ export function CameraJoystick({
       )}
 
       {/* Labelled with the view it switches to, as map apps do. */}
-      {onToggleProjection && (
+      {onToggleViewMode && (
         <button
           type="button"
-          onClick={onToggleProjection}
-          aria-label={projection === "orthographic" ? "Switch to 3D perspective view" : "Switch to 2D top-down view"}
-          title={projection === "orthographic" ? "3D perspective (O)" : "2D top-down (O)"}
+          onClick={onToggleViewMode}
+          aria-label={viewMode === "2d" ? "Show the site in 3D" : "Show the site flat, in 2D"}
+          title={viewMode === "2d" ? "3D site (O)" : "2D flat site (O)"}
           className="caps flex size-6 items-center justify-center rounded-full border border-hairline bg-surface/90 tracking-normal text-ink-3 backdrop-blur-xl hover:bg-surface-2 hover:text-ink-1 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
         >
-          {projection === "orthographic" ? "3D" : "2D"}
+          {viewMode === "2d" ? "3D" : "2D"}
         </button>
       )}
 

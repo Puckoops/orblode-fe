@@ -37,6 +37,7 @@ import {
 } from "@/lib/viewer/projection";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import { useCesiumViewer } from "@/lib/viewer/state/cesiumContext";
+import { useSurfaceHeights } from "@/components/viewer/shell/surfaceHeightsContext";
 
 const CURSOR_SAMPLE_MS = 100;
 const SCALE_SAMPLE_MS = 100;
@@ -214,6 +215,7 @@ export function StatusBar() {
   const manifest = useViewerStore((s) => s.manifest);
   const project = useViewerStore((s) => s.project);
   const gridSpacing = useViewerStore((s) => (s.gridVisible ? s.gridSpacing : null));
+  const surfaceHeights = useSurfaceHeights();
 
   const workingCrs = manifest?.survey.working_crs ?? null;
   const verticalDatum = manifest?.survey.vertical_datum ?? null;
@@ -257,18 +259,34 @@ export function StatusBar() {
     const viewer = viewerRef.current;
     if (!viewerReady || !viewer || viewer.isDestroyed()) return;
 
+    let last: Cartesian3 | null = null;
+    const show = () => {
+      if (!last) return setCursor(null);
+      const point = toLngLatHeight(last);
+      // A flat (2D) scene picks the plane, not the ground; the height comes from the survey surface.
+      if (surfaceHeights.active) {
+        surfaceHeights.request([last]);
+        point.height = surfaceHeights.at(last) ?? Number.NaN;
+      }
+      setCursor(point);
+    };
+
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((movement: { endPosition: Cartesian2 }) => {
       const now = performance.now();
       if (now - lastSampleRef.current < CURSOR_SAMPLE_MS) return;
       lastSampleRef.current = now;
       if (viewer.isDestroyed()) return;
-      const position = pickScenePosition(viewer, movement.endPosition);
-      setCursor(position ? toLngLatHeight(position) : null);
+      last = pickScenePosition(viewer, movement.endPosition);
+      show();
     }, ScreenSpaceEventType.MOUSE_MOVE);
+    const stopHeights = surfaceHeights.subscribe(show);
 
-    return () => handler.destroy();
-  }, [viewerRef, viewerReady]);
+    return () => {
+      handler.destroy();
+      stopHeights();
+    };
+  }, [viewerRef, viewerReady, surfaceHeights]);
 
   // Camera heading + altitude — settle listeners (changed@0.05 + moveEnd).
   useEffect(() => {
@@ -322,7 +340,7 @@ export function StatusBar() {
                 className="text-ink-4"
                 title="Heights are ellipsoidal — geoid offset for the vertical datum is not applied in Phase 1"
               >
-                Z {cursor.height.toFixed(1)} m{verticalDatum ? ` (${verticalDatum})` : ""}
+                Z {Number.isFinite(cursor.height) ? `${cursor.height.toFixed(1)} m` : "—"}{verticalDatum ? ` (${verticalDatum})` : ""}
               </span>
             </>
           ) : (
@@ -334,7 +352,7 @@ export function StatusBar() {
                 className="text-ink-4"
                 title="Heights are ellipsoidal — geoid offset for the vertical datum is not applied in Phase 1"
               >
-                ELEV {cursor.height.toFixed(1)} m
+                ELEV {Number.isFinite(cursor.height) ? `${cursor.height.toFixed(1)} m` : "—"}
               </span>
             </>
           )
