@@ -1,12 +1,13 @@
+import type { LandingMedia } from "@/lib/landing/media";
 import { RequestDemoButton } from "./DemoRequest";
-import { HeroScene } from "./HeroScene";
+import { HeroVideo } from "./HeroVideo";
 import styles from "./landing.module.css";
 
-export function Hero() {
+export function Hero({ media }: { media: Pick<LandingMedia, "hero" | "frame"> }) {
   return (
     <section aria-labelledby="hero-title" className={styles.hero}>
       <div className={`${styles.window} ${styles.heroWindow}`}>
-        <HeroScene />
+        <HeroVideo hero={media.hero} frame={media.frame} />
         <div className={styles.heroCopy}>
           <h1 id="hero-title" className={styles.heroTitle}>
             See your site from <em>decision altitude.</em>

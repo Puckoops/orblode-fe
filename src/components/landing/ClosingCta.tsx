@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import type { Picture } from "@/lib/landing/media";
 import { useDemoRequest } from "./DemoRequest";
 import styles from "./landing.module.css";
-import { ContourMap } from "./MapCanvases";
+import { LandingPicture } from "./LandingPicture";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** The closing request: a work email here opens the demo form with the address already filled in. */
-export function ClosingCta() {
+export function ClosingCta({ backdrop }: { backdrop: Picture }) {
   const openDemo = useDemoRequest();
   const [error, setError] = useState("");
 
@@ -26,15 +27,7 @@ export function ClosingCta() {
   return (
     <section id="demo" aria-labelledby="demo-cta-title" className={styles.closing}>
       <div className={`${styles.window} ${styles.closingWindow}`}>
-        <ContourMap
-          region={{ x0: -450, x1: 410, y0: -170, y1: 190 }}
-          step={2.5}
-          tint
-          minorAlpha={0.07}
-          majorAlpha={0.2}
-          lineWidth={1.2}
-          className={styles.layer}
-        />
+        <LandingPicture picture={backdrop} alt="" className={`${styles.layer} ${styles.mediaCover}`} />
         <div aria-hidden="true" className={`${styles.layer} ${styles.closingScrim}`} />
         <div className={styles.closingCopy}>
           <h2 id="demo-cta-title" className={styles.closingTitle}>

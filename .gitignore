@@ -13,6 +13,10 @@
 
 # next.js
 /.next/
+/.next-capture/
+
+# landing capture frames (scripts/landing/capture.ts)
+/.landing-capture/
 /out/
 
 # production

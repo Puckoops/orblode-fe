@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { Picture } from "@/lib/landing/media";
 import styles from "./landing.module.css";
-import { ContourMap } from "./MapCanvases";
+import { LandingPicture } from "./LandingPicture";
 import { useSite } from "./SiteContext";
-import { SurveyContours } from "./SurveyMaps";
 
 type Node = { id: string; name: string; detail: string; timing?: boolean };
 
@@ -76,7 +76,7 @@ function Column({ title, nodes }: { title: string; nodes: Node[] }) {
 }
 
 /** How a survey becomes answers, as a graph whose wires are drawn between the rendered cards. */
-export function Pipeline() {
+export function Pipeline({ contours }: { contours: Picture }) {
   const site = useSite();
   const flowRef = useRef<HTMLDivElement>(null);
   const wiresRef = useRef<SVGSVGElement>(null);
@@ -120,15 +120,11 @@ export function Pipeline() {
         <div className={styles.flowColumn}>
           <h3 className={styles.flowTitle}>3 · Your twin</h3>
           <div data-node="twin" className={`${styles.node} ${styles.nodeTwin}`}>
-            {site.mode === "sample" ? (
-              <ContourMap region={{ x0: -300, x1: 160, y0: -100, y1: 158.75 }} step={3} tint minorAlpha={0.16} majorAlpha={0.5} lineWidth={1.2} size={[640, 360]} />
-            ) : (
-              <SurveyContours label={`Contours of ${site.name}`} size={[640, 360]} />
-            )}
+            <LandingPicture picture={contours} alt={`Contours of ${site.name}`} sizes="320px" className={styles.mapImage} />
             <div className={styles.nodeBody}>
               <b>{site.name}</b>
               <span>
-                {site.crs} · {site.mode === "sample" ? `${site.surveyCount} surveys` : `surveyed ${site.surveyDate}`}
+                {site.crs} · surveyed {site.surveyDate}
               </span>
               <span className={styles.timing}>10 ha cut/fill in 6.5 s</span>
             </div>
