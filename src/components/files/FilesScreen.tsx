@@ -17,13 +17,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Loader } from "@/components/brand/Loader";
 import { StateChip } from "@/components/common/StateChip";
-import { listProjects, type Project } from "@/lib/api/userSvc";
+import type { Project } from "@/lib/api/userSvc";
 import { listDesigns, listSurveyAssets, listSurveys, type DesignRecord, type SourceAsset, type Survey } from "@/lib/api/orblodeSvc";
 import { canonicalUrl, downloadUrl } from "@/lib/files";
 import { PENDING_UPLOAD } from "@/lib/status";
 import { formatSurveyDate } from "@/lib/utils";
+import { useCurrentWorkspace, useWorkspaces } from "@/lib/workspaces/store";
 
-// Every uploaded source object, grouped by site → survey, plus each site's registered designs.
+// Every uploaded source object in the current workspace, grouped by site → survey, plus each site's
+// registered designs.
 // Downloads go through /files/<key>?download=1, which orblode-svc answers with a short-lived signed link.
 
 function ext(name: string): string {
@@ -85,17 +87,28 @@ interface SiteGroup {
 }
 
 export function FilesScreen() {
+  const workspaceSites = useWorkspaces((s) => s.sites);
+  const workspace = useCurrentWorkspace();
   const [sites, setSites] = useState<SiteGroup[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [query, setQuery] = useState("");
 
-  // The refresh button resets to loading in its click handler before bumping refreshTick, so the effect only fetches.
+  // Another workspace's sites start a fresh load; the refresh button resets in its click handler. Either
+  // way the effect only fetches.
+  const [loadedFor, setLoadedFor] = useState(workspaceSites);
+  if (loadedFor !== workspaceSites) {
+    setLoadedFor(workspaceSites);
+    setSites(null);
+    setLoadError(null);
+  }
+
   useEffect(() => {
+    if (!workspaceSites) return;
     let cancelled = false;
 
     (async () => {
-      const projects = await listProjects();
+      const projects = workspaceSites;
       // One failing project, survey or design list degrades to an empty list rather than killing the page.
       const groups = await Promise.all(
         projects.map(async (project): Promise<SiteGroup> => {
@@ -127,7 +140,7 @@ export function FilesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [refreshTick]);
+  }, [refreshTick, workspaceSites]);
 
   const q = query.trim().toLowerCase();
   const visible = useMemo(() => {
@@ -165,7 +178,7 @@ export function FilesScreen() {
             ? "Loading uploaded source data…"
             : `${totals.files} uploaded file${totals.files === 1 ? "" : "s"}${
                 totals.designs ? ` · ${totals.designs} design${totals.designs === 1 ? "" : "s"}` : ""
-              } across your sites`
+              } across ${workspace ? `the sites in ${workspace.name}` : "your sites"}`
         }
         actions={
           <IconButton

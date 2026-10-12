@@ -1,13 +1,12 @@
 "use client";
 
-import { Building03Icon } from "@hugeicons/core-free-icons";
-import { AppShell, Breadcrumbs, Icon, Topbar } from "@puckoops/camelot";
+import { AppShell, Breadcrumbs, Topbar } from "@puckoops/camelot";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import { NotificationsLive } from "@/components/notifications/NotificationsLive";
-import { useAuthClient } from "@/hooks/useAuth";
+import { WorkspaceSync } from "@/components/workspaces/WorkspaceSync";
 import { AppRail } from "./AppRail";
 import { TITLES } from "./nav";
 import { useRailExpanded } from "./railState";
@@ -19,19 +18,6 @@ function Crumbs() {
   const items = [{ label: "ORBLODE", href: "/globe" }];
   if (base) items.push({ label: TITLES[base], href: base });
   return <Breadcrumbs items={items} linkAs={Link} />;
-}
-
-/** The signed-in client, as the login response named it; informative only. */
-function ClientName() {
-  const client = useAuthClient();
-  const name = client?.company_name?.trim() || client?.name?.trim();
-  if (!name) return null;
-  return (
-    <span className={`small ${styles.client}`} title={name}>
-      <Icon icon={Building03Icon} size={16} />
-      <span className={styles.clientName}>{name}</span>
-    </span>
-  );
 }
 
 /**
@@ -48,13 +34,13 @@ export function AppFrame({ children, variant = "dashboard" }: { children: ReactN
           start={<Crumbs />}
           end={
             <div className={styles.topEnd}>
-              <ClientName />
               <NotificationsBell />
             </div>
           }
         />
       )}
       <NotificationsLive />
+      <WorkspaceSync />
       {children}
     </AppShell>
   );

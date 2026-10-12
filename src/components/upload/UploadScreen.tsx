@@ -27,7 +27,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
 import { TagInput } from "@/components/common/TagInput";
 import { PushOffer } from "@/components/notifications/PushOffer";
-import { createProject, listProjects, type Project } from "@/lib/api/userSvc";
+import { useSiteInWorkspace } from "@/hooks/useSiteInWorkspace";
+import { createProject, type Project } from "@/lib/api/userSvc";
 import { createDesign, createSurvey, generateSurvey, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { UPLOAD_ROW } from "@/lib/status";
 import { CRS_OPTIONS, DATA_TYPES, TAG_SUGGESTIONS, VDATUM_OPTIONS } from "@/lib/upload/options";
@@ -50,6 +51,7 @@ import {
 import { refineRoles } from "@/lib/upload/rasterRole";
 import { UploadTimeoutError } from "@/lib/upload/putToSignedUrl";
 import { uploadApi } from "@/lib/upload/uploadApi";
+import { useCurrentWorkspace, useWorkspaceSites, useWorkspaces } from "@/lib/workspaces/store";
 
 // v2 (ORB-38): v1 drafts persisted the old unconfirmed `EPSG:4326` CRS default,
 // so restoring one would smuggle that default straight back past the new
@@ -128,8 +130,10 @@ export function UploadScreen() {
 
   // Destination
   const [destination, setDestination] = useState<"existing" | "new">("existing");
-  const [projects, setProjects] = useState<Project[]>([]);
+  const projects = useWorkspaceSites();
+  const workspace = useCurrentWorkspace();
   const [siteId, setSiteId] = useState("");
+  const [linkedSite, setLinkedSite] = useState<string | null>(null);
   const [newSiteName, setNewSiteName] = useState("");
 
   // Data
@@ -157,12 +161,6 @@ export function UploadScreen() {
   const progressRef = useRef<RunProgress>(emptyProgress());
   const [resume, setResume] = useState<{ target: string; text: string } | null>(null);
 
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((err) => console.error("Failed to fetch projects:", err));
-  }, []);
-
   // ?site=<id> preselects a site; ?new=1 opens the New-site path. Read from
   // window.location (not useSearchParams) so the page needs no Suspense
   // boundary for static prerender. URL + localStorage are external systems
@@ -177,6 +175,7 @@ export function UploadScreen() {
     if (site) {
       setDestination("existing");
       setSiteId(site);
+      setLinkedSite(site);
     } else if (params.get("new")) {
       setDestination("new");
     }
@@ -206,6 +205,8 @@ export function UploadScreen() {
     }
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  useSiteInWorkspace(siteId, setSiteId, linkedSite, false);
 
   // Persist the draft as the user edits (debounced). Only a user-edited
   // dataset name is saved — the autofilled one re-derives on restore.
@@ -323,12 +324,14 @@ export function UploadScreen() {
       if (destination === "new" && !resolvedProject) {
         setStepText("Creating site…");
         resolvedProject = await createProject({
+          workspace_id: workspace?.id,
           name: newSiteName.trim(),
           crs_epsg: Number(epsg.replace("EPSG:", "")) || undefined,
           crs_label: CRS_OPTIONS.find((o) => o.value === epsg)?.label,
           vertical_datum: vdatum,
         });
         progress.project = resolvedProject;
+        void useWorkspaces.getState().refresh();
       }
       if (!resolvedProject) throw new Error("Select a site first");
       const project = resolvedProject;
@@ -527,7 +530,7 @@ export function UploadScreen() {
                 />
               </Field>
             ) : (
-              <Field label="New site name">
+              <Field label="New site name" hint={workspace ? `It goes in the ${workspace.name} workspace.` : undefined}>
                 <Input value={newSiteName} onChange={(e) => setNewSiteName(e.target.value)} disabled={working} placeholder="e.g. Bandalkop pit" />
               </Field>
             )}

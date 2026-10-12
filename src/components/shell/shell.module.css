@@ -45,8 +45,61 @@
 
 .fullHeight { height: 100vh; overflow: hidden; }
 
-.client { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-3); }
-.clientName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The workspace dropdown under the brand: a mark, the workspace over its organisation, a chevron.
+   Wherever the rail shows icons only, the mark stands alone. */
+.workspaceRow { flex: none; padding: var(--space-3) var(--space-3) 0; }
+
+.workspaceTrigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 6px 8px;
+  border: var(--border-w) solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease-in-out), border-color var(--dur-2) var(--ease-in-out);
+}
+div.workspaceTrigger { cursor: default; }
+button.workspaceTrigger:hover,
+.workspaceTrigger[data-state="open"] { border-color: var(--hairline-strong); background: var(--surface-3); }
+
+.workspaceMark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--emphasis-quiet);
+  color: var(--text-1);
+}
+
+.workspaceText { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.workspaceName,
+.workspaceOrg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspaceName { font-size: 13.5px; font-weight: 500; line-height: 18px; }
+.workspaceOrg { font-size: 12px; line-height: 16px; color: var(--text-4); }
+.workspaceChevron { flex: none; color: var(--text-4); }
+
+.workspaceCompact { justify-content: center; width: auto; min-height: 0; padding: 4px; border-color: transparent; background: none; }
+.workspaceCompact .workspaceText,
+.workspaceCompact .workspaceChevron { display: none; }
+
+@media (max-width: 1040px) {
+  .workspaceRow { display: flex; justify-content: center; padding: var(--space-3) var(--space-2) 0; }
+  .workspaceTrigger { justify-content: center; width: auto; min-height: 0; padding: 4px; border-color: transparent; background: none; }
+  .workspaceText,
+  .workspaceChevron { display: none; }
+}
+
+@media (max-width: 860px) {
+  .workspaceRow { padding: 0 var(--space-2); }
+}
 .topEnd { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 
 /* Camelot hides SidebarItem's badge whenever the rail shows icons only: always when collapsed, and

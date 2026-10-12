@@ -2,8 +2,9 @@
 
 import { Page, PageHeader, SearchSelect, Tabs, TabsContent, TabsList, TabsTrigger } from "@puckoops/camelot";
 import { useCallback, useEffect, useState } from "react";
-import { listProjects, type Project } from "@/lib/api/userSvc";
+import { useSiteInWorkspace } from "@/hooks/useSiteInWorkspace";
 import { listMaterials, listSurveys, type Material, type Survey } from "@/lib/api/orblodeSvc";
+import { useWorkspaceSites } from "@/lib/workspaces/store";
 import { InventoryTab } from "./InventoryTab";
 import { MaterialsTab } from "./MaterialsTab";
 import { ReconciliationTab } from "./ReconciliationTab";
@@ -13,8 +14,9 @@ const TABS = ["inventory", "reconciliation", "trends", "materials"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ReportsScreen() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const projects = useWorkspaceSites();
   const [siteId, setSiteId] = useState("");
+  const [linkedSite, setLinkedSite] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("inventory");
   const [surveys, setSurveys] = useState<Survey[] | null>(null);
   const [materials, setMaterials] = useState<Material[] | null>(null);
@@ -26,26 +28,21 @@ export function ReportsScreen() {
     setMaterials(null);
   }
 
-  useEffect(() => {
-    listProjects()
-      .then(setProjects)
-      .catch((err) => console.error("Failed to fetch projects:", err));
-  }, []);
-
   // ?site= and ?tab= are read from window.location so the page needs no Suspense boundary.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const site = params.get("site");
     const t = params.get("tab");
-    if (site) setSiteId(site);
+    if (site) {
+      setSiteId(site);
+      setLinkedSite(site);
+    }
     if (t && (TABS as readonly string[]).includes(t)) setTab(t as Tab);
   }, []);
-
-  useEffect(() => {
-    if (!siteId && projects.length > 0) setSiteId(projects[0].id);
-  }, [siteId, projects]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  useSiteInWorkspace(siteId, setSiteId, linkedSite, true);
 
   useEffect(() => {
     if (!siteId) return;

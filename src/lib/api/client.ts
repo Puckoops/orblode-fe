@@ -14,6 +14,11 @@ interface ApiFetchOptions {
   signal?: AbortSignal;
 }
 
+/** The server's own words for a request it refused, or the fallback for anything else. */
+export function refusalMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError && err.status >= 400 && err.status < 500 && err.message ? err.message : fallback;
+}
+
 // Per attempt, so a hung backend surfaces as a failed attempt instead of a request pending forever.
 const DEFAULT_TIMEOUT_MS = 20_000;
 // Only idempotent GETs auto-retry, and only on transient failures; a retried POST could double-submit.

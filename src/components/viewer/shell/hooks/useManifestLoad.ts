@@ -12,6 +12,7 @@
 import { useEffect } from "react";
 import { getProject, type Project } from "@/lib/api/userSvc";
 import type { Manifest } from "@/lib/api/orblodeSvc";
+import { useWorkspaces } from "@/lib/workspaces/store";
 
 export function useManifestLoad(deps: {
   manifest: Manifest | null;
@@ -35,7 +36,10 @@ export function useManifestLoad(deps: {
     let cancelled = false;
     getProject(projectId)
       .then((p) => {
-        if (!cancelled) setProject(p);
+        if (cancelled) return;
+        setProject(p);
+        // Back on the dashboard, the person is in the workspace of the survey they opened.
+        useWorkspaces.getState().follow(p);
       })
       .catch((err) => {
         console.error("Failed to fetch project:", err);

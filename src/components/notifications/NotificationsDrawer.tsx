@@ -9,9 +9,11 @@ import type { AppNotification } from "@/lib/api/notifications";
 import { relativeTime } from "@/lib/notifications/inbox";
 import { useSiteNames } from "@/lib/notifications/siteNames";
 import { useInbox } from "@/lib/notifications/store";
+import { useWorkspaces } from "@/lib/workspaces/store";
 import styles from "./notifications.module.css";
 
-/** The inbox: newest first, each notice with its site's name. Opening a notice marks it read and goes where it points. */
+/** The inbox: newest first, each notice with its site's name, and its workspace when that is not the open one. Opening a
+ * notice marks it read and goes where it points, switching workspace with it. */
 export function NotificationsDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
   const items = useInbox((s) => s.items);
@@ -20,6 +22,9 @@ export function NotificationsDrawer({ open, onOpenChange }: { open: boolean; onO
   const markAllRead = useInbox((s) => s.markAllRead);
   const [now, setNow] = useState(() => Date.now());
   const siteNames = useSiteNames((s) => s.names);
+  const siteWorkspaces = useSiteNames((s) => s.workspaces);
+  const workspaces = useWorkspaces((s) => s.workspaces);
+  const currentId = useWorkspaces((s) => s.currentId);
   const ensureSiteNames = useSiteNames((s) => s.ensure);
 
   useEffect(() => {
@@ -38,6 +43,14 @@ export function NotificationsDrawer({ open, onOpenChange }: { open: boolean; onO
       clearInterval(every);
     };
   }, [open]);
+
+  const placeOf = (projectId: string | undefined) => {
+    const site = projectId ? siteNames[projectId] : undefined;
+    if (!projectId || !site) return null;
+    const home = siteWorkspaces[projectId];
+    const workspace = home && home !== currentId ? workspaces?.find((w) => w.id === home)?.name : undefined;
+    return workspace ? `${site} in ${workspace} · ` : `${site} · `;
+  };
 
   const openNotice = (notice: AppNotification) => {
     void markRead([notice.id]);
@@ -82,7 +95,7 @@ export function NotificationsDrawer({ open, onOpenChange }: { open: boolean; onO
                 </span>
                 {notice.body && <span className={`small ${styles.body}`}>{notice.body}</span>}
                 <span className={`small ${styles.when}`}>
-                  {notice.project_id && siteNames[notice.project_id] ? `${siteNames[notice.project_id]} · ` : null}
+                  {placeOf(notice.project_id)}
                   {relativeTime(notice.created_at, now)}
                 </span>
               </button>
