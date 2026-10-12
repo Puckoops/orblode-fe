@@ -5,7 +5,10 @@ import {
   SELECTABLE_ROLES,
   buildProcessorPlan,
   guessRole,
+  roleFromRasterBands,
+  roleNeedsHeader,
   roleToAssetKind,
+  settleRole,
   type DataType,
   type FileRole,
 } from "../planner.ts";
@@ -127,5 +130,69 @@ test("each file in a vector-features batch keeps its own CRS", () => {
   assert.deepEqual(
     inputs?.map((i) => i.crs),
     ["EPSG:7856", "EPSG:4326"]
+  );
+});
+
+test("a GeoTIFF named for no surface or ortho guesses DSM and waits on its header", () => {
+  for (const name of ["Mine_Site_2026-10-11_GeoTIFF_GDA94_MGA_zone_56.tiff", "Mine_Site_2026-10-12_GeoTIFF_WGS_84.tiff"]) {
+    assert.equal(guessRole(name, "preprocessed"), "dsm");
+    assert.equal(roleNeedsHeader(name, "preprocessed"), true);
+  }
+  assert.equal(roleNeedsHeader("site_ortho.tif", "preprocessed"), false);
+  assert.equal(roleNeedsHeader("site_dsm.tif", "preprocessed"), false);
+  assert.equal(roleNeedsHeader("contours.dxf", "preprocessed"), false);
+  assert.equal(roleNeedsHeader("survey.tif", "lidar"), false);
+  assert.equal(roleNeedsHeader("survey.tif", "design"), false);
+});
+
+test("three or more 8-bit bands read as an orthophoto; anything else as a surface", () => {
+  assert.equal(roleFromRasterBands(3, 8), "ortho");
+  assert.equal(roleFromRasterBands(4, 8), "ortho");
+  assert.equal(roleFromRasterBands(1, 32), "dsm");
+  assert.equal(roleFromRasterBands(1, 8), "dsm");
+  assert.equal(roleFromRasterBands(3, 16), "dsm");
+});
+
+test("a header read settles only its own row, and never one the user picked by hand", () => {
+  const rows = [
+    { file: "a.tiff", role: "dsm" as FileRole, readingRole: true },
+    { file: "b.tiff", role: "dsm" as FileRole, readingRole: false },
+    { file: "c.tiff", role: "dsm" as FileRole, readingRole: true },
+  ];
+  assert.deepEqual(
+    settleRole(settleRole(settleRole(rows, "a.tiff", "ortho"), "b.tiff", "ortho"), "c.tiff", null).map((r) => [r.role, r.readingRole]),
+    [
+      ["ortho", false],
+      ["dsm", false],
+      ["dsm", false],
+    ]
+  );
+});
+
+test("a Trimble TTM surface is stored as a mesh, not sent to vector-features", () => {
+  assert.equal(guessRole("Mine Site Surface.ttm", "preprocessed"), "site_model");
+  const plan = buildProcessorPlan([{ name: "Mine Site Surface.ttm", role: "site_model", url: url("s.ttm") }], { epsg: "EPSG:7856" });
+  assert.deepEqual(plan.dispatches, []);
+  assert.equal(plan.skips[0]?.filename, "Mine Site Surface.ttm");
+});
+
+test("a vector file ogr2ogr can't read is stored with a reason and left out of the batch", () => {
+  const plan = buildProcessorPlan(
+    [
+      { name: "Surface.ttm", role: "vector", url: url("Surface.ttm") },
+      { name: "haul.kml", role: "vector", url: url("haul.kml") },
+      { name: "pads.gpkg", role: "vector", url: url("pads.gpkg") },
+      { name: "notes", role: "vector", url: url("notes") },
+    ],
+    { epsg: "EPSG:4326" }
+  );
+  assert.equal(plan.dispatches.length, 1);
+  assert.deepEqual(
+    plan.dispatches[0].request.inputs?.map((i) => i.url),
+    [url("haul.kml"), url("pads.gpkg")]
+  );
+  assert.deepEqual(
+    plan.skips.map((s) => s.filename),
+    ["Surface.ttm", "notes"]
   );
 });

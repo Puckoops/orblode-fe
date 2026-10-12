@@ -406,7 +406,7 @@ function AddFiles({ files, dataType }: { files: SurveyFiles; dataType: DataType 
             />
           </Field>
           <div className="flex justify-end">
-            <Button size="sm" variant="primary" loading={adding} disabled={!files.queueCrs || (files.busy && !adding)} onClick={() => void files.uploadQueue()}>
+            <Button size="sm" variant="primary" loading={adding} disabled={!files.queueCrs || files.readingRoles || (files.busy && !adding)} onClick={() => void files.uploadQueue()}>
               {failed ? "Retry upload" : `Upload ${queue.length} file${queue.length === 1 ? "" : "s"}`}
             </Button>
           </div>

@@ -15,7 +15,8 @@ import { stripErrNamespace } from "@/lib/api/errors";
 import { assetName, assetRole, reprocessPlan, surveySourceCrs, type ReprocessPlan } from "@/lib/survey/edit";
 import { toast } from "@/lib/toast";
 import { uploadFiles, type AssetSlot, type UploadFileStatus } from "@/lib/upload/pipeline";
-import { guessRole, roleToAssetKind, type DataType, type FileRole } from "@/lib/upload/planner";
+import { guessRole, roleNeedsHeader, roleToAssetKind, settleRole, type DataType, type FileRole } from "@/lib/upload/planner";
+import { refineRoles } from "@/lib/upload/rasterRole";
 import { UploadTimeoutError } from "@/lib/upload/putToSignedUrl";
 import { uploadApi } from "@/lib/upload/uploadApi";
 
@@ -28,6 +29,7 @@ export interface ReplaceState {
 export interface QueuedFile {
   file: File;
   role: FileRole;
+  readingRole: boolean;
   progress: number;
   status: "queued" | UploadFileStatus;
 }
@@ -169,14 +171,23 @@ export function useSurveyFiles({
       const next = [...prev];
       for (const f of list) {
         if (next.some((q) => q.file.name === f.name)) continue;
-        next.push({ file: f, role: guessRole(f.name, dataType), progress: 0, status: "queued" });
+        next.push({
+          file: f,
+          role: guessRole(f.name, dataType),
+          readingRole: roleNeedsHeader(f.name, dataType),
+          progress: 0,
+          status: "queued",
+        });
       }
       return next;
     });
+    void refineRoles(list, dataType, (file, role) => setQueue((prev) => settleRole(prev, file, role)));
   };
 
   const setQueuedRole = (name: string, role: FileRole) =>
-    setQueue((prev) => prev.map((q) => (q.file.name === name ? { ...q, role } : q)));
+    setQueue((prev) => prev.map((q) => (q.file.name === name ? { ...q, role, readingRole: false } : q)));
+
+  const readingRoles = queue.some((q) => q.readingRole);
 
   const dequeue = (name: string) => setQueue((prev) => prev.filter((q) => q.file.name !== name));
 
@@ -184,7 +195,7 @@ export function useSurveyFiles({
   const effectiveQueueCrs = queueCrs || sourceCrs;
 
   const uploadQueue = async () => {
-    if (queue.length === 0 || !effectiveQueueCrs) return;
+    if (queue.length === 0 || !effectiveQueueCrs || readingRoles) return;
     const files = queue;
     setAdding(true);
     setQueue((prev) => prev.map((q) => (q.status === "error" ? { ...q, status: "queued", progress: 0 } : q)));
@@ -276,6 +287,7 @@ export function useSurveyFiles({
     setQueueCrs,
     adding,
     uploadQueue,
+    readingRoles,
     plan,
     isDue,
     reprocess,

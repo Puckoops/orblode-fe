@@ -131,3 +131,19 @@ test("assets the caller marks due dispatch without the server flag, and meshes a
   );
   assert.equal(plan.skips[0]?.filename, "site.obj");
 });
+
+test("a vector file vector-features can't read neither dispatches nor pulls the other vector files in", () => {
+  const plan = reprocessPlan(
+    [
+      asset("Surface.ttm", "vector", { kind: "vector", needs_processing: true }),
+      asset("contours.dxf", "contours", { kind: "vector" }),
+      asset("dsm.tif", "dsm"),
+    ],
+    { epsg: "EPSG:7856" }
+  );
+  assert.deepEqual(plan.dispatches, []);
+  assert.deepEqual(
+    plan.skips.map((s) => s.filename),
+    ["Surface.ttm"]
+  );
+});

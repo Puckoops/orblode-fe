@@ -72,8 +72,25 @@ function ext(name: string): string {
   return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
 }
 
+/** What vector-features hands to ogr2ogr, directly or from inside a ZIP. */
+const VECTOR_FEATURE_EXTENSIONS = new Set(["dxf", "shp", "geojson", "json", "kml", "gpkg", "zip"]);
+
+export function vectorFeaturesReads(filename: string): boolean {
+  return VECTOR_FEATURE_EXTENSIONS.has(ext(filename));
+}
+
+const isGeoTiff = (e: string) => e === "tif" || e === "tiff";
+
+function rasterRoleFromName(lowerName: string): FileRole | null {
+  if (lowerName.includes("dtm")) return "dtm";
+  if (lowerName.includes("dsm")) return "dsm";
+  if (lowerName.includes("ortho")) return "ortho";
+  return null;
+}
+
 /** Best-guess role from the filename within a data type; the user can correct
- * it per file. Name hints (dsm/dtm/ortho/contour) win over bare extension. */
+ * it per file. Name hints (dsm/dtm/ortho/contour) win over bare extension. A
+ * GeoTIFF with no hint guesses DSM until `roleFromRasterBands` reads its header. */
 export function guessRole(filename: string, dataType: DataType): FileRole {
   const n = filename.toLowerCase();
   const e = ext(n);
@@ -83,17 +100,30 @@ export function guessRole(filename: string, dataType: DataType): FileRole {
 
   // preprocessed — sniff the role from the name, then the extension.
   if (e === "las" || e === "laz") return "pointcloud";
-  if (e === "obj" || e === "osgb" || e === "3mx") return "site_model";
-  if (e === "tif" || e === "tiff") {
-    if (n.includes("dtm")) return "dtm";
-    if (n.includes("dsm")) return "dsm";
-    if (n.includes("ortho")) return "ortho";
-    return "dsm"; // most pre-processed GeoTIFFs here are surfaces
-  }
-  if (e === "dxf" || e === "shp" || e === "geojson" || e === "json" || e === "zip") {
-    return n.includes("contour") ? "contours" : "vector";
-  }
+  if (e === "obj" || e === "osgb" || e === "3mx" || e === "ttm") return "site_model";
+  if (isGeoTiff(e)) return rasterRoleFromName(n) ?? "dsm";
+  if (VECTOR_FEATURE_EXTENSIONS.has(e)) return n.includes("contour") ? "contours" : "vector";
   return "vector";
+}
+
+export function roleNeedsHeader(filename: string, dataType: DataType): boolean {
+  const n = filename.toLowerCase();
+  return dataType === "preprocessed" && isGeoTiff(ext(n)) && rasterRoleFromName(n) === null;
+}
+
+/** Mirrors the terrain worker's refusal: three or more 8-bit bands are an image. */
+export function roleFromRasterBands(samplesPerPixel: number, bitsPerSample: number): FileRole {
+  return samplesPerPixel >= 3 && bitsPerSample === 8 ? "ortho" : "dsm";
+}
+
+/** Applies a header read to its file's row unless the user picked a role by hand
+ * or the data type changed since (both clear `readingRole`); null keeps the name guess. */
+export function settleRole<R extends { file: unknown; role: FileRole; readingRole: boolean }>(
+  rows: R[],
+  file: R["file"],
+  role: FileRole | null
+): R[] {
+  return rows.map((q) => (q.file === file && q.readingRole ? { ...q, role: role ?? q.role, readingRole: false } : q));
 }
 
 /** Ingest kind for a role. */
@@ -222,7 +252,14 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
         break;
       case "contours":
       case "vector":
-        vectorFiles.push({ ...f, crs });
+        if (vectorFeaturesReads(f.name)) {
+          vectorFiles.push({ ...f, crs });
+        } else {
+          skips.push({
+            filename: f.name,
+            reason: "stored — vector layers are built only from DXF, SHP, GeoJSON, KML or GeoPackage files, or a ZIP of them",
+          });
+        }
         break;
       case "site_model":
         skips.push({
