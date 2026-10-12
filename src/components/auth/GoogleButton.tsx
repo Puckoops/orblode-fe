@@ -53,10 +53,11 @@ interface GoogleButtonProps {
   /** Called when the popup could not open. Closing it or declining is not an error. */
   onError: (message: string) => void;
   disabled?: boolean;
+  label?: string;
 }
 
 /** "Sign in with Google" drawn by camelot. Hidden when Google's script cannot load, as when a blocker stops it. */
-export function GoogleButton({ clientId, onCode, onError, disabled }: GoogleButtonProps) {
+export function GoogleButton({ clientId, onCode, onError, disabled, label = "Sign in with Google" }: GoogleButtonProps) {
   const client = useRef<CodeClient | null>(null);
   const handlers = useRef({ onCode, onError });
   const [ready, setReady] = useState(false);
@@ -97,7 +98,7 @@ export function GoogleButton({ clientId, onCode, onError, disabled }: GoogleButt
   if (failed) return null;
   return (
     <Button type="button" variant="ghost" size="lg" iconStart={GoogleIcon} disabled={!ready || disabled} onClick={() => client.current?.requestCode()}>
-      Sign in with Google
+      {label}
     </Button>
   );
 }

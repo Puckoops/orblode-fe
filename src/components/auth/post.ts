@@ -11,6 +11,11 @@ export async function postJson(path: string, body: unknown): Promise<{ ok: boole
   return { ok: res.ok, status: res.status, message: json?.message };
 }
 
+/** Where someone Google vouched for, with no organisation yet, creates one. */
+export function googleSignUpPath(next?: string) {
+  return `/sign-up?via=google${next ? `&next=${encodeURIComponent(next)}` : ""}`;
+}
+
 /** A same-site path to continue to after signing in, or the fallback. */
 export function safeNextPath(value: string | null, fallback = "/globe") {
   return value && value.startsWith("/") && !value.startsWith("//") && !value.includes("\\") && !value.startsWith("/api/") && !value.startsWith("/files/")
