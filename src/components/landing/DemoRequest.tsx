@@ -5,14 +5,16 @@ import styles from "./landing.module.css";
 
 type Phase = { kind: "idle" } | { kind: "sending" } | { kind: "failed"; message: string } | { kind: "sent"; name: string; email: string };
 
-const OpenDemoRequest = createContext<() => void>(() => {});
+export type DemoPrefill = { email?: string };
+
+const OpenDemoRequest = createContext<(prefill?: DemoPrefill) => void>(() => {});
 
 export const useDemoRequest = () => useContext(OpenDemoRequest);
 
 export function RequestDemoButton({ className, children = "Request a demo" }: { className?: string; children?: ReactNode }) {
   const open = useDemoRequest();
   return (
-    <button type="button" onClick={open} className={className}>
+    <button type="button" onClick={() => open()} className={className}>
       {children}
     </button>
   );
@@ -22,14 +24,16 @@ export function RequestDemoButton({ className, children = "Request a demo" }: { 
 export function DemoRequestProvider({ children }: { children: ReactNode }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
   const doneRef = useRef<HTMLButtonElement>(null);
   const pressedBackdrop = useRef(false);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 
-  const open = useCallback(() => {
+  const open = useCallback((prefill?: DemoPrefill) => {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
     dialog.showModal();
+    if (prefill?.email && emailRef.current) emailRef.current.value = prefill.email;
     nameRef.current?.focus();
   }, []);
 
@@ -112,7 +116,7 @@ export function DemoRequestProvider({ children }: { children: ReactNode }) {
                     <label htmlFor="demo-email" className={styles.label}>
                       Email
                     </label>
-                    <input id="demo-email" name="email" type="email" required maxLength={254} autoComplete="email" placeholder="you@company.com" className={styles.input} />
+                    <input ref={emailRef} id="demo-email" name="email" type="email" required maxLength={254} autoComplete="email" placeholder="you@company.com" className={styles.input} />
                   </div>
                 </div>
                 <div>

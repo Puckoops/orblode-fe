@@ -7,32 +7,30 @@ import { useDemoRequest } from "./DemoRequest";
 import styles from "./landing.module.css";
 
 const LINKS = [
-  { href: "#platform", label: "Platform" },
+  { href: "#descent", label: "Platform" },
+  { href: "#measure", label: "Measure" },
   { href: "#industries", label: "Industries" },
-  { href: "#viewer", label: "Viewer" },
-  { href: "#how", label: "How it works" },
-  { href: "#", label: "About" },
+  { href: "#try", label: "Try it" },
 ];
 
 export function SiteHeader() {
-  const [solid, setSolid] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const openDemo = useDemoRequest();
 
   useEffect(() => {
-    let ticking = false;
+    let frame = 0;
     const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        setSolid(window.scrollY > 80);
-        ticking = false;
-      });
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setScrolled(window.scrollY > 36));
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -58,46 +56,35 @@ export function SiteHeader() {
             </svg>
           </button>
           {LINKS.map((l) => (
-            <a key={l.label} href={l.href} onClick={close} className={styles.menuLink}>
+            <a key={l.href} href={l.href} onClick={close} className={styles.menuLink}>
               {l.label}
             </a>
           ))}
           <Link href="/sign-in" className={styles.menuLink}>
             Sign in
           </Link>
-          <button
-            type="button"
-            onClick={() => {
-              close();
-              openDemo();
-            }}
-            className={styles.pill}
-            style={{ marginTop: 16, fontSize: 14 }}
-          >
-            Request a demo
-          </button>
         </div>
       )}
 
-      <nav className={solid ? `${styles.nav} ${styles.navSolid}` : styles.nav}>
-        <a href="#" aria-label="Orblode, back to top" className={styles.brand}>
-          <OrblodeLogo size={26} />
+      <header className={scrolled ? `${styles.nav} ${styles.navScrolled}` : styles.nav}>
+        <a href="#main" aria-label="Orblode, back to top" className={styles.brand}>
+          <OrblodeLogo size={18} />
         </a>
-        <div className={styles.navLinks}>
+        <nav aria-label="Sections" className={styles.navLinks}>
           {LINKS.map((l) => (
-            <a key={l.label} href={l.href} className={styles.navLink}>
+            <a key={l.href} href={l.href} className={styles.navLink}>
               {l.label}
             </a>
           ))}
-        </div>
+        </nav>
         <div className={styles.navActions}>
-          <Link href="/sign-in" className={`${styles.navLink} ${styles.deskOnly}`}>
+          <Link href="/sign-in" className={`${styles.navLink} ${styles.signIn}`}>
             Sign in
           </Link>
-          <button type="button" onClick={openDemo} className={`${styles.navCta} ${styles.deskOnly}`}>
+          <button type="button" onClick={() => openDemo()} className={`${styles.btn} ${styles.btnSolid}`}>
             Request a demo
           </button>
-          <button type="button" onClick={() => setMenuOpen((o) => !o)} aria-label="Menu" aria-expanded={menuOpen} className={`${styles.iconButton} ${styles.menuToggle}`}>
+          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-expanded={menuOpen} className={`${styles.iconButton} ${styles.menuToggle}`}>
             <svg width="18" height="18" viewBox="0 0 18 18" stroke="currentColor" strokeWidth="1.3" fill="none" aria-hidden="true">
               <line x1="3" y1="5" x2="15" y2="5" />
               <line x1="3" y1="9" x2="15" y2="9" />
@@ -105,7 +92,7 @@ export function SiteHeader() {
             </svg>
           </button>
         </div>
-      </nav>
+      </header>
     </>
   );
 }
