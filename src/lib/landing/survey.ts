@@ -3,7 +3,7 @@ import type { CloudDetail, PointCloud } from "./cloud.ts";
 import { clamp } from "./math.ts";
 import { contourSegments, cutFillColour, tintPixels, type Contours } from "./maps.ts";
 import type { SurveyGrid } from "./grid.ts";
-import { contourInterval, fillTemplate, isNoData, quantile, tileBounds, tileOf } from "./raster.ts";
+import { MAX_READ_WIDTH, contourInterval, fillTemplate, isNoData, quantile, tileBounds, tileOf } from "./raster.ts";
 import type { OrthoSource, SurveySource } from "./site.ts";
 import { rampColour, shade, type Rgb } from "./terrain.ts";
 
@@ -20,7 +20,7 @@ export type SurveyScene = {
   interval: number;
 };
 
-const MAX_READ_WIDTH = 4096;
+
 const TILE_CONCURRENCY = 6;
 
 type Proj4 = (from: string, to: string, point: [number, number]) => [number, number];

@@ -2,6 +2,9 @@ import { clamp } from "./math.ts";
 
 const WEB_MERCATOR_EQUATOR = 156543.03392804097;
 
+/** The widest image the browser will read for a preview; a DSM needs an overview at least this small. */
+export const MAX_READ_WIDTH = 4096;
+
 /** Fractional XYZ tile coordinates (top-left origin) of a WGS 84 position at zoom `z`. */
 export function tileOf(lon: number, lat: number, z: number): [number, number] {
   const n = 2 ** z, rad = (lat * Math.PI) / 180;

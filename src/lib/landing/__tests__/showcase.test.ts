@@ -73,6 +73,27 @@ test("siteFromShowcase features the biggest completed volume, projected around t
   assert.deepEqual(site?.cutFill, { cut: 900, fill: 400, label: "Bench 3" });
 });
 
+test("siteFromShowcase passes over a survey whose DSM can't be previewed", async () => {
+  const site = await siteFromShowcase([entry("s1", "2024-12-10"), entry("s2", "2025-02-14")], async (path) => !path.includes("wf-s2"));
+  assert.equal(site?.surveyDate, "10 Dec 2024");
+  assert.equal(site?.earlierDate, null);
+  assert.equal(await siteFromShowcase([entry("s1", "2024-12-10")], async () => false), null);
+});
+
+test("siteFromShowcase gives the viewer's untitled measurements plain names", async () => {
+  const square = [[[151.2049, -32.4051], [151.2051, -32.4051], [151.2051, -32.4049], [151.2049, -32.4049]]];
+  const site = await siteFromShowcase([
+    entry("s1", "2025-02-14", "site-a", {
+      measurements: [
+        { id: "m1", kind: "stockpile", name: "Untitled stockpile", status: "completed", geometry: { type: "Polygon", coordinates: square }, result: { metrics: { volume_m3: 50 } } },
+        { id: "m2", kind: "cut_fill", name: "Untitled cut fill", status: "completed", result: { metrics: { cut_volume_m3: 309, fill_volume_m3: 124 } } },
+      ],
+    }),
+  ]);
+  assert.equal(site?.featured?.name, "Stockpile");
+  assert.equal(site?.cutFill?.label, "Cut and fill");
+});
+
 test("siteFromShowcase gives up without a DSM", async () => {
   assert.equal(await siteFromShowcase([entry("s1", "2025-02-14", "site-a", { layers: { terrain: [], ortho: null } })]), null);
   assert.equal(await siteFromShowcase([]), null);

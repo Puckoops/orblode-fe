@@ -75,6 +75,11 @@ const metric = (m: ShowcaseMeasurement, ...keys: string[]) => {
   return null;
 };
 
+const DEFAULT_NAMES: Record<string, string> = { stockpile: "Stockpile", volume: "Volume", cut_fill: "Cut and fill" };
+
+/** The measurement's name, or a plain one for the viewer's "Untitled …" defaults. */
+const nameOf = (m: ShowcaseMeasurement) => (/^untitled\b/i.test(m.name.trim()) || !m.name.trim() ? (DEFAULT_NAMES[m.kind] ?? "Measurement") : m.name.trim());
+
 const ring = (m: ShowcaseMeasurement): [number, number][] | null => {
   if (m.geometry?.type !== "Polygon" || !Array.isArray(m.geometry.coordinates)) return null;
   const outer = (m.geometry.coordinates as number[][][])[0];
@@ -87,10 +92,13 @@ const ring = (m: ShowcaseMeasurement): [number, number][] | null => {
 /**
  * The landing page's view of the showcase: the newest flagged survey with a DSM, the flagged
  * survey of the same site before it, and the biggest completed volume and cut/fill measurements.
+ * `canDraw` vets each DSM's public path, so a raster the browser can't preview is passed over.
  * Null when nothing usable is flagged or the survey's coordinate system can't be resolved.
  */
-export async function siteFromShowcase(entries: ShowcaseEntry[]): Promise<SiteInfo | null> {
-  const usable = entries.filter((e) => dsmOf(e)).sort((a, b) => a.survey.survey_date.localeCompare(b.survey.survey_date));
+export async function siteFromShowcase(entries: ShowcaseEntry[], canDraw: (dsmPath: string) => Promise<boolean> = async () => true): Promise<SiteInfo | null> {
+  const withDsm = entries.filter((e) => dsmOf(e));
+  const drawable = await Promise.all(withDsm.map((e) => canDraw(showcasePath(dsmOf(e)!.url) ?? "")));
+  const usable = withDsm.filter((_, i) => drawable[i]).sort((a, b) => a.survey.survey_date.localeCompare(b.survey.survey_date));
   const primary = usable[usable.length - 1];
   if (!primary) return null;
   const sameSite = usable.filter((e) => e.survey.project_id === primary.survey.project_id);
@@ -118,7 +126,7 @@ export async function siteFromShowcase(entries: ShowcaseEntry[]): Promise<SiteIn
     const outline = points.map(local);
     const centre: [number, number] = [outline.reduce((s, p) => s + p[0], 0) / outline.length, outline.reduce((s, p) => s + p[1], 0) / outline.length];
     featured = {
-      name: m.name,
+      name: nameOf(m),
       outline,
       centre,
       reach: Math.max(...outline.map((p) => Math.hypot(p[0] - centre[0], p[1] - centre[1]))),
@@ -134,7 +142,7 @@ export async function siteFromShowcase(entries: ShowcaseEntry[]): Promise<SiteIn
     const cut = metric(m, "cut_volume_m3"), fill = metric(m, "fill_volume_m3");
     if (m.kind !== "cut_fill" || cut === null || fill === null) continue;
     if (cutFill && cutFill.cut + cutFill.fill >= cut + fill) continue;
-    cutFill = { cut, fill, label: m.name };
+    cutFill = { cut, fill, label: nameOf(m) };
   }
 
   const earlierDsm = earlier ? dsmOf(earlier) : null;
