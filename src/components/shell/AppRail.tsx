@@ -64,7 +64,7 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
           ))}
         </SidebarSection>
         <SidebarFooter note={client?.company_name?.trim() || client?.name?.trim() || undefined}>
-          <SidebarUser name={name} email={user?.name?.trim() ? user.email : undefined} avatar={<Avatar name={name} />} menu={<UserMenu />} />
+          <SidebarUser name={name} email={user?.name?.trim() ? user.email : undefined} avatar={<Avatar name={name} src={user?.avatar_url} />} menu={<UserMenu />} />
         </SidebarFooter>
       </Sidebar>
     );
@@ -94,7 +94,7 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
       <div className={styles.railFoot}>
         <Tooltip content={name} side="right">
           <Link href="/settings" aria-label="Account settings" className={styles.railAvatar}>
-            <Avatar name={name} size={32} />
+            <Avatar name={name} src={user?.avatar_url} size={32} />
           </Link>
         </Tooltip>
       </div>

@@ -30,6 +30,13 @@ const RECONNECT_MS = 30_000;
 /** Notices arriving this close together are toasted together, so a burst becomes one toast. */
 const BURST_WINDOW_MS = 800;
 
+/**
+ * A healthy stream ends and reconnects within about a minute (the stream route's cap, or a load
+ * balancer's sooner), firing ready each time; one silent for longer than this is dead.
+ */
+const STALE_AFTER_MS = 90_000;
+const WATCH_EVERY_MS = 30_000;
+
 function announce({ id, title, body, link, tone }: NoticeToast) {
   const inbox = useInbox.getState();
   let action: ReactNode = null;
@@ -63,8 +70,8 @@ function announce({ id, title, body, link, tone }: NoticeToast) {
 /**
  * Keeps the inbox and the rail's counts (failed surveys, red sites) current while Orblode is open:
  * loads them, then listens for new notices and toasts each as it arrives. Nothing is replayed over
- * the stream, so every reconnect reloads them all. It also renews this browser's push subscription
- * for whoever turned push on here. Renders nothing.
+ * the stream, so every reconnect reloads them all and toasts what came in while it was down. It
+ * also renews this browser's push subscription for whoever turned push on here. Renders nothing.
  */
 export function NotificationsLive() {
   const userId = useAuthUser()?.id;
@@ -78,6 +85,7 @@ export function NotificationsLive() {
     let retry: ReturnType<typeof setTimeout> | undefined;
     let connectedBefore = false;
     let stopped = false;
+    let lastReady = Date.now();
     let arrived: AppNotification[] = [];
     let burst: ReturnType<typeof setTimeout> | undefined;
 
@@ -87,11 +95,22 @@ export function NotificationsLive() {
       burst = undefined;
     };
 
+    const queue = (notices: AppNotification[]) => {
+      if (notices.length === 0) return;
+      arrived.push(...notices);
+      burst ??= setTimeout(toastArrived, BURST_WINDOW_MS);
+    };
+
     const connect = () => {
+      clearTimeout(retry);
+      source?.close();
+      lastReady = Date.now();
       source = new EventSource(NOTIFICATIONS_STREAM);
       source.addEventListener("ready", () => {
+        lastReady = Date.now();
         if (connectedBefore) {
-          void refresh();
+          // Nothing is replayed, so whatever arrived while the stream was down is only in a reload.
+          void refresh().then(queue);
           void refreshFailed();
           void refreshAlerts();
         }
@@ -106,8 +125,7 @@ export function NotificationsLive() {
         }
         receive(notice);
         follow(notice);
-        arrived.push(notice);
-        burst ??= setTimeout(toastArrived, BURST_WINDOW_MS);
+        queue([notice]);
       });
       source.onerror = () => {
         // A dropped connection reconnects by itself; a refused one is CLOSED and stays so.
@@ -117,6 +135,18 @@ export function NotificationsLive() {
       };
     };
 
+    // A tab that slept, froze or lost the network can hold a dead stream, or none waiting on a
+    // throttled timer. In view again, it reconnects at once.
+    const wake = () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      if (!source || source.readyState === EventSource.CLOSED || Date.now() - lastReady > STALE_AFTER_MS) connect();
+    };
+    const watchdog = setInterval(wake, WATCH_EVERY_MS);
+    document.addEventListener("visibilitychange", wake);
+    document.addEventListener("resume", wake);
+    window.addEventListener("online", wake);
+    window.addEventListener("pageshow", wake);
+
     void refresh();
     void refreshFailed();
     void refreshAlerts();
@@ -125,6 +155,11 @@ export function NotificationsLive() {
       stopped = true;
       clearTimeout(retry);
       clearTimeout(burst);
+      clearInterval(watchdog);
+      document.removeEventListener("visibilitychange", wake);
+      document.removeEventListener("resume", wake);
+      window.removeEventListener("online", wake);
+      window.removeEventListener("pageshow", wake);
       source?.close();
     };
   }, [refresh, receive, refreshFailed, refreshAlerts]);

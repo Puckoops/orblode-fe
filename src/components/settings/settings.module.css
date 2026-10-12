@@ -1,0 +1,80 @@
+/* Camelot's Tabs laid out as a side panel, its items drawn like the app sidebar's. */
+
+.tabs {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-10);
+}
+
+.nav {
+  position: sticky;
+  top: calc(var(--pagehead-h) + var(--space-6));
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  width: 200px;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.item {
+  justify-content: flex-start;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-2);
+  font-size: 13.5px;
+  transition: background-color var(--dur-2) var(--ease-in-out), color var(--dur-2) var(--ease-in-out);
+}
+
+.item::after {
+  content: none;
+}
+
+.item:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.item[data-state="active"] {
+  border-color: var(--hairline);
+  background: var(--emphasis-quiet);
+  color: var(--text-1);
+}
+
+.item:focus-visible {
+  outline-offset: -2px;
+}
+
+.itemIcon {
+  color: var(--text-4);
+}
+
+.item[data-state="active"] .itemIcon,
+.item:hover .itemIcon {
+  color: var(--text-1);
+}
+
+.panel {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0;
+}
+
+@media (max-width: 767px) {
+  .tabs {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-5);
+  }
+
+  .nav {
+    position: static;
+    flex-direction: row;
+    width: auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}

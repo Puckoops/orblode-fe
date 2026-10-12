@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { listNotifications, markAllNotificationsRead, markNotificationsRead, type AppNotification } from "@/lib/api/notifications";
-import { markNoticesRead, mergeNotices } from "./inbox.ts";
+import { arrivedWhileAway, markNoticesRead, mergeNotices } from "./inbox.ts";
 
 interface InboxState {
   items: AppNotification[];
@@ -8,8 +8,8 @@ interface InboxState {
   loaded: boolean;
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
-  /** Replaces the list with the server's newest page. */
-  refresh: () => Promise<void>;
+  /** Replaces the list with the server's newest page; resolves to what it found that was new and unread. */
+  refresh: () => Promise<AppNotification[]>;
   /** Adds a notice that arrived live. */
   receive: (notice: AppNotification) => void;
   markRead: (ids: string[]) => Promise<void>;
@@ -27,9 +27,13 @@ export const useInbox = create<InboxState>((set, get) => ({
   refresh: async () => {
     try {
       const page = await listNotifications();
-      set({ items: mergeNotices([], page.notifications ?? []), unread: page.unread, loaded: true });
+      const { items: before, loaded } = get();
+      const items = mergeNotices([], page.notifications ?? []);
+      set({ items, unread: page.unread, loaded: true });
+      return loaded ? arrivedWhileAway(before, items) : [];
     } catch {
       // The bell keeps what it had; the next reconnect or reload tries again.
+      return [];
     }
   },
 

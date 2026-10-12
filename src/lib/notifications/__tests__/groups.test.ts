@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import type { NotificationTypePreference } from "../../api/notifications.ts";
 import { groupTypes } from "../groups.ts";
 
-const type = (t: string): NotificationTypePreference => ({ type: t, tier: "p2", label: t, mutable: true, muted: false, pushable: false, push_muted: false });
+const type = (t: string): NotificationTypePreference => ({
+  type: t,
+  tier: "p2",
+  label: t,
+  channels: { in_app: { on: true }, push: { on: false }, email: { on: false } },
+});
 
 test("groupTypes sections the types in a fixed order and drops empty sections", () => {
   const groups = groupTypes([type("site_summary"), type("survey_failed"), type("survey_processed"), type("design_ready")]);

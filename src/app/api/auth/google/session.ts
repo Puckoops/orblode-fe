@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Reply } from "@/lib/account";
 import { parseProfile } from "@/lib/profile";
-import { PROFILE_COOKIE, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
+import { PROFILE_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
 import { failure } from "../shared";
 
 export interface Login {
@@ -31,5 +31,7 @@ export function googleSession(reply: Reply<Login>, remember: boolean) {
   const response = NextResponse.json({ status: 200, error: false, data: profile });
   response.cookies.set(SESSION_COOKIE, reply.data.token, options);
   response.cookies.set(PROFILE_COOKIE, JSON.stringify(profile), options);
+  if (remember) response.cookies.set(REMEMBER_COOKIE, "1", options);
+  else response.cookies.delete(REMEMBER_COOKIE);
   return response;
 }

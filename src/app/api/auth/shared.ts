@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Reply } from "@/lib/account";
-import { PROFILE_COOKIE, SESSION_COOKIE } from "@/lib/session";
+import { PROFILE_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE } from "@/lib/session";
 
 /** Answers the browser for a user-svc call that failed, in Orblode's words where there are some for that status. */
 export function failure(reply: Reply<unknown>, messages: Partial<Record<number, string>>) {
@@ -12,6 +12,7 @@ export function failure(reply: Reply<unknown>, messages: Partial<Record<number, 
 export function clearSession(response: NextResponse) {
   response.cookies.delete(SESSION_COOKIE);
   response.cookies.delete(PROFILE_COOKIE);
+  response.cookies.delete(REMEMBER_COOKIE);
   return response;
 }
 

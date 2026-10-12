@@ -1,86 +1,47 @@
 "use client";
 
-import { Logout03Icon } from "@hugeicons/core-free-icons";
-import {
-  Band,
-  Button,
-  Card,
-  DescriptionList,
-  Page,
-  PageHeader,
-  SegmentedControl,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  useTheme,
-  type ThemePreference,
-} from "@puckoops/camelot";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { APPEARANCE } from "@/components/shell/UserMenu";
-import { useAuthClient, useAuthUser } from "@/hooks/useAuth";
-import { signOut } from "@/lib/auth";
-import { releasePush } from "@/lib/push/client";
+import { Notification03Icon, UserCircleIcon } from "@hugeicons/core-free-icons";
+import { Band, Icon, Page, PageHeader, Tabs, TabsContent, TabsList, TabsTrigger, type IconDefinition } from "@puckoops/camelot";
+import { useSearchParams } from "next/navigation";
+import { GeneralSettings } from "./GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
+import styles from "./settings.module.css";
 
-const TABS = ["general", "notifications"] as const;
-type Tab = (typeof TABS)[number];
+const TABS = [
+  { value: "general", label: "General", icon: UserCircleIcon },
+  { value: "notifications", label: "Notifications", icon: Notification03Icon },
+] as const satisfies readonly { value: string; label: string; icon: IconDefinition }[];
+type Tab = (typeof TABS)[number]["value"];
 
-/** Settings in two tabs: General (who is signed in, appearance, sign-out) and Notifications. */
+/** Settings, with its sections in a side panel: General (the account, appearance, sign-out) and Notifications. */
 export function SettingsScreen() {
-  const router = useRouter();
-  const user = useAuthUser();
-  const client = useAuthClient();
-  const { preference, setPreference } = useTheme();
-  const [leaving, setLeaving] = useState(false);
   const requested = useSearchParams().get("tab");
-  const tab: Tab = (TABS as readonly string[]).includes(requested ?? "") ? (requested as Tab) : "general";
+  const tab: Tab = TABS.find((t) => t.value === requested)?.value ?? "general";
 
   // Next keeps useSearchParams in step with replaceState, so the URL is the only record of the tab and
   // a link to another tab works from here too.
   const choose = (next: Tab) => window.history.replaceState(null, "", next === "general" ? "/settings" : `/settings?tab=${next}`);
 
-  const leave = async () => {
-    setLeaving(true);
-    await releasePush().catch(() => undefined);
-    await signOut();
-    router.push("/sign-in");
-    router.refresh();
-  };
-
   return (
     <Page>
       <PageHeader title="Settings" subtitle="Your account, your notifications and how Orblode looks on this device." />
-      <Tabs value={tab} onValueChange={(v) => choose(v as Tab)}>
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+      <Tabs value={tab} onValueChange={(v) => choose(v as Tab)} orientation="vertical" className={styles.tabs}>
+        <TabsList aria-label="Settings" className={styles.nav}>
+          {TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value} className={styles.item}>
+              <span className="inline-flex items-center gap-[10px]">
+                <Icon icon={t.icon} size={18} className={styles.itemIcon} />
+                {t.label}
+              </span>
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="general" className="pt-6">
-          <Band first heading="Account">
-            <Card>
-              <DescriptionList
-                items={[
-                  { label: "Name", value: user?.name || "—" },
-                  { label: "Email", value: user?.email || "—" },
-                  { label: "Company", value: client?.company_name || client?.name || "—" },
-                ]}
-              />
-            </Card>
-          </Band>
-          <Band heading="Appearance" caption="Applies to this browser.">
-            <SegmentedControl<ThemePreference> aria-label="Appearance" value={preference} onValueChange={setPreference} options={APPEARANCE} />
-          </Band>
-          <Band heading="Session">
-            <Button iconStart={Logout03Icon} onClick={leave} loading={leaving}>
-              Sign out
-            </Button>
-          </Band>
+        <TabsContent value="general" className={styles.panel}>
+          <GeneralSettings />
         </TabsContent>
 
-        <TabsContent value="notifications" className="pt-6">
+        <TabsContent value="notifications" className={styles.panel}>
           <Band first heading="Notifications" caption="Where each kind of notice reaches you. The same in every organisation you belong to.">
             <NotificationSettings />
           </Band>
