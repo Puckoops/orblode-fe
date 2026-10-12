@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
 import { TagInput } from "@/components/common/TagInput";
+import { PushOffer } from "@/components/notifications/PushOffer";
 import { createProject, listProjects, type Project } from "@/lib/api/userSvc";
 import { createDesign, createSurvey, generateSurvey, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { UPLOAD_ROW } from "@/lib/status";
@@ -639,6 +640,12 @@ function DoneSummary({
           ? "The design files are stored and attached to the project."
           : "Processors are running; layers appear in the viewer as each one completes."}
       </p>
+
+      {result.workflows.length > 0 && (
+        <div className="mb-4">
+          <PushOffer />
+        </div>
+      )}
 
       {result.workflows.length > 0 && (
         <ul className="mb-4 flex flex-col gap-1.5">

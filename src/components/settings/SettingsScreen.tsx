@@ -7,8 +7,10 @@ import { useState } from "react";
 import { APPEARANCE } from "@/components/shell/UserMenu";
 import { useAuthClient, useAuthUser } from "@/hooks/useAuth";
 import { signOut } from "@/lib/auth";
+import { releasePush } from "@/lib/push/client";
+import { NotificationSettings } from "./NotificationSettings";
 
-/** The signed-in identity from the login response, appearance, and sign-out. */
+/** The signed-in identity from the login response, notifications, appearance, and sign-out. */
 export function SettingsScreen() {
   const router = useRouter();
   const user = useAuthUser();
@@ -18,6 +20,7 @@ export function SettingsScreen() {
 
   const leave = async () => {
     setLeaving(true);
+    await releasePush().catch(() => undefined);
     await signOut();
     router.push("/sign-in");
     router.refresh();
@@ -25,7 +28,7 @@ export function SettingsScreen() {
 
   return (
     <Page>
-      <PageHeader title="Settings" subtitle="Your account and how Orblode looks on this device." />
+      <PageHeader title="Settings" subtitle="Your account, your notifications and how Orblode looks on this device." />
       <Band first heading="Account">
         <Card>
           <DescriptionList
@@ -36,6 +39,9 @@ export function SettingsScreen() {
             ]}
           />
         </Card>
+      </Band>
+      <Band heading="Notifications" caption="What shows up under Notifications. The same in every organisation you belong to.">
+        <NotificationSettings />
       </Band>
       <Band heading="Appearance" caption="Applies to this browser.">
         <SegmentedControl<ThemePreference> aria-label="Appearance" value={preference} onValueChange={setPreference} options={APPEARANCE} />

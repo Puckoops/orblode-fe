@@ -207,6 +207,45 @@ export function generateSurvey(
   });
 }
 
+/** A processor whose newest run on a survey failed; a later run of it, such as a retry, clears it. */
+export interface ProcessingFailure {
+  workflow_id: string;
+  processor_type: string;
+  /** "Terrain (DSM)", "Orthophoto", … */
+  label: string;
+  reason: string;
+  completed_at: EpochMs;
+  /** False for runs dispatched before requests were kept: those need the file uploaded again. */
+  retryable: boolean;
+}
+
+export interface SurveyProcessing {
+  survey_id: string;
+  project_id: string;
+  /** Runs still going. */
+  open: number;
+  failures: ProcessingFailure[];
+}
+
+export function getSurveyProcessing(surveyId: string): Promise<SurveyProcessing> {
+  return apiFetch<SurveyProcessing>(BASE, `/surveys/${encodeURIComponent(surveyId)}/processing`);
+}
+
+/** Every survey of the client (one site's with projectId) whose processing failed, most recent first. */
+export async function listProcessingFailures(projectId?: string): Promise<SurveyProcessing[]> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return (await apiFetch<{ surveys: SurveyProcessing[] }>(BASE, `/processing/failures${query}`)).surveys ?? [];
+}
+
+/** Runs a failed processor again with the request it was first made with. */
+export function retryProcessing(surveyId: string, workflowId: string): Promise<{ workflow_id: string; status: string }> {
+  return apiFetch<{ workflow_id: string; status: string }>(
+    BASE,
+    `/surveys/${encodeURIComponent(surveyId)}/processing/${encodeURIComponent(workflowId)}/retry`,
+    { method: "POST" }
+  );
+}
+
 /** Body for POST /designs — registers an uploaded design file on a project. */
 export interface CreateDesignRequest {
   project_id: string;
@@ -809,6 +848,20 @@ export interface TrendsReport {
 
 export function getTrends(projectId: string): Promise<TrendsReport> {
   return apiFetch<TrendsReport>(BASE, `/reports/trends?project_id=${encodeURIComponent(projectId)}`);
+}
+
+/** A site whose two newest surveys reconcile red at the default thresholds (green 3 %, amber 7 %). */
+export interface SiteAlert {
+  project_id: string;
+  from_survey_id: string;
+  to_survey_id: string;
+  red: { material_id: string; name: string; variance_pct: number }[];
+  checked_at: number;
+}
+
+export async function listSiteAlerts(projectId?: string): Promise<SiteAlert[]> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return (await apiFetch<{ sites: SiteAlert[] }>(BASE, `/reports/alerts${query}`)).sites ?? [];
 }
 
 export interface ProductionRecord {

@@ -5,6 +5,8 @@ import { AppShell, Breadcrumbs, Icon, Topbar } from "@puckoops/camelot";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
+import { NotificationsLive } from "@/components/notifications/NotificationsLive";
 import { useAuthClient } from "@/hooks/useAuth";
 import { AppRail } from "./AppRail";
 import { TITLES } from "./nav";
@@ -33,15 +35,26 @@ function ClientName() {
 }
 
 /**
- * The app frame for signed-in pages. Dashboard pages get the topbar; the viewer owns the whole
- * viewport beside the rail.
+ * The app frame for signed-in pages. Dashboard pages get the topbar, with the notifications bell at
+ * its end; the viewer owns the whole viewport beside the rail and floats the bell over its canvas.
  */
 export function AppFrame({ children, variant = "dashboard" }: { children: ReactNode; variant?: "dashboard" | "viewer" }) {
   const [expanded, toggle] = useRailExpanded();
   const classes = [expanded ? "" : styles.collapsed, variant === "viewer" ? styles.fullHeight : ""].filter(Boolean).join(" ");
   return (
     <AppShell className={classes} sidebar={<AppRail expanded={expanded} onToggle={toggle} />}>
-      {variant === "dashboard" && <Topbar start={<Crumbs />} end={<ClientName />} />}
+      {variant === "dashboard" && (
+        <Topbar
+          start={<Crumbs />}
+          end={
+            <div className={styles.topEnd}>
+              <ClientName />
+              <NotificationsBell />
+            </div>
+          }
+        />
+      )}
+      <NotificationsLive />
       {children}
     </AppShell>
   );

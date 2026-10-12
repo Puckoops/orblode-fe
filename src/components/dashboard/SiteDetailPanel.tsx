@@ -1,14 +1,17 @@
 "use client";
 
 import { ArrowRight01Icon, Cancel01Icon, PencilEdit02Icon, SatelliteIcon, Upload01Icon } from "@hugeicons/core-free-icons";
-import { Badge, Button, EmptyState, Icon, IconButton } from "@puckoops/camelot";
+import { Alert, Badge, Button, EmptyState, Icon, IconButton } from "@puckoops/camelot";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { getProject, type Project } from "@/lib/api/userSvc";
 import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
-import { lifecycleState, surveyState } from "@/lib/status";
+import { useProcessing } from "@/lib/processing/store";
+import { failedInProject, failureTitle } from "@/lib/processing/summary";
+import { lifecycleState, PROCESSING_FAILED, surveyState } from "@/lib/status";
+import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 
 export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {
@@ -17,6 +20,11 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   const [stockpiles, setStockpiles] = useState<{ surveyId: string; count: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [surveysTick, setSurveysTick] = useState(0);
+  const failed = useProcessing((s) => s.failed);
+  const retry = useProcessing((s) => s.retry);
+  const failedHere = useMemo(() => failedInProject(failed, projectId), [failed, projectId]);
+  const failedIds = useMemo(() => new Set(failedHere.map((s) => s.survey_id)), [failedHere]);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -65,6 +73,22 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
 
   if (!projectData) return null;
 
+  const retryable = failedHere.flatMap((s) => s.failures.filter((f) => f.retryable));
+  const dateOf = (surveyId: string) => {
+    const survey = surveys.find((s) => s.id === surveyId);
+    return survey ? formatSurveyDate(survey.survey_date) : "A survey";
+  };
+  const retryAll = async () => {
+    setRetrying(true);
+    try {
+      const started = (await Promise.all(failedHere.map((s) => retry(s.survey_id, s.failures)))).reduce((a, b) => a + b, 0);
+      if (started === retryable.length) toast.success(started === 1 ? "Processing again" : `Processing ${started} again`);
+      else toast.error("Some processors couldn't be started again. Try again in a moment.");
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   return (
     <aside
       aria-label={projectData.name}
@@ -91,6 +115,27 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
           <Stat value={stockpiles && stockpiles.surveyId === latestSurveyId ? String(stockpiles.count) : "-"} label="stockpiles" />
           <Stat value="-" label="open issues" />
         </dl>
+
+        {failedHere.length > 0 && (
+          <Alert
+            tone="critical"
+            title={failedHere.length === 1 ? "A survey failed to process" : `${failedHere.length} surveys failed to process`}
+            className="mb-6"
+            action={
+              retryable.length > 0 ? (
+                <Button variant="ghost" size="sm" loading={retrying} onClick={() => void retryAll()}>
+                  Retry
+                </Button>
+              ) : undefined
+            }
+          >
+            {failedHere.map((s) => (
+              <span key={s.survey_id} className="block">
+                {dateOf(s.survey_id)}: {failureTitle(s)}
+              </span>
+            ))}
+          </Alert>
+        )}
 
         <div className="mb-4 flex items-center justify-between">
           <h3 className="h3">Surveys</h3>
@@ -122,6 +167,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="num-sm text-ink-4">{survey.working_crs}</span>
                       <StateChip state={surveyState(survey.status)} />
+                      {failedIds.has(survey.id) && <StateChip state={PROCESSING_FAILED} />}
                     </span>
                     {typeof survey.metadata?.sensor === "string" && <span className="caption mt-1 block text-ink-4">{survey.metadata.sensor}</span>}
                   </span>

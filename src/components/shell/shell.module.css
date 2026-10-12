@@ -47,3 +47,26 @@
 
 .client { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-3); }
 .clientName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topEnd { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+
+/* Camelot hides SidebarItem's badge whenever the rail shows icons only: always when collapsed, and
+   below 1040px even when expanded. A dot on the icon stands in for the count there. */
+.railDot,
+.wideDot { position: relative; }
+
+.railDot::after,
+.wideDot::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--emphasis);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+@media (min-width: 1041px) {
+  .wideDot::after { display: none; }
+}
