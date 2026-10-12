@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { PROFILE_COOKIE, SESSION_COOKIE } from "@/lib/session";
+import { PROFILE_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE } from "@/lib/session";
 
 const FORWARDED_REQUEST_HEADERS = ["content-type", "accept", "idempotency-key"];
 
@@ -44,6 +44,7 @@ export async function forward(request: NextRequest, base: string, path: string[]
   if (upstream.status === 401) {
     response.cookies.delete(SESSION_COOKIE);
     response.cookies.delete(PROFILE_COOKIE);
+    response.cookies.delete(REMEMBER_COOKIE);
   }
   return response;
 }

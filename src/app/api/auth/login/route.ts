@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { accountPost } from "@/lib/account";
 import { normalizeEmail } from "@/lib/email";
 import { parseProfile } from "@/lib/profile";
-import { PROFILE_COOKIE, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
+import { PROFILE_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
 import { failure, methodNotAllowed } from "../shared";
 
 interface Login {
@@ -30,6 +30,8 @@ export async function POST(request: Request) {
   const response = NextResponse.json({ status: 200, error: false, data: profile });
   response.cookies.set(SESSION_COOKIE, reply.data.token, options);
   response.cookies.set(PROFILE_COOKIE, JSON.stringify(profile), options);
+  if (body?.remember === true) response.cookies.set(REMEMBER_COOKIE, "1", options);
+  else response.cookies.delete(REMEMBER_COOKIE);
   return response;
 }
 

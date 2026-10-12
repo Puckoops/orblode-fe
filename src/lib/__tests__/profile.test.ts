@@ -31,3 +31,10 @@ test("userInitials uses first and last name, else the email's first letter", () 
   assert.equal(userInitials({ name: " ", email: "zed@x.io" }), "Z");
   assert.equal(userInitials(null), "");
 });
+
+test("parseProfile keeps an avatar URL and leaves out an empty one", () => {
+  const raw = (avatar: unknown) => JSON.stringify({ user: { id: "u1", email: "a@b.io", name: "A", avatar_url: avatar }, client: { id: "c1", name: "C" } });
+  assert.equal(parseProfile(raw("https://api.example/avatars/x.png"))?.user.avatar_url, "https://api.example/avatars/x.png");
+  assert.equal(parseProfile(raw(""))?.user.avatar_url, undefined);
+  assert.equal(parseProfile(raw(42))?.user.avatar_url, undefined);
+});

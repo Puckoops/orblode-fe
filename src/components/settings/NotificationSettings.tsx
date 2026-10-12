@@ -3,7 +3,12 @@
 import { Alert, Button, Checkbox, Skeleton, Table, TBody, Td, TGroup, Th, THead, Tr, type AlertTone } from "@puckoops/camelot";
 import { Fragment, useEffect, useState } from "react";
 import { useAuthUser } from "@/hooks/useAuth";
-import { getNotificationPreferences, saveNotificationPreferences, type NotificationTypePreference } from "@/lib/api/notifications";
+import {
+  getNotificationPreferences,
+  saveNotificationPreferences,
+  type NotificationChannel,
+  type NotificationPreferences,
+} from "@/lib/api/notifications";
 import { groupTypes } from "@/lib/notifications/groups";
 import { pushState, turnOffPush, turnOnPush, type PushState } from "@/lib/push/client";
 import { toast } from "@/lib/toast";
@@ -46,48 +51,51 @@ function BrowserPush({ state, busy, onSwitch }: { state: Exclude<PushState, "una
   );
 }
 
+const COLUMNS: { channel: NotificationChannel; heading: string; short: string; where: string }[] = [
+  { channel: "in_app", heading: "In Orblode", short: "Orblode", where: "in Orblode" },
+  { channel: "push", heading: "Browser", short: "Browser", where: "in the browser" },
+  { channel: "email", heading: "Email", short: "Email", where: "by email" },
+];
+
+// Three channel columns fit a phone only with tighter cells and shorter headings.
+const CHANNEL_CELL = "max-sm:px-1.5 max-sm:last:pr-4";
+
 /**
- * Where each kind of notice reaches you: in Orblode (the inbox and a toast) and in the browser
- * (push). Activity can be kept out of Orblode; a notice someone is waiting on always shows there.
+ * Where each kind of notice reaches you: in Orblode (the inbox and a toast), in the browser (push)
+ * and by email. A notice someone is waiting on always shows in Orblode.
  */
 export function NotificationSettings() {
   const userId = useAuthUser()?.id;
-  const [types, setTypes] = useState<NotificationTypePreference[] | null>(null);
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [push, setPush] = useState<PushState | null>(null);
   const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
-    getNotificationPreferences().then(setTypes, () => setFailed(true));
+    getNotificationPreferences().then(setPrefs, () => setFailed(true));
   }, []);
 
   useEffect(() => {
     if (userId) pushState(userId).then(setPush, () => setPush("unavailable"));
   }, [userId]);
 
-  const save = async (next: NotificationTypePreference[]) => {
-    if (!types) return;
-    const before = types;
-    setTypes(next);
+  const choose = async (type: string, channel: NotificationChannel, on: boolean) => {
+    if (!prefs) return;
+    const before = prefs;
+    setPrefs({
+      ...prefs,
+      types: prefs.types.map((t) => (t.type === type ? { ...t, channels: { ...t.channels, [channel]: { ...t.channels[channel], on } } } : t)),
+    });
     setSaving(true);
     try {
-      setTypes(
-        await saveNotificationPreferences(
-          next.filter((t) => t.muted).map((t) => t.type),
-          next.filter((t) => t.push_muted).map((t) => t.type)
-        )
-      );
+      setPrefs(await saveNotificationPreferences({ [type]: { [channel]: on } }));
     } catch {
-      setTypes(before);
+      setPrefs(before);
       toast.error("Couldn't save your notification settings. Try again.");
     } finally {
       setSaving(false);
     }
-  };
-
-  const change = (type: string, patch: Partial<NotificationTypePreference>) => {
-    if (types) void save(types.map((t) => (t.type === type ? { ...t, ...patch } : t)));
   };
 
   const switchPush = async (on: boolean) => {
@@ -110,61 +118,53 @@ export function NotificationSettings() {
   };
 
   if (failed) return <p className="small">Notification settings couldn&apos;t be loaded. Reload to try again.</p>;
-  if (!types) return <Skeleton height={320} />;
+  if (!prefs) return <Skeleton height={320} />;
 
   const browser = push !== null && push !== "unavailable" ? push : null;
+  const unavailable: Partial<Record<NotificationChannel, boolean>> = { push: push === "unavailable", email: !prefs.email };
+  const notes = [
+    "Notices someone is waiting on always show in Orblode.",
+    browser && "Browser applies in every browser you turn notifications on in.",
+    unavailable.push && "Browser notifications aren't set up for Orblode yet.",
+    unavailable.email && "Email isn't set up for Orblode yet; your choices are kept for when it is.",
+  ].filter(Boolean);
 
   return (
     <div className="flex flex-col gap-6">
       {browser && <BrowserPush state={browser} busy={switching} onSwitch={(on) => void switchPush(on)} />}
-      <Table
-        minWidth={300}
-        footer={
-          browser
-            ? "Notices someone is waiting on always show in Orblode. The Browser column applies in every browser you turn notifications on in."
-            : "Notices someone is waiting on always show in Orblode."
-        }
-      >
+      <Table minWidth={300} footer={notes.join(" ")}>
         <THead>
           <Tr>
             <Th>Notification</Th>
-            <Th className="w-20 text-center sm:w-32">In Orblode</Th>
-            {browser && <Th className="w-20 text-center sm:w-32">Browser</Th>}
+            {COLUMNS.map((c) => (
+              <Th key={c.channel} className={`text-center sm:w-28 ${CHANNEL_CELL}`}>
+                <span className="sm:hidden">{c.short}</span>
+                <span className="max-sm:hidden">{c.heading}</span>
+              </Th>
+            ))}
           </Tr>
         </THead>
         <TBody>
-          {groupTypes(types).map((group) => (
+          {groupTypes(prefs.types).map((group) => (
             <Fragment key={group.label}>
-              <TGroup colSpan={browser ? 3 : 2}>{group.label}</TGroup>
+              <TGroup colSpan={COLUMNS.length + 1}>{group.label}</TGroup>
               {group.types.map((t) => (
                 <Tr key={t.type}>
                   <Td primary>{t.label}</Td>
-                  <Td>
-                    <Cell
-                      id={`notify-${t.type}-orblode`}
-                      label={`${t.label}, in Orblode`}
-                      checked={!t.muted}
-                      disabled={!t.mutable || saving}
-                      onChange={(on) => change(t.type, { muted: !on })}
-                    />
-                  </Td>
-                  {browser && (
-                    <Td className="text-center">
-                      {t.pushable ? (
+                  {COLUMNS.map(({ channel, where }) => {
+                    const state = t.channels[channel];
+                    return (
+                      <Td key={channel} className={CHANNEL_CELL}>
                         <Cell
-                          id={`notify-${t.type}-browser`}
-                          label={`${t.label}, in the browser`}
-                          checked={!t.push_muted}
-                          disabled={saving}
-                          onChange={(on) => change(t.type, { push_muted: !on })}
+                          id={`notify-${t.type}-${channel}`}
+                          label={`${t.label}, ${where}`}
+                          checked={state.on}
+                          disabled={saving || !!state.locked || !!unavailable[channel]}
+                          onChange={(on) => void choose(t.type, channel, on)}
                         />
-                      ) : (
-                        <span className="text-ink-4" title="Only notices someone is waiting on reach the browser">
-                          —
-                        </span>
-                      )}
-                    </Td>
-                  )}
+                      </Td>
+                    );
+                  })}
                 </Tr>
               ))}
             </Fragment>

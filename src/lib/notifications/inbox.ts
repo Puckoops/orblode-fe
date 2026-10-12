@@ -25,6 +25,15 @@ export function toneFor(type: string): "error" | "success" | "default" {
   return "default";
 }
 
+/**
+ * The unread notices a reload found that the inbox didn't have, oldest first: what arrived while the
+ * live stream was down, which nothing has toasted yet.
+ */
+export function arrivedWhileAway(before: AppNotification[], after: AppNotification[]): AppNotification[] {
+  const known = new Set(before.map((n) => n.id));
+  return after.filter((n) => n.read_at === 0 && !known.has(n.id)).sort((a, b) => a.created_at - b.created_at);
+}
+
 /** From this many notices arriving together, one toast stands for them all. */
 export const BURST_SIZE = 3;
 

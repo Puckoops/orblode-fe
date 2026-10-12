@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AppNotification } from "../../api/notifications.ts";
-import { BURST_SIZE, INBOX_LIMIT, markNoticesRead, mergeNotices, relativeTime, toastsFor, toneFor } from "../inbox.ts";
+import { arrivedWhileAway, BURST_SIZE, INBOX_LIMIT, markNoticesRead, mergeNotices, relativeTime, toastsFor, toneFor } from "../inbox.ts";
 
 const notice = (id: string, created_at: number, read_at = 0): AppNotification => ({
   id,
@@ -74,4 +74,11 @@ test("toastsFor folds a burst into one toast led by a notice someone acts on", (
   assert.equal(burst.length, BURST_SIZE);
   assert.deepEqual(toastsFor(burst), [{ title: "3 new notifications", body: "notice b, and 2 more.", tone: "error" }]);
   assert.deepEqual(toastsFor([p2("a"), p2("b"), p2("c"), p2("d")]), [{ title: "4 new notifications", body: "notice d, and 3 more.", tone: "default" }]);
+});
+
+test("arrivedWhileAway is the unread notices the reload found that the inbox didn't have, oldest first", () => {
+  const before = [notice("a", 1), notice("b", 2)];
+  const after = [notice("d", 4), notice("c", 3), notice("e", 5, 9), notice("b", 2)];
+  assert.deepEqual(arrivedWhileAway(before, after).map((n) => n.id), ["c", "d"]);
+  assert.deepEqual(arrivedWhileAway(after, after), []);
 });

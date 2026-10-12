@@ -3,6 +3,7 @@ export interface AuthUser {
   email: string;
   name: string;
   client_id: string;
+  avatar_url?: string;
 }
 
 export interface AuthClient {
@@ -44,7 +45,13 @@ export function parseProfile(raw: string | undefined | null): Profile | null {
   if (!str(u.id) || !str(c.id)) return null;
   const m = membership && typeof membership === "object" ? (membership as Record<string, unknown>) : null;
   return {
-    user: { id: str(u.id), email: str(u.email), name: str(u.name), client_id: str(u.client_id) || str(c.id) },
+    user: {
+      id: str(u.id),
+      email: str(u.email),
+      name: str(u.name),
+      client_id: str(u.client_id) || str(c.id),
+      ...(str(u.avatar_url) ? { avatar_url: str(u.avatar_url) } : {}),
+    },
     client: {
       id: str(c.id),
       name: str(c.name),

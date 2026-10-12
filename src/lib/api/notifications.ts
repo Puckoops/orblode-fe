@@ -37,16 +37,30 @@ export interface MarkedRead {
   unread: number;
 }
 
+/** Where a notice can reach someone: Orblode's inbox and toasts, the browser's push, and email. */
+export type NotificationChannel = "in_app" | "push" | "email";
+
+export interface ChannelState {
+  on: boolean;
+  /** Can't be turned off: a notice someone is waiting on always shows in Orblode. */
+  locked?: boolean;
+}
+
 export interface NotificationTypePreference {
   type: string;
   tier: NotificationTier;
   label: string;
-  mutable: boolean;
-  muted: boolean;
-  /** Reaches a browser with push on, unless push_muted. */
-  pushable: boolean;
-  push_muted: boolean;
+  channels: Record<NotificationChannel, ChannelState>;
 }
+
+export interface NotificationPreferences {
+  types: NotificationTypePreference[];
+  /** Whether this deployment sends email; the email choices are kept either way. */
+  email: boolean;
+}
+
+/** Channels to turn on or off for some types; the rest stay as they are. */
+export type ChannelChanges = Record<string, Partial<Record<NotificationChannel, boolean>>>;
 
 export interface PushConfig {
   available: boolean;
@@ -69,17 +83,12 @@ export function markAllNotificationsRead(): Promise<MarkedRead> {
   return apiFetch<MarkedRead>(ORBLODE_API, "/notifications/read-all", { method: "PUT" });
 }
 
-export async function getNotificationPreferences(): Promise<NotificationTypePreference[]> {
-  return (await apiFetch<{ types: NotificationTypePreference[] }>(ORBLODE_API, "/notifications/preferences")).types;
+export function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return apiFetch<NotificationPreferences>(ORBLODE_API, "/notifications/preferences");
 }
 
-export async function saveNotificationPreferences(muted: string[], pushMuted: string[]): Promise<NotificationTypePreference[]> {
-  return (
-    await apiFetch<{ types: NotificationTypePreference[] }>(ORBLODE_API, "/notifications/preferences", {
-      method: "PUT",
-      body: { muted, push_muted: pushMuted },
-    })
-  ).types;
+export function saveNotificationPreferences(channels: ChannelChanges): Promise<NotificationPreferences> {
+  return apiFetch<NotificationPreferences>(ORBLODE_API, "/notifications/preferences", { method: "PUT", body: { channels } });
 }
 
 export function getPushConfig(): Promise<PushConfig> {
