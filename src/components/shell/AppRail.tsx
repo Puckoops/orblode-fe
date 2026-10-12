@@ -1,26 +1,33 @@
 "use client";
 
-import { Menu01Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { PanelLeftCloseIcon, PanelLeftOpenIcon } from "@hugeicons/core-free-icons";
 import { Avatar, IconButton, Sidebar, SidebarFooter, SidebarItem, SidebarSection, SidebarUser, Tooltip } from "@puckoops/camelot";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 import { OrblodeLogo } from "@/components/brand/OrblodeLogo";
-import { useAuthClient, useAuthUser } from "@/hooks/useAuth";
+import { WorkspaceMenu } from "@/components/workspaces/WorkspaceMenu";
+import { useAuthUser } from "@/hooks/useAuth";
 import { useProcessing } from "@/lib/processing/store";
 import { useSiteAlerts } from "@/lib/reports/alerts";
+import { inSites } from "@/lib/workspaces/pick";
+import { useWorkspaces } from "@/lib/workspaces/store";
 import styles from "./shell.module.css";
 import { NAV, type NavItem } from "./nav";
 import { railDotClass } from "./railDot";
 import { UserMenu } from "./UserMenu";
 
-/** The global app rail: Sites, Upload, Outputs and Reports, then the signed-in person. Collapsed it shows icons only. */
+/** The global app rail: the workspace dropdown, then Sites, Upload, Outputs and Reports, then the signed-in
+ * person. Collapsed it shows icons only. Its counts are the current workspace's. */
 export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   const pathname = usePathname();
   const user = useAuthUser();
-  const client = useAuthClient();
   const name = user?.name?.trim() || user?.email || "Account";
-  const failedSurveys = useProcessing((s) => s.failed.length);
-  const redSites = useSiteAlerts((s) => s.sites.length);
+  const workspaceSites = useWorkspaces((s) => s.sites);
+  const failed = useProcessing((s) => s.failed);
+  const alerts = useSiteAlerts((s) => s.sites);
+  const failedSurveys = useMemo(() => inSites(failed, workspaceSites).length, [failed, workspaceSites]);
+  const redSites = useMemo(() => inSites(alerts, workspaceSites).length, [alerts, workspaceSites]);
   const countOf = (item: NavItem) => (item.href === "/globe" ? failedSurveys : item.href === "/reports" ? redSites : 0);
   const labelOf = (item: NavItem) => {
     const count = countOf(item);
@@ -37,15 +44,20 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
           <Link href="/globe" className={styles.brand}>
             <OrblodeLogo size={26} wordmarkClassName={styles.brandName} />
           </Link>
-          <IconButton
-            icon={SidebarLeftIcon}
-            aria-label="Collapse navigation"
-            aria-expanded
-            variant="bare"
-            size="sm"
-            onClick={onToggle}
-            className={styles.brandEnd}
-          />
+          <Tooltip content="Collapse the side panel" side="bottom">
+            <IconButton
+              icon={PanelLeftCloseIcon}
+              aria-label="Collapse navigation"
+              aria-expanded
+              variant="bare"
+              size="sm"
+              onClick={onToggle}
+              className={styles.brandEnd}
+            />
+          </Tooltip>
+        </div>
+        <div className={styles.workspaceRow}>
+          <WorkspaceMenu />
         </div>
         <SidebarSection>
           {NAV.map((item) => (
@@ -63,7 +75,7 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
             </SidebarItem>
           ))}
         </SidebarSection>
-        <SidebarFooter note={client?.company_name?.trim() || client?.name?.trim() || undefined}>
+        <SidebarFooter>
           <SidebarUser name={name} email={user?.name?.trim() ? user.email : undefined} avatar={<Avatar name={name} src={user?.avatar_url} />} menu={<UserMenu />} />
         </SidebarFooter>
       </Sidebar>
@@ -73,7 +85,12 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
   return (
     <Sidebar aria-label="Primary">
       <div className={styles.railHead}>
-        <IconButton icon={Menu01Icon} aria-label="Expand navigation" aria-expanded={false} variant="bare" onClick={onToggle} />
+        <Tooltip content="Expand the side panel" side="right">
+          <IconButton icon={PanelLeftOpenIcon} aria-label="Expand navigation" aria-expanded={false} variant="bare" size="sm" onClick={onToggle} />
+        </Tooltip>
+      </div>
+      <div className={styles.workspaceRow}>
+        <WorkspaceMenu compact />
       </div>
       <SidebarSection>
         {NAV.map((item) => (

@@ -30,16 +30,11 @@ import { APPEARANCE } from "@/components/shell/UserMenu";
 import { useAuthClient, useAuthUser } from "@/hooks/useAuth";
 import { AVATAR_TYPES, avatarProblem, nameProblem, passwordProblems, type PasswordChange } from "@/lib/accountRules";
 import { changePassword, getMe, requestPasswordLink, updateProfile, uploadAvatar, type Me } from "@/lib/api/account";
-import { ApiError } from "@/lib/api/client";
+import { refusalMessage } from "@/lib/api/client";
 import { signOut } from "@/lib/auth";
 import { PASSWORD_HINT } from "@/lib/email";
 import { releasePush } from "@/lib/push/client";
 import { toast } from "@/lib/toast";
-
-/** The server's own words for a request it refused, or the fallback for anything else. */
-function messageOf(err: unknown, fallback: string) {
-  return err instanceof ApiError && err.status >= 400 && err.status < 500 && err.message ? err.message : fallback;
-}
 
 function Profile({ me, onSaved }: { me: Me; onSaved: (me: Me) => void }) {
   const client = useAuthClient();
@@ -60,7 +55,7 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (me: Me) => void }) {
       onSaved(await updateProfile({ name: name.trim() }));
       toast.success("Name saved.");
     } catch (err) {
-      setNameError(messageOf(err, "Couldn't save your name. Try again."));
+      setNameError(refusalMessage(err, "Couldn't save your name. Try again."));
     } finally {
       setSavingName(false);
     }
@@ -73,7 +68,7 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (me: Me) => void }) {
       onSaved(await updateProfile({ avatar_url: avatarUrl === "" ? "" : await avatarUrl() }));
       toast.success(avatarUrl === "" ? "Photo removed." : "Photo saved.");
     } catch (err) {
-      setPhotoError(messageOf(err, "Couldn't save your photo. Try again."));
+      setPhotoError(refusalMessage(err, "Couldn't save your photo. Try again."));
     } finally {
       setPhotoBusy(false);
     }
@@ -153,7 +148,7 @@ function Password({ me }: { me: Me }) {
       setForm(NO_CHANGE);
       toast.success("Password changed. You're signed out everywhere else.");
     } catch (err) {
-      setFailure(messageOf(err, "Couldn't change your password. Try again."));
+      setFailure(refusalMessage(err, "Couldn't change your password. Try again."));
     } finally {
       setBusy(false);
     }
@@ -165,7 +160,7 @@ function Password({ me }: { me: Me }) {
       await requestPasswordLink(me.email);
       setLinkSent(true);
     } catch (err) {
-      toast.error(messageOf(err, "Couldn't send the link. Try again."));
+      toast.error(refusalMessage(err, "Couldn't send the link. Try again."));
     } finally {
       setBusy(false);
     }
