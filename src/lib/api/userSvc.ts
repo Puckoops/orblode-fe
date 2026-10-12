@@ -42,8 +42,13 @@ export async function login(email: string, password: string, remember = false): 
   return readBody<LoginResponse>(res.status, res.ok, await res.text());
 }
 
-/** Signs in through the BFF with the credential from Google's button, as login does with a password. */
-export async function loginWithGoogle(code: string, remember = false): Promise<LoginResponse> {
+/** Someone Google vouched for who belongs to no organisation yet: /sign-up?via=google finishes it. */
+export interface NeedsOrganisation {
+  needs_organisation: true;
+}
+
+/** Signs in through the BFF with the code from Google's popup, as login does with a password. */
+export async function loginWithGoogle(code: string, remember = false): Promise<LoginResponse | NeedsOrganisation> {
   let res: Response;
   try {
     res = await fetch("/api/auth/google", {
@@ -55,7 +60,7 @@ export async function loginWithGoogle(code: string, remember = false): Promise<L
   } catch {
     throw new ApiError(502, "We couldn't reach Orblode. Check your connection and try again.");
   }
-  return readBody<LoginResponse>(res.status, res.ok, await res.text());
+  return readBody<LoginResponse | NeedsOrganisation>(res.status, res.ok, await res.text());
 }
 
 export function listProjects(): Promise<Project[]> {

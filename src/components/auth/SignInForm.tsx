@@ -10,7 +10,7 @@ import styles from "./auth.module.css";
 import { FormAlert } from "./FormAlert";
 import { GoogleButton } from "./GoogleButton";
 import { PasswordInput } from "./PasswordInput";
-import { postJson, safeNextPath } from "./post";
+import { googleSignUpPath, postJson, safeNextPath } from "./post";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -57,7 +57,11 @@ export function SignInForm() {
     setPending(true);
     clearNotices();
     try {
-      await loginWithGoogle(code, remember);
+      const result = await loginWithGoogle(code, remember);
+      if ("needs_organisation" in result) {
+        router.push(googleSignUpPath(carry));
+        return;
+      }
       toast.success("Signed in");
       router.push(next);
       router.refresh();

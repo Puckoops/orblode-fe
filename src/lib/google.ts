@@ -1,4 +1,5 @@
 import "server-only";
+import { cookies } from "next/headers";
 import type { Reply } from "./account";
 
 /**
@@ -30,5 +31,37 @@ export async function googleIdToken(code: string): Promise<Reply<string>> {
   } catch (err) {
     console.error("google sign-in: token exchange failed", err instanceof Error ? err.message : err);
     return { status: 502, ok: false };
+  }
+}
+
+/** Holds Google's ID token while someone Google vouched for, with no organisation yet, fills in /sign-up. */
+export const GOOGLE_SIGN_UP_COOKIE = "orblode_google_sign_up";
+
+/** Shorter than the hour Google's ID token lasts, so the token is still good when the form comes back. */
+export const GOOGLE_SIGN_UP_SECONDS = 30 * 60;
+
+export interface GoogleSignUp {
+  token: string;
+  name: string;
+  email: string;
+}
+
+/**
+ * The sign-up Google started, or null when there is none or its token has expired. The token came from Google's
+ * token endpoint, so its claims are read here for display only; user-svc verifies it again when the form is sent.
+ */
+export async function pendingGoogleSignUp(): Promise<GoogleSignUp | null> {
+  const token = (await cookies()).get(GOOGLE_SIGN_UP_COOKIE)?.value;
+  const claims = token ? decodeClaims(token) : null;
+  if (!token || !claims || typeof claims.email !== "string" || typeof claims.exp !== "number" || claims.exp * 1000 <= Date.now()) return null;
+  return { token, email: claims.email.toLowerCase(), name: typeof claims.name === "string" ? claims.name : "" };
+}
+
+function decodeClaims(token: string): Record<string, unknown> | null {
+  try {
+    const claims = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8"));
+    return claims && typeof claims === "object" ? claims : null;
+  } catch {
+    return null;
   }
 }

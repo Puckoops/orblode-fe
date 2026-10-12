@@ -1,14 +1,18 @@
 "use client";
 
-import { Button, Field, Input, TextLink } from "@puckoops/camelot";
+import { Button, Field, Input, TextLink, toast } from "@puckoops/camelot";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { loginWithGoogle } from "@/lib/api/userSvc";
 import { looksLikeEmail, normalizeEmail, PASSWORD_HINT, PASSWORD_RULE } from "@/lib/email";
 import styles from "./auth.module.css";
 import { FormAlert } from "./FormAlert";
+import { GoogleButton } from "./GoogleButton";
 import { PasswordInput } from "./PasswordInput";
-import { postJson, safeNextPath } from "./post";
+import { googleSignUpPath, postJson, safeNextPath } from "./post";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 const EMPTY = {
   name: "",
@@ -40,15 +44,25 @@ const REQUIRED: Record<Exclude<keyof Form, "email" | "password">, string> = {
   country: "Enter the country code, such as AU.",
 };
 
-/** Creates an organisation with the person as its owner; it ends at the inbox, like every Puckoops sign-up. */
-export function SignUpForm() {
+interface SignUpFormProps {
+  /** The person Google vouched for at sign-in, who signs up without a password and is signed in at once. */
+  google?: { name: string; email: string } | null;
+  googleExpired?: boolean;
+}
+
+/**
+ * Creates an organisation with the person as its owner. With a password it ends at the inbox, like every Puckoops
+ * sign-up; through Google it ends signed in.
+ */
+export function SignUpForm({ google, googleExpired }: SignUpFormProps) {
+  const router = useRouter();
   const params = useSearchParams();
   const next = safeNextPath(params.get("next"));
   const carry = next !== "/globe" ? next : undefined;
   const nextQuery = carry ? `?next=${encodeURIComponent(carry)}` : "";
-  const [form, setForm] = useState<Form>({ ...EMPTY, email: params.get("email") ?? "" });
+  const [form, setForm] = useState<Form>({ ...EMPTY, name: google?.name ?? "", email: google?.email ?? params.get("email") ?? "" });
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Form, string>>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(googleExpired ? "Your Google sign-in has expired. Continue with Google again." : null);
   const [pending, setPending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
@@ -61,13 +75,27 @@ export function SignUpForm() {
     for (const [key, message] of Object.entries(REQUIRED) as [keyof typeof REQUIRED, string][]) {
       if (!form[key].trim()) errs[key] = message;
     }
-    if (!looksLikeEmail(form.email)) errs.email = "Enter a valid email address.";
-    if (!PASSWORD_RULE.test(form.password)) errs.password = `Use ${PASSWORD_HINT.replace(/\.$/, "")}.`;
+    if (!google) {
+      if (!looksLikeEmail(form.email)) errs.email = "Enter a valid email address.";
+      if (!PASSWORD_RULE.test(form.password)) errs.password = `Use ${PASSWORD_HINT.replace(/\.$/, "")}.`;
+    }
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
     setPending(true);
     setError(null);
+    if (google) {
+      const res = await postJson("/api/auth/google/sign-up", form);
+      if (!res?.ok) {
+        setError(res?.message ?? "That didn't work. Try again.");
+        setPending(false);
+        return;
+      }
+      toast.success("Organisation created");
+      router.push(next);
+      router.refresh();
+      return;
+    }
     const res = await postJson("/api/auth/signup", { ...form, email: normalizeEmail(form.email), next: carry });
     setPending(false);
     if (!res?.ok) {
@@ -75,6 +103,25 @@ export function SignUpForm() {
       return;
     }
     setSentTo(normalizeEmail(form.email));
+  };
+
+  const continueWithGoogle = async (code: string) => {
+    setPending(true);
+    setError(null);
+    try {
+      const result = await loginWithGoogle(code);
+      if ("needs_organisation" in result) {
+        router.replace(googleSignUpPath(carry));
+        setPending(false);
+        return;
+      }
+      toast.success("Signed in");
+      router.push(next);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "That didn't work. Try again.");
+      setPending(false);
+    }
   };
 
   const resend = async () => {
@@ -114,6 +161,12 @@ export function SignUpForm() {
     <>
       <h1 className="quote">Create your organisation</h1>
       <p className={`small ${styles.lede}`}>Set up Orblode for your company. You become its owner and can invite your team.</p>
+      {GOOGLE_CLIENT_ID && !google && (
+        <div className={styles.sso}>
+          <GoogleButton clientId={GOOGLE_CLIENT_ID} onCode={continueWithGoogle} onError={setError} disabled={pending} label="Continue with Google" />
+          <p className={`small ${styles.or}`}>or with your email</p>
+        </div>
+      )}
       <form className={styles.form} onSubmit={submit} noValidate>
         <FormAlert message={error} />
         <div className={styles.row}>
@@ -124,12 +177,28 @@ export function SignUpForm() {
             <Input value={form.company_role} onChange={set("company_role")} autoComplete="organization-title" placeholder="Survey manager" />
           </Field>
         </div>
-        <Field label="Work email" error={fieldErrors.email}>
-          <Input value={form.email} onChange={set("email")} type="email" autoComplete="email" placeholder="you@company.com" />
-        </Field>
-        <Field label="Password" error={fieldErrors.password} hint={PASSWORD_HINT}>
-          <PasswordInput value={form.password} onChange={set("password")} autoComplete="new-password" />
-        </Field>
+        {google ? (
+          <Field
+            label="Work email"
+            hint="Your Google account. You sign in with Google, so there is no password to choose."
+            aside={
+              <TextLink as={Link} href={`/sign-up${nextQuery}`} className="small">
+                Use a password instead
+              </TextLink>
+            }
+          >
+            <Input value={google.email} type="email" readOnly className={styles.locked} />
+          </Field>
+        ) : (
+          <>
+            <Field label="Work email" error={fieldErrors.email}>
+              <Input value={form.email} onChange={set("email")} type="email" autoComplete="email" placeholder="you@company.com" />
+            </Field>
+            <Field label="Password" error={fieldErrors.password} hint={PASSWORD_HINT}>
+              <PasswordInput value={form.password} onChange={set("password")} autoComplete="new-password" />
+            </Field>
+          </>
+        )}
         <div className={styles.row}>
           <Field label="Organisation" error={fieldErrors.company_name}>
             <Input value={form.company_name} onChange={set("company_name")} autoComplete="organization" />
