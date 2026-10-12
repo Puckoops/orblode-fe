@@ -112,7 +112,7 @@ export function contourSegments(grid: Float32Array, nx: number, ny: number, inte
         edge[5] = j + 1;
         edge[6] = i;
         edge[7] = j + 1 - (level - z01) / (z00 - z01);
-        const out = Math.round(level) % index === 0 ? major : minor;
+        const out = Math.abs(level / index - Math.round(level / index)) < 1e-6 ? major : minor;
         for (let s = 0; s < segs.length; s += 2) out.push(edge[segs[s] * 2], edge[segs[s] * 2 + 1], edge[segs[s + 1] * 2], edge[segs[s + 1] * 2 + 1]);
       }
     }
@@ -120,25 +120,32 @@ export function contourSegments(grid: Float32Array, nx: number, ny: number, inte
   return { minor: Float32Array.from(minor), major: Float32Array.from(major) };
 }
 
-/** A dark hypsometric tint with hillshade, north-up, as RGBA. */
+/** A dark hypsometric tint with hillshade, north-up, as RGBA. Holes (non-finite heights) are left as ground. */
 export function tintPixels(grid: Float32Array, nx: number, ny: number, step: number) {
   let lo = Infinity, hi = -Infinity;
   for (let k = 0; k < grid.length; k++) {
+    if (!Number.isFinite(grid[k])) continue;
     lo = Math.min(lo, grid[k]);
     hi = Math.max(hi, grid[k]);
   }
   const out = new Uint8ClampedArray(nx * ny * 4), colour: Rgb = [0, 0, 0];
+  const at = (i: number, j: number, fallback: number) => {
+    const v = grid[clamp(j, 0, ny - 1) * nx + clamp(i, 0, nx - 1)];
+    return Number.isFinite(v) ? v : fallback;
+  };
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
-      const west = grid[j * nx + Math.max(0, i - 1)], east = grid[j * nx + Math.min(nx - 1, i + 1)];
-      const south = grid[Math.max(0, j - 1) * nx + i], north = grid[Math.min(ny - 1, j + 1) * nx + i];
-      const b = 0.2 + 0.22 * shade((east - west) / (2 * step), (north - south) / (2 * step));
-      rampColour((grid[j * nx + i] - lo) / (hi - lo), colour);
-      const o = ((ny - 1 - j) * nx + i) * 4;
+      const z = grid[j * nx + i], o = ((ny - 1 - j) * nx + i) * 4;
+      out[o + 3] = 255;
+      if (!Number.isFinite(z)) {
+        [out[o], out[o + 1], out[o + 2]] = [14, 12, 10];
+        continue;
+      }
+      const b = 0.2 + 0.22 * shade((at(i + 1, j, z) - at(i - 1, j, z)) / (2 * step), (at(i, j + 1, z) - at(i, j - 1, z)) / (2 * step));
+      rampColour((z - lo) / (hi - lo || 1), colour);
       out[o] = colour[0] * b;
       out[o + 1] = colour[1] * b;
       out[o + 2] = colour[2] * b;
-      out[o + 3] = 255;
     }
   }
   return out;

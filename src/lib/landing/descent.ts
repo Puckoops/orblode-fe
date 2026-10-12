@@ -1,22 +1,26 @@
 import { formatNumber } from "./format.ts";
 import { clamp, lerp, smoothstep } from "./math.ts";
-import { PILES, RIM } from "./terrain.ts";
+import type { SceneFrame } from "./site.ts";
 
 export type Camera = { tx: number; ty: number; tz: number; yaw: number; pitch: number; dist: number; fov: number };
 
 /**
- * The descent's stages. A stage position `s` runs from 0 (the globe) to 3 (Stockpile 1); whole
- * numbers are the stages themselves and fractions are the moves between them.
+ * The descent's stages. A stage position `s` runs from 0 (the globe) to 3 (the featured
+ * measurement); whole numbers are the stages themselves and fractions are the moves between them.
  */
 export const STAGES = ["Portfolio", "Site", "Twin", "Measure"] as const;
 
-type Pose = Omit<Camera, "fov">;
+export type Pose = Omit<Camera, "fov">;
 
-const POSES: readonly Pose[] = [
-  { tx: -10, ty: -40, tz: 30, yaw: 0, pitch: Math.PI / 2 - 0.002, dist: 1500 },
-  { tx: -55, ty: 10, tz: 0, yaw: 0.65, pitch: 0.62, dist: 540 },
-  { tx: PILES[0].x, ty: PILES[0].y, tz: 50, yaw: 2.35, pitch: 0.8, dist: 300 },
-];
+/** The poses after the globe, sized to the scene: the site straight down, the twin at an angle, then the featured measurement close up. */
+export function posesFor(frame: SceneFrame): Pose[] {
+  const focus = frame.focus ?? { x: frame.cx, y: frame.cy, z: frame.ground, reach: frame.radius * 0.15 };
+  return [
+    { tx: frame.cx, ty: frame.cy, tz: frame.ground, yaw: 0, pitch: Math.PI / 2 - 0.002, dist: frame.radius * 3.5 },
+    { tx: frame.cx, ty: frame.cy, tz: frame.low, yaw: 0.65, pitch: 0.62, dist: frame.radius * 1.26 },
+    { tx: focus.x, ty: focus.y, tz: focus.z, yaw: 2.35, pitch: 0.8, dist: clamp(focus.reach * 6, frame.radius * 0.3, frame.radius * 0.9) },
+  ];
+}
 
 const PROGRESS_KNOTS = [0, 0.13, 0.27, 0.41, 0.55, 0.69, 0.83, 1];
 const STAGE_KNOTS = [0, 0, 1, 1, 2, 2, 3, 3];
@@ -44,13 +48,13 @@ export const nearStage = (s: number, stage: number, width = 2.4) => 1 - clamp(Ma
  * Places `cam` for stage position `s`. Up to s = 1 it holds the site pose, pulled back while the
  * globe is still on screen. With `motion`, the twin and measure stages drift slowly over `time`.
  */
-export function cameraAt(s: number, time: number, motion: boolean, cam: Camera) {
+export function cameraAt(s: number, time: number, motion: boolean, poses: readonly Pose[], cam: Camera) {
   if (s <= 1) {
-    Object.assign(cam, POSES[0]);
-    cam.dist = POSES[0].dist * lerp(3.5, 1, siteOpacity(s));
+    Object.assign(cam, poses[0]);
+    cam.dist = poses[0].dist * lerp(3.5, 1, siteOpacity(s));
     return cam;
   }
-  const i = Math.min(Math.floor(s), 2), f = Math.min(s - i, 1), a = POSES[i - 1], b = POSES[i];
+  const i = Math.min(Math.floor(s), 2), f = Math.min(s - i, 1), a = poses[i - 1], b = poses[i];
   cam.tx = lerp(a.tx, b.tx, f);
   cam.ty = lerp(a.ty, b.ty, f);
   cam.tz = lerp(a.tz, b.tz, f);
@@ -67,14 +71,19 @@ export function eyeOf(cam: Camera): [number, number, number] {
   return [cam.tx - cam.dist * level * Math.sin(cam.yaw), cam.ty - cam.dist * level * Math.cos(cam.yaw), cam.tz + cam.dist * Math.sin(cam.pitch)];
 }
 
-export const altitudeOf = (cam: Camera) => eyeOf(cam)[2] - RIM;
+export const altitudeOf = (cam: Camera, ground: number) => eyeOf(cam)[2] - ground;
 
 export const GLOBE_ALTITUDE = 2e7;
 const LOWEST_ALTITUDE = 20;
 
-/** Height shown on the altimeter: interpolated over the globe, then the camera's own height above the rim. */
-export const altitudeAt = (s: number, cam: Camera) =>
-  s < 0.72 ? Math.exp(lerp(Math.log(GLOBE_ALTITUDE), Math.log(5250), smoothstep(0.04, 0.72, s))) : altitudeOf(cam);
+const HANDOVER = 0.72;
+
+/** Height shown on the altimeter: eased down from orbit over the globe, then the camera's own height above the ground. */
+export function altitudeAt(s: number, cam: Camera, poses: readonly Pose[], ground: number) {
+  if (s >= HANDOVER) return altitudeOf(cam, ground);
+  const handover = poses[0].dist * lerp(3.5, 1, siteOpacity(HANDOVER)) + poses[0].tz - ground;
+  return Math.exp(lerp(Math.log(GLOBE_ALTITUDE), Math.log(handover), smoothstep(0.04, HANDOVER, s)));
+}
 
 /** Where an altitude sits on the altimeter's log scale: 0 at the top (orbit), 1 at the bottom. */
 export const altitudeFraction = (altitude: number) =>
@@ -98,7 +107,7 @@ export const ALTIMETER_TICKS: readonly (readonly [number, string])[] = [
 ];
 
 /** The altimeter reading at each stage's hold, for the tab labels. */
-export function stageAltitudes() {
+export function stageAltitudes(poses: readonly Pose[], ground: number) {
   const cam: Camera = { tx: 0, ty: 0, tz: 0, yaw: 0, pitch: 0, dist: 0, fov: 0.82 };
-  return STAGES.map((_, stage) => formatAltitude(stage === 0 ? GLOBE_ALTITUDE : altitudeOf(cameraAt(stage, 0, false, cam))));
+  return STAGES.map((_, stage) => formatAltitude(stage === 0 ? GLOBE_ALTITUDE : altitudeOf(cameraAt(stage, 0, false, poses, cam), ground)));
 }

@@ -5,9 +5,9 @@ type Scope = { onmessage: ((event: MessageEvent<Request>) => void) | null; postM
 
 const scope = self as unknown as Scope;
 
-scope.onmessage = ({ data }) => {
+scope.onmessage = async ({ data }) => {
   try {
-    const { result, transfer } = runJob(data.job);
+    const { result, transfer } = await runJob(data.job);
     scope.postMessage({ id: data.id, result }, transfer);
   } catch (err) {
     scope.postMessage({ id: data.id, error: err instanceof Error ? err.message : String(err) }, []);

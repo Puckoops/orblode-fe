@@ -4,21 +4,19 @@ import { useEffect, useRef } from "react";
 import type { PointCloud } from "@/lib/landing/cloud";
 import { formatEastNorth, formatNumber } from "@/lib/landing/format";
 import { clamp } from "@/lib/landing/math";
-import { SURVEY_DATE } from "@/lib/landing/terrain";
 import styles from "./landing.module.css";
 import { CloudView } from "./scene/CloudView";
 import { accent, ink } from "./scene/draw";
 import { cssFont, prefersReducedMotion, watchVisibility } from "./scene/env";
-import { loadCloud } from "./scene/jobs";
+import { loadScene } from "./scene/jobs";
+import { useSite } from "./SiteContext";
 
-const NEAREST = 260;
-const FARTHEST = 1400;
-const START = { tx: -30, ty: -20, tz: 10, yaw: 0.9, pitch: 0.62, dist: 660, fov: 0.85 };
 
 type Point = [number, number, number];
 
 /** The sample site to orbit and measure: drag turns it, a click drops a point, and two points give a distance. */
 export function TryViewer() {
+  const site = useSite();
   const frameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,16 +27,20 @@ export function TryViewer() {
     const photo = find<HTMLButtonElement>("photo"), elevation = find<HTMLButtonElement>("elevation");
 
     const view = new CloudView(canvas, { maxWidth: 1500, pickable: true });
-    Object.assign(view.camera, START);
+    let nearest = 260, farthest = 1400;
     let mono = cssFont(frame, "--font-mono", "monospace");
     let cloud: PointCloud | null = null, visible = false, dirty = true, alive = true, spinning = !prefersReducedMotion();
     let last = performance.now(), sinceDraw = 1, raf = 0;
     const picks: Point[] = [];
 
-    loadCloud().then(
-      (c) => {
+    loadScene(site).then(
+      (scene) => {
         if (!alive) return;
-        cloud = c;
+        const f = scene.frame;
+        Object.assign(view.camera, { tx: f.cx, ty: f.cy, tz: (f.ground + f.low) / 2, yaw: 0.9, pitch: 0.62, dist: f.radius * 1.53, fov: 0.85 });
+        nearest = f.radius * 0.6;
+        farthest = f.radius * 3.3;
+        cloud = scene.cloud;
         dirty = true;
       },
       () => {},
@@ -57,11 +59,11 @@ export function TryViewer() {
       }
       const [a, b] = picks;
       if (!b) {
-        title.textContent = `A: ${formatEastNorth(a[0], a[1])} · Z ${formatNumber(a[2], 1)} m. Now click B.`;
+        title.textContent = `A: ${formatEastNorth(a[0], a[1], site.origin)} · Z ${formatNumber(a[2], 1)} m. Now click B.`;
         return blank();
       }
       const horizontal = Math.hypot(b[0] - a[0], b[1] - a[1]), rise = b[2] - a[2];
-      title.textContent = `A to B on the ${SURVEY_DATE} survey.`;
+      title.textContent = `A to B on the ${site.surveyDate} survey.`;
       if (d3) d3.textContent = `${formatNumber(Math.hypot(horizontal, rise), 1)} m`;
       if (dh) dh.textContent = `${formatNumber(horizontal, 1)} m`;
       if (dz) dz.textContent = `${rise >= 0 ? "+" : "−"}${formatNumber(Math.abs(rise), 1)} m`;
@@ -150,7 +152,7 @@ export function TryViewer() {
       drag = null;
     };
     const zoom = (factor: number) => {
-      view.camera.dist = clamp(view.camera.dist * factor, NEAREST, FARTHEST);
+      view.camera.dist = clamp(view.camera.dist * factor, nearest, farthest);
       stopSpinning();
       dirty = true;
     };
@@ -237,14 +239,14 @@ export function TryViewer() {
       canvas.removeEventListener("keydown", onKey);
       frame.removeEventListener("click", onClick);
     };
-  }, []);
+  }, [site]);
 
   return (
     <section id="try" aria-labelledby="try-title" className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={`${styles.eyebrow} ${styles.eyebrowAccent}`}>Try it</span>
         <h2 id="try-title" className={styles.sectionTitle}>
-          Measure the sample site yourself.
+          {site.mode === "sample" ? "Measure the sample site yourself." : `Measure ${site.name} yourself.`}
         </h2>
         <p>Drag to orbit. Click two points on the ground to measure between them.</p>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { formatNumber } from "@/lib/landing/format";
 import { profile } from "@/lib/landing/maps";
 import { EARLIER_PILE_SCALE, PAD } from "@/lib/landing/terrain";
 import styles from "./landing.module.css";
@@ -115,19 +116,23 @@ export function SurveyCompare({ before, after }: { before: string; after: string
 }
 
 const SECTION = { from: -330, to: 190, northing: 30 };
+const STEPS = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+const niceStep = (span: number, marks: number) => STEPS.find((s) => span / s <= marks) ?? STEPS[STEPS.length - 1];
 
-function drawProfile(canvas: HTMLCanvasElement) {
+/** Draws distance (m) against height (m) as a filled section from A to A′. */
+export function drawProfile(canvas: HTMLCanvasElement, points: [number, number][]) {
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx || points.length < 2) return;
   const mono = cssFont(canvas, "--font-mono", "monospace"), scale = canvas.width / 640, W = 640, H = canvas.height / scale;
-  const points = profile(SECTION.from, SECTION.to, SECTION.northing, 2), length = SECTION.to - SECTION.from;
+  const length = points[points.length - 1][0];
   let lo = Infinity, hi = -Infinity;
   for (const [, z] of points) {
     lo = Math.min(lo, z);
     hi = Math.max(hi, z);
   }
-  lo = Math.floor(lo / 20) * 20;
-  hi = Math.ceil(hi / 20) * 20;
+  const zStep = niceStep(hi - lo, 4), dStep = niceStep(length, 5);
+  lo = Math.floor(lo / zStep) * zStep;
+  hi = Math.max(lo + zStep, Math.ceil(hi / zStep) * zStep);
   const pad = { left: 52, right: 18, top: 30, bottom: 40 };
   const X = (d: number) => pad.left + (d / length) * (W - pad.left - pad.right);
   const Y = (z: number) => H - pad.bottom - ((z - lo) / (hi - lo)) * (H - pad.top - pad.bottom);
@@ -137,17 +142,17 @@ function drawProfile(canvas: HTMLCanvasElement) {
   ctx.font = `12px ${mono}`;
   ctx.lineWidth = 1;
   ctx.textAlign = "right";
-  for (let z = lo; z <= hi; z += 20) {
+  for (let z = lo; z <= hi + 1e-6; z += zStep) {
     ctx.strokeStyle = ink(0.08);
     ctx.beginPath();
     ctx.moveTo(pad.left, Y(z) + 0.5);
     ctx.lineTo(W - pad.right, Y(z) + 0.5);
     ctx.stroke();
     ctx.fillStyle = MUTED;
-    ctx.fillText(`${z}`, pad.left - 10, Y(z) + 4);
+    ctx.fillText(formatNumber(z), pad.left - 10, Y(z) + 4);
   }
   ctx.textAlign = "center";
-  for (let d = 0; d <= length; d += 100) ctx.fillText(`${d}`, X(d), H - pad.bottom + 20);
+  for (let d = 0; d <= length; d += dStep) ctx.fillText(formatNumber(d), X(d), H - pad.bottom + 20);
   ctx.textAlign = "left";
   ctx.fillText("m", W - pad.right - 6, H - pad.bottom + 20);
   const trace = () => {
@@ -156,7 +161,7 @@ function drawProfile(canvas: HTMLCanvasElement) {
   };
   trace();
   ctx.lineTo(X(length), Y(lo));
-  ctx.lineTo(X(0), Y(lo));
+  ctx.lineTo(X(points[0][0]), Y(lo));
   ctx.closePath();
   ctx.fillStyle = accent(0.14);
   ctx.fill();
@@ -169,12 +174,15 @@ function drawProfile(canvas: HTMLCanvasElement) {
   ctx.fillText("A", X(0), pad.top - 12);
   ctx.textAlign = "right";
   ctx.fillText("A′", X(length), pad.top - 12);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   canvas.dataset.ready = "";
 }
 
+const drawSampleProfile = (canvas: HTMLCanvasElement) => drawProfile(canvas, profile(SECTION.from, SECTION.to, SECTION.northing, 2));
+
 /** A section through the pit from A in the west to A′ in the east. */
 export function ProfileChart() {
-  const ref = useDrawWhenNear<HTMLCanvasElement>(drawProfile);
+  const ref = useDrawWhenNear<HTMLCanvasElement>(drawSampleProfile);
   return (
     <canvas
       ref={ref}

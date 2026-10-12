@@ -1,12 +1,11 @@
 import { globeOpacity } from "@/lib/landing/descent";
 import { lerp, smoothstep } from "@/lib/landing/math";
 import { valueNoise3 } from "@/lib/landing/noise";
-import { CRS, SITE_NAME, SURVEY_COUNT } from "@/lib/landing/terrain";
 import { accent, ink, MUTED } from "./draw";
 
 const DEG = Math.PI / 180;
 
-type Site = { name: string; lat: number; lon: number; vector: [number, number, number] };
+type Pin = { name: string; vector: [number, number, number] };
 
 const toVector = (lat: number, lon: number): [number, number, number] => [
   Math.cos(lat * DEG) * Math.sin(lon * DEG),
@@ -14,14 +13,13 @@ const toVector = (lat: number, lon: number): [number, number, number] => [
   Math.cos(lat * DEG) * Math.cos(lon * DEG),
 ];
 
-const SITES: Site[] = [
-  { name: SITE_NAME, lat: -32.4, lon: 151.25 },
+const PORTFOLIO: Pin[] = [
   { name: "Pilbara", lat: -22.6, lon: 117.8 },
   { name: "Bowen Basin", lat: -22.0, lon: 148.1 },
   { name: "Atacama", lat: -24.2, lon: -69.1 },
   { name: "Sudbury", lat: 46.5, lon: -81.0 },
   { name: "Rajasthan", lat: 24.6, lon: 73.7 },
-].map((s) => ({ ...s, vector: toVector(s.lat, s.lon) }));
+].map((s) => ({ name: s.name, vector: toVector(s.lat, s.lon) }));
 
 let land: Float32Array | null = null;
 let graticule: Float32Array | null = null;
@@ -57,11 +55,14 @@ function graticulePoints() {
 
 export type GlobeFrame = { width: number; height: number; dpr: number; landCount: number; sans: string; mono: string };
 
+/** The site the globe zooms into. `portfolio` adds the illustrative pins for other sites. */
+export type GlobePlace = { name: string; detail: string; lat: number; lon: number; portfolio: boolean };
+
 /**
  * Draws the portfolio globe at stage position `s` in device pixels: the sites at rest at 0, then a
  * zoom into the main site that hands over to the terrain as `s` reaches 1.
  */
-export function drawGlobe(ctx: CanvasRenderingContext2D, frame: GlobeFrame, s: number, time: number, motion: boolean) {
+export function drawGlobe(ctx: CanvasRenderingContext2D, frame: GlobeFrame, place: GlobePlace, s: number, time: number, motion: boolean) {
   const alpha = globeOpacity(s);
   if (alpha <= 0.005) return;
   const { width: W, height: H, dpr } = frame, narrow = W / dpr < 760;
@@ -69,9 +70,10 @@ export function drawGlobe(ctx: CanvasRenderingContext2D, frame: GlobeFrame, s: n
   const R = Math.min(W, H) * (narrow ? 0.36 : 0.34) * zoom;
   const cx = W * lerp(narrow ? 0.5 : 0.63, 0.5, smoothstep(0, 0.8, s));
   const cy = H * lerp(narrow ? 0.62 : 0.52, 0.5, smoothstep(0, 0.8, s));
-  const main = SITES[0];
-  const lat0 = main.lat * DEG;
-  const lon0 = (main.lon + (1 - smoothstep(0, 0.75, s)) * 55 + (motion ? Math.sin(time * 0.07) * 4 * (1 - s) : 0)) * DEG;
+  const main: Pin = { name: place.name, vector: toVector(place.lat, place.lon) };
+  const pins = place.portfolio ? [main, ...PORTFOLIO] : [main];
+  const lat0 = place.lat * DEG;
+  const lon0 = (place.lon + (1 - smoothstep(0, 0.75, s)) * 55 + (motion ? Math.sin(time * 0.07) * 4 * (1 - s) : 0)) * DEG;
   const ca = Math.cos(-lon0), sa = Math.sin(-lon0), cb = Math.cos(lat0), sb = Math.sin(lat0);
   const project = (x: number, y: number, z: number): [number, number, number] => {
     const z1 = -x * sa + z * ca;
@@ -119,7 +121,7 @@ export function drawGlobe(ctx: CanvasRenderingContext2D, frame: GlobeFrame, s: n
   });
 
   const othersAlpha = 1 - smoothstep(0.2, 0.4, s), mainLabelAlpha = 1 - smoothstep(0.55, 0.8, s);
-  for (const site of SITES) {
+  for (const site of pins) {
     const [px, py, depth] = project(...site.vector);
     if (depth < 0.05) continue;
     if (site === main) {
@@ -140,7 +142,7 @@ export function drawGlobe(ctx: CanvasRenderingContext2D, frame: GlobeFrame, s: n
         ctx.fillText(site.name, px + 14 * dpr, py - 2 * dpr);
         ctx.fillStyle = MUTED;
         ctx.font = `${11 * dpr}px ${frame.mono}`;
-        ctx.fillText(`${SURVEY_COUNT} SURVEYS · ${CRS}`, px + 14 * dpr, py + 13 * dpr);
+        ctx.fillText(place.detail, px + 14 * dpr, py + 13 * dpr);
         ctx.globalAlpha = alpha;
       }
     } else if (othersAlpha > 0.01) {

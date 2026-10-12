@@ -1,8 +1,10 @@
+import type { SiteInfo } from "@/lib/landing/site";
 import { PIT } from "@/lib/landing/terrain";
 import styles from "./landing.module.css";
 import { ContourMap, CutFillCells } from "./MapCanvases";
+import { SurveyContours } from "./SurveyMaps";
 
-export function Industries() {
+export function Industries({ site }: { site: SiteInfo }) {
   return (
     <section id="industries" aria-labelledby="industries-title" className={styles.section}>
       <div className={styles.sectionHead}>
@@ -13,21 +15,25 @@ export function Industries() {
       </div>
       <div className={styles.industries}>
         <article className={styles.industry}>
-          <ContourMap
-            region={{ x0: -330, x1: 190, y0: -200, y1: 190 }}
-            step={2.5}
-            tint
-            minorAlpha={0.16}
-            majorAlpha={0.55}
-            lineWidth={1.6}
-            size={[1280, 960]}
-            label={`Contour map of an open pit with ${PIT.benches} benches`}
-          />
+          {site.mode === "sample" ? (
+            <ContourMap
+              region={{ x0: -330, x1: 190, y0: -200, y1: 190 }}
+              step={2.5}
+              tint
+              minorAlpha={0.16}
+              majorAlpha={0.55}
+              lineWidth={1.6}
+              size={[1280, 960]}
+              label={`Contour map of an open pit with ${PIT.benches} benches`}
+            />
+          ) : (
+            <SurveyContours label={`Contour map of ${site.name}`} size={[1280, 960]} />
+          )}
           <div className={styles.industryBody}>
             <h3>Mining and quarries</h3>
             <p>Stockpile inventories, pit progress and reconciliation against the mine plan, from every flight.</p>
             <span className={styles.meta}>
-              2 m contours · {PIT.benches} benches · {PIT.depth} m deep
+              {site.mode === "sample" ? `2 m contours · ${PIT.benches} benches · ${PIT.depth} m deep` : `Contours of ${site.name} · ${site.surveyDate}`}
             </span>
           </div>
         </article>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { CRS, SITE_NAME, SURVEY_COUNT } from "@/lib/landing/terrain";
 import styles from "./landing.module.css";
 import { ContourMap } from "./MapCanvases";
+import { useSite } from "./SiteContext";
+import { SurveyContours } from "./SurveyMaps";
 
 type Node = { id: string; name: string; detail: string; timing?: boolean };
 
@@ -76,6 +77,7 @@ function Column({ title, nodes }: { title: string; nodes: Node[] }) {
 
 /** How a survey becomes answers, as a graph whose wires are drawn between the rendered cards. */
 export function Pipeline() {
+  const site = useSite();
   const flowRef = useRef<HTMLDivElement>(null);
   const wiresRef = useRef<SVGSVGElement>(null);
 
@@ -118,11 +120,15 @@ export function Pipeline() {
         <div className={styles.flowColumn}>
           <h3 className={styles.flowTitle}>3 · Your twin</h3>
           <div data-node="twin" className={`${styles.node} ${styles.nodeTwin}`}>
-            <ContourMap region={{ x0: -300, x1: 160, y0: -100, y1: 158.75 }} step={3} tint minorAlpha={0.16} majorAlpha={0.5} lineWidth={1.2} size={[640, 360]} />
+            {site.mode === "sample" ? (
+              <ContourMap region={{ x0: -300, x1: 160, y0: -100, y1: 158.75 }} step={3} tint minorAlpha={0.16} majorAlpha={0.5} lineWidth={1.2} size={[640, 360]} />
+            ) : (
+              <SurveyContours label={`Contours of ${site.name}`} size={[640, 360]} />
+            )}
             <div className={styles.nodeBody}>
-              <b>{SITE_NAME}</b>
+              <b>{site.name}</b>
               <span>
-                {CRS} · {SURVEY_COUNT} surveys
+                {site.crs} · {site.mode === "sample" ? `${site.surveyCount} surveys` : `surveyed ${site.surveyDate}`}
               </span>
               <span className={styles.timing}>10 ha cut/fill in 6.5 s</span>
             </div>

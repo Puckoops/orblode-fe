@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { OrblodeLogo } from "@/components/brand/OrblodeLogo";
+import type { SiteInfo } from "@/lib/landing/site";
 import styles from "./landing.module.css";
 
 const COLUMNS = [
@@ -29,7 +30,7 @@ const COLUMNS = [
   },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({ site }: { site: SiteInfo }) {
   return (
     <footer className={styles.footer}>
       <div className={styles.footerCard}>
@@ -51,7 +52,11 @@ export function SiteFooter() {
         ))}
         <div className={styles.footerBottom}>
           <span>© 2026 Orblode</span>
-          <span>The sample site on this page is illustrative.</span>
+          <span>
+            {site.mode === "sample"
+              ? "The sample site on this page is illustrative."
+              : `Site pictures come from the ${site.surveyDate} survey of ${site.name}. Construction and corridor pictures are schematic.`}
+          </span>
         </div>
       </div>
     </footer>

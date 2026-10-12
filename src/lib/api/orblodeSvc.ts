@@ -234,6 +234,8 @@ export interface TerrainLayer {
   surface_type: string; // dsm | dtm
   tile_directory_url?: string;
   raw_raster_url?: string;
+  /** A lighter copy of the raster (20 cm, with overviews) the server computes from. */
+  compute_raster_url?: string;
   bbox?: number[];
   min_zoom?: number;
   max_zoom?: number;
