@@ -54,6 +54,9 @@ export function measurementState(status: string | null | undefined): StateStyle 
 /** A source asset still waiting for its bytes. */
 export const PENDING_UPLOAD: StateStyle = { label: "Pending", tone: "amber", glyph: "circle-dashed" };
 
+/** A source asset whose file or settings changed since its outputs were built. */
+export const NEEDS_REPROCESSING: StateStyle = { label: "Needs reprocessing", tone: "amber", glyph: "redo" };
+
 /** One queued upload row on the upload page. */
 export const UPLOAD_ROW: Record<"uploading" | "uploaded" | "error", StateStyle> = {
   uploading: { label: "Uploading", tone: "blue", glyph: "circle-half" },

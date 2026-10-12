@@ -87,3 +87,45 @@ test("guessRole sniffs surfaces and ortho from the name", () => {
   assert.equal(guessRole("anything.las", "lidar"), "pointcloud");
   assert.equal(guessRole("pad.xml", "design"), "design");
 });
+
+test("a file's own CRS overrides the form CRS in its dispatch", () => {
+  const plan = buildProcessorPlan(
+    [
+      { name: "dsm.tif", role: "dsm", url: url("dsm.tif"), crs: "EPSG:7856" },
+      { name: "ortho.tif", role: "ortho", url: url("ortho.tif") },
+      { name: "cloud.laz", role: "pointcloud", url: url("cloud.laz"), crs: "EPSG:28356" },
+    ],
+    { epsg: "EPSG:32756" }
+  );
+  const crsOf = (i: number) => {
+    const { payload, inputs } = plan.dispatches[i].request;
+    return [(payload as { source: { crs: string } }).source.crs, inputs?.[0]?.crs];
+  };
+  assert.deepEqual(crsOf(0), ["EPSG:7856", "EPSG:7856"]);
+  assert.deepEqual(crsOf(1), ["EPSG:32756", "EPSG:32756"]);
+  assert.deepEqual(crsOf(2), ["EPSG:28356", "EPSG:28356"]);
+  assert.equal((plan.dispatches[2].request.payload as { source_crs: string }).source_crs, "EPSG:28356");
+});
+
+test("each file in a vector-features batch keeps its own CRS", () => {
+  const plan = buildProcessorPlan(
+    [
+      { name: "contours.dxf", role: "contours", url: url("contours.dxf"), crs: "EPSG:7856" },
+      { name: "haul.geojson", role: "vector", url: url("haul.geojson") },
+    ],
+    { epsg: "EPSG:4326" }
+  );
+  const { payload, inputs } = plan.dispatches[0].request;
+  const files = (payload as { files: { source: { crs: string }; source_crs: string }[] }).files;
+  assert.deepEqual(
+    files.map((f) => [f.source.crs, f.source_crs]),
+    [
+      ["EPSG:7856", "EPSG:7856"],
+      ["EPSG:4326", "EPSG:4326"],
+    ]
+  );
+  assert.deepEqual(
+    inputs?.map((i) => i.crs),
+    ["EPSG:7856", "EPSG:4326"]
+  );
+});

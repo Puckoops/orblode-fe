@@ -70,14 +70,40 @@ export function createSurvey(req: CreateSurveyRequest): Promise<Survey> {
   return apiFetch<Survey>(BASE, "/surveys", { method: "POST", body: req });
 }
 
+export function getSurvey(surveyId: string): Promise<Survey> {
+  return apiFetch<Survey>(BASE, `/surveys/${surveyId}`);
+}
+
+/** PATCH body. `expected_updated_at` is the `updated_at` last read: a mismatch, or a status that
+ * is no longer editable, answers 409. `dataset_name` and `tags` merge into `metadata`. */
+export interface UpdateSurveyRequest {
+  survey_date?: string; // YYYY-MM-DD
+  survey_type?: string;
+  dataset_name?: string;
+  tags?: string[];
+  expected_updated_at: EpochMs;
+}
+
+/** A new `survey_date` re-orders the site's surveys, re-matches stockpiles and marks the affected
+ * volumes stale. */
+export function updateSurvey(surveyId: string, body: UpdateSurveyRequest): Promise<Survey> {
+  return apiFetch<Survey>(BASE, `/surveys/${surveyId}`, { method: "PATCH", body });
+}
+
+export function updateSurveyStatus(surveyId: string, status: string): Promise<Survey> {
+  return apiFetch<Survey>(BASE, `/surveys/${surveyId}/status`, { method: "PUT", body: { status } });
+}
+
 /** One requested upload slot. `kind` is one of the ingest kinds the planner
- * produces: terrain | ortho | pointcloud | vector | site_model. */
+ * produces: terrain | ortho | pointcloud | vector | site_model. `replaces`
+ * names the asset this upload supersedes once it is marked uploaded. */
 export interface UploadInitFile {
   filename: string;
   kind: string;
   role?: string;
   content_type?: string;
   crs?: string;
+  replaces?: string;
 }
 
 /** A registered (or pending) source object on a survey. */
@@ -93,9 +119,16 @@ export interface SourceAsset {
   crs?: string;
   vertical_datum?: string;
   status: string;
+  is_active?: boolean;
+  /** Set when the file or its settings changed and its outputs have not been rebuilt; a generate
+   * request that references the asset's URL clears it. */
+  needs_processing?: boolean;
+  replaces_id?: string;
+  superseded_by?: string;
   metadata?: Record<string, unknown>;
   created_at?: EpochMs;
   updated_at?: EpochMs;
+  deleted_at?: EpochMs;
   created_by?: Author;
 }
 
@@ -124,9 +157,27 @@ export function markAssetUploaded(surveyId: string, assetId: string): Promise<So
 }
 
 /** Source objects uploaded/registered on a survey (status: pending_upload |
- * registered). */
+ * registered). Removed and superseded assets are not listed. */
 export async function listSurveyAssets(surveyId: string): Promise<{ assets: SourceAsset[] }> {
   return { assets: await listAll<SourceAsset>(`/surveys/${surveyId}/assets`, "assets") };
+}
+
+export interface UpdateSurveyAssetRequest {
+  kind?: string;
+  role?: string;
+  crs?: string;
+  vertical_datum?: string;
+}
+
+/** Returns the asset with `needs_processing` set. */
+export function updateSurveyAsset(surveyId: string, assetId: string, body: UpdateSurveyAssetRequest): Promise<SourceAsset> {
+  return apiFetch<SourceAsset>(BASE, `/surveys/${surveyId}/assets/${assetId}`, { method: "PATCH", body });
+}
+
+/** Soft delete (`status: "removed"`); the server also deactivates the file's processed output, so
+ * nothing needs reprocessing afterwards. */
+export function removeSurveyAsset(surveyId: string, assetId: string): Promise<SourceAsset> {
+  return apiFetch<SourceAsset>(BASE, `/surveys/${surveyId}/assets/${assetId}`, { method: "DELETE" });
 }
 
 /** Addressable input artifact for a processor (asset-svc dtos.ArtifactRefDTO). */

@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowRight01Icon, Cancel01Icon, SatelliteIcon, Upload01Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, Cancel01Icon, PencilEdit02Icon, SatelliteIcon, Upload01Icon } from "@hugeicons/core-free-icons";
 import { Badge, Button, EmptyState, Icon, IconButton } from "@puckoops/camelot";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
+import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { getProject, type Project } from "@/lib/api/userSvc";
 import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { lifecycleState, surveyState } from "@/lib/status";
@@ -14,6 +15,8 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   const [projectData, setProjectData] = useState<Project | null>(null);
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [stockpiles, setStockpiles] = useState<{ surveyId: string; count: number } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [surveysTick, setSurveysTick] = useState(0);
 
   useEffect(() => {
     if (!projectId) return;
@@ -24,6 +27,14 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
         if (!cancelled) setProjectData(p);
       })
       .catch((err) => console.error("Failed to fetch project details:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
     listSurveys(projectId)
       .then((res) => {
         if (cancelled) return;
@@ -35,7 +46,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, surveysTick]);
 
   const latestSurveyId = surveys[0]?.id;
 
@@ -96,10 +107,10 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
         ) : (
           <ul className="flex flex-col gap-2">
             {surveys.map((survey) => (
-              <li key={survey.id}>
+              <li key={survey.id} className="flex items-center gap-1">
                 <Link
                   href={`/viewer/${survey.id}`}
-                  className="group flex items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 hover:border-hairline-strong hover:bg-surface-3"
+                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 hover:border-hairline-strong hover:bg-surface-3"
                 >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-surface-3 text-ink-4">
                     <Icon icon={SatelliteIcon} size={20} />
@@ -116,11 +127,20 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
                   </span>
                   <Icon icon={ArrowRight01Icon} size={16} className="ml-2 shrink-0 text-ink-4 group-hover:text-ink-2" />
                 </Link>
+                <IconButton
+                  icon={PencilEdit02Icon}
+                  aria-label={`Edit survey of ${formatSurveyDate(survey.survey_date)}`}
+                  variant="bare"
+                  size="sm"
+                  onClick={() => setEditingId(survey.id)}
+                />
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      <EditSurveyDrawer surveyId={editingId} onClose={() => setEditingId(null)} onChanged={() => setSurveysTick((t) => t + 1)} />
 
       <div className="flex items-center gap-4 border-t border-hairline p-6">
         <Button asChild variant="ghost">
