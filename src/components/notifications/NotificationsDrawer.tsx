@@ -1,7 +1,8 @@
 "use client";
 
 import { Notification03Icon } from "@hugeicons/core-free-icons";
-import { Button, Drawer, EmptyState } from "@puckoops/camelot";
+import { Button, Drawer, EmptyState, TextLink } from "@puckoops/camelot";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { AppNotification } from "@/lib/api/notifications";
@@ -53,9 +54,14 @@ export function NotificationsDrawer({ open, onOpenChange }: { open: boolean; onO
       title="Notifications"
       description={unread > 0 ? `${unread} unread` : "You're up to date."}
       footer={
-        <Button variant="ghost" onClick={() => void markAllRead()} disabled={unread === 0}>
-          Mark all read
-        </Button>
+        <div className="flex w-full items-center justify-between gap-4">
+          <TextLink as={Link} href="/settings?tab=notifications" onClick={() => onOpenChange(false)}>
+            Notification settings
+          </TextLink>
+          <Button variant="ghost" onClick={() => void markAllRead()} disabled={unread === 0}>
+            Mark all read
+          </Button>
+        </div>
       }
     >
       {items.length === 0 ? (
