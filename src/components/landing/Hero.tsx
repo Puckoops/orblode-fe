@@ -1,42 +1,26 @@
 import { RequestDemoButton } from "./DemoRequest";
+import { HeroScene } from "./HeroScene";
 import styles from "./landing.module.css";
-import { rv } from "./reveal";
-import { Typewriter } from "./Typewriter";
-
-const STATS = [
-  { value: "< 2cm Accuracy", label: "Survey-grade precision" },
-  { value: "4.2M pts / 23 min", label: "Cloud GPU processing" },
-  { value: "Zero install", label: "Runs in your browser" },
-];
 
 export function Hero() {
   return (
-    <section data-section="" className={styles.hero}>
-      <div className={styles.heroInner}>
-        <Typewriter
-          label="See your site from decision altitude."
-          reveal={rv("up", 0.52)}
-          className={styles.heroTitle}
-          segments={[{ text: "See your site from" }, "br", { text: "decision", className: styles.accent }, { text: " altitude." }]}
-        />
-        <p {...rv("up", 0.64)} className={styles.lede}>
-          Turn drone surveys into a measurable 3D twin of any site, from open-pit mines to highways and substations. Measure it. Compare it.
-          Decide with proof.
-        </p>
-        <div {...rv("up", 0.76)} className={styles.ctaRow}>
-          <RequestDemoButton className={styles.pill} />
-          <a href="#viewer" className={`${styles.arrowLink} ${styles.ctaSecondary}`}>
-            See it live →
-          </a>
-        </div>
-        <div {...rv("up", 0.88)} className={styles.stats}>
-          {STATS.map((s) => (
-            <div key={s.value} className={styles.stat}>
-              <div className={styles.statRule} />
-              <div className={styles.statValue}>{s.value}</div>
-              <div className={styles.statLabel}>{s.label}</div>
-            </div>
-          ))}
+    <section aria-labelledby="hero-title" className={styles.hero}>
+      <div className={`${styles.window} ${styles.heroWindow}`}>
+        <HeroScene />
+        <div className={styles.heroCopy}>
+          <h1 id="hero-title" className={styles.heroTitle}>
+            See your site from <em>decision altitude.</em>
+          </h1>
+          <p className={styles.lede}>
+            Orblode turns drone surveys into a measurable 3D twin of your mine, quarry or build. Measure volumes, compare surveys and check
+            as-built against design, in the browser.
+          </p>
+          <div className={styles.ctaRow}>
+            <RequestDemoButton className={`${styles.btn} ${styles.btnSolid} ${styles.btnLarge}`} />
+            <a href="#try" className={`${styles.btn} ${styles.btnGhost} ${styles.btnLarge}`}>
+              Explore the sample site
+            </a>
+          </div>
         </div>
       </div>
     </section>

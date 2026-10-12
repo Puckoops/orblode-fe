@@ -54,12 +54,11 @@
 .orblode-scene .cesium-widget canvas { background-color: var(--canvas) !important; }
 .orblode-scene .cesium-viewer-bottom { display: none !important; }
 
-/* The landing page is always on its own dark ground, scrolls smoothly between anchors and snaps to sections. */
+/* The landing page is always on its own dark ground and scrolls smoothly between anchors. */
 html:has([data-landing]) {
   color-scheme: dark;
   background: #0a0908;
   scroll-behavior: smooth;
-  scroll-snap-type: y proximity;
   scroll-padding-top: 72px;
 }
 html:has([data-landing]) body { background: #0a0908; }

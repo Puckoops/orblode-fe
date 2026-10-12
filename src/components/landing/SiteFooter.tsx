@@ -1,71 +1,58 @@
+import Link from "next/link";
 import { OrblodeLogo } from "@/components/brand/OrblodeLogo";
-import { RequestDemoButton } from "./DemoRequest";
 import styles from "./landing.module.css";
 
-/** A link without an href opens the demo request instead. */
-const COLUMNS: { head: string; links: { href?: string; label: string }[] }[] = [
+const COLUMNS = [
   {
     head: "Product",
     links: [
-      { href: "#platform", label: "Platform" },
-      { href: "#industries", label: "Industries" },
-      { href: "#viewer", label: "Viewer" },
-      { href: "#", label: "Documentation" },
+      { href: "#descent", label: "Platform" },
+      { href: "#measure", label: "Measurements" },
+      { href: "#try", label: "Sample site" },
+    ],
+  },
+  {
+    head: "Industries",
+    links: [
+      { href: "#industries", label: "Mining and quarries" },
+      { href: "#industries", label: "Construction" },
+      { href: "#industries", label: "Infrastructure" },
     ],
   },
   {
     head: "Company",
     links: [
-      { href: "#", label: "About" },
-      { label: "Contact" },
-      { href: "#", label: "Privacy" },
-      { href: "#", label: "Terms" },
+      { href: "#demo", label: "Request a demo" },
+      { href: "mailto:contact@orblode.com", label: "contact@orblode.com" },
+      { href: "/sign-in", label: "Sign in" },
     ],
   },
 ];
 
-const STACK = ["CesiumJS", "Next.js", "Go", "PostgreSQL + PostGIS", "Cloud GPUs", "India Data Residency"];
-
 export function SiteFooter() {
   return (
     <footer className={styles.footer}>
-      <div className={styles.footerTop}>
+      <div className={styles.footerCard}>
         <div className={styles.footerBrand}>
-          <span className={styles.brand}>
-            <OrblodeLogo size={20} />
-          </span>
-          <p className={styles.footerBlurb}>The digital twin platform for mines, construction sites and infrastructure.</p>
+          <OrblodeLogo size={18} />
+          <p>The digital twin for physical sites.</p>
         </div>
         {COLUMNS.map((col) => (
-          <div key={col.head} className={styles.footerCol}>
-            <h4 className={styles.footerHead}>{col.head}</h4>
-            <div className={styles.footerLinks}>
-              {col.links.map((l) =>
-                l.href === undefined ? (
-                  <RequestDemoButton key={l.label} className={`${styles.footerLink} ${styles.linkButton}`}>
-                    {l.label}
-                  </RequestDemoButton>
-                ) : (
-                  <a key={l.label} href={l.href} className={styles.footerLink}>
-                    {l.label}
-                  </a>
-                ),
-              )}
-            </div>
+          <div key={col.head}>
+            <h2 className={styles.footerHead}>{col.head}</h2>
+            <ul className={styles.footerLinks}>
+              {col.links.map((l) => (
+                <li key={l.label}>
+                  {l.href.startsWith("/") ? <Link href={l.href}>{l.label}</Link> : <a href={l.href}>{l.label}</a>}
+                </li>
+              ))}
+            </ul>
           </div>
         ))}
-      </div>
-      <div className={`${styles.chips} ${styles.stack}`}>
-        {STACK.map((s) => (
-          <span key={s} className={styles.chip}>
-            {s}
-          </span>
-        ))}
-      </div>
-      <div className={styles.crs}>WGS 84 · UTM · GDA2020 / MGA</div>
-      <div className={styles.footerBottom}>
-        <span>© 2026 ORBLODE. All rights reserved.</span>
-        <span>Bhubaneswar, India</span>
+        <div className={styles.footerBottom}>
+          <span>© 2026 Orblode</span>
+          <span>The sample site on this page is illustrative.</span>
+        </div>
       </div>
     </footer>
   );
