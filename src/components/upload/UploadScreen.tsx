@@ -1,9 +1,8 @@
 "use client";
 
-import { Add01Icon, Cancel01Icon, File01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, File01Icon } from "@hugeicons/core-free-icons";
 import {
   Alert,
-  Badge,
   Button,
   Card,
   DateInput,
@@ -26,24 +25,18 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
+import { TagInput } from "@/components/common/TagInput";
 import { createProject, listProjects, type Project } from "@/lib/api/userSvc";
-import {
-  createDesign,
-  createSurvey,
-  generateSurvey,
-  initUploads,
-  listSurveys,
-  markAssetUploaded,
-  type Survey,
-} from "@/lib/api/orblodeSvc";
+import { createDesign, createSurvey, generateSurvey, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { UPLOAD_ROW } from "@/lib/status";
+import { CRS_OPTIONS, DATA_TYPES, TAG_SUGGESTIONS, VDATUM_OPTIONS } from "@/lib/upload/options";
+import { uploadFiles, type AssetSlot } from "@/lib/upload/pipeline";
 import {
   ACCEPT,
   DROPZONE_HINT,
   ROLE_LABELS,
   SELECTABLE_ROLES,
   buildProcessorPlan,
-  contentTypeFor,
   designFormat,
   guessRole,
   roleToAssetKind,
@@ -51,40 +44,8 @@ import {
   type FileRole,
   type PlannedSkip,
 } from "@/lib/upload/planner";
-import { UploadTimeoutError, putToSignedUrl } from "@/lib/upload/putToSignedUrl";
-import { withRetry } from "@/lib/upload/retry";
-
-const DATA_TYPES: { id: DataType; label: string }[] = [
-  { id: "lidar", label: "LiDAR" },
-  { id: "preprocessed", label: "Pre-processed" },
-  { id: "design", label: "Design" },
-];
-
-/** Curated horizontal CRS options (value is what processors receive). */
-const CRS_OPTIONS = [
-  { value: "EPSG:4326", label: "WGS84 (EPSG:4326)" },
-  { value: "EPSG:32643", label: "WGS84 / UTM Zone 43N" },
-  { value: "EPSG:32644", label: "WGS84 / UTM Zone 44N" },
-  { value: "EPSG:32645", label: "WGS84 / UTM Zone 45N" },
-  { value: "EPSG:32754", label: "WGS84 / UTM Zone 54S" },
-  { value: "EPSG:32755", label: "WGS84 / UTM Zone 55S" },
-  { value: "EPSG:32756", label: "WGS84 / UTM Zone 56S" },
-  { value: "EPSG:28354", label: "GDA94 / MGA Zone 54" },
-  { value: "EPSG:28355", label: "GDA94 / MGA Zone 55" },
-  { value: "EPSG:28356", label: "GDA94 / MGA Zone 56" },
-  { value: "EPSG:7854", label: "GDA2020 / MGA Zone 54" },
-  { value: "EPSG:7855", label: "GDA2020 / MGA Zone 55" },
-  { value: "EPSG:7856", label: "GDA2020 / MGA Zone 56" },
-];
-
-const VDATUM_OPTIONS = [
-  { value: "EGM2008", label: "EGM2008" },
-  { value: "EGM96", label: "EGM96" },
-  { value: "ellipsoidal", label: "Ellipsoidal (WGS84)" },
-  { value: "AHD", label: "AHD" },
-];
-
-const TAG_SUGGESTIONS = ["pit", "survey", "lidar", "design"];
+import { UploadTimeoutError } from "@/lib/upload/putToSignedUrl";
+import { uploadApi } from "@/lib/upload/uploadApi";
 
 // v2 (ORB-38): v1 drafts persisted the old unconfirmed `EPSG:4326` CRS default,
 // so restoring one would smuggle that default straight back past the new
@@ -107,19 +68,6 @@ interface RunResult {
 }
 
 type Phase = "form" | "working" | "done";
-
-/** One file's server-side slot, plus exactly how far it got. Both flags matter
- * independently: bytes can be in GCS (`uploaded`) while the PUT that flips the
- * row to `registered` has not landed (`marked`). */
-interface AssetSlot {
-  assetId: string;
-  /** Canonical object URL, handed to the processors / design registration. */
-  url: string;
-  /** Signed PUT URL from initUploads. */
-  uploadUrl: string;
-  uploaded: boolean;
-  marked: boolean;
-}
 
 /** What the current run has already accomplished (ORB-38).
  *
@@ -193,7 +141,6 @@ export function UploadScreen() {
   const [epsg, setEpsg] = useState("");
   const [vdatum, setVdatum] = useState("EGM2008");
   const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
 
   // Run state
   const [phase, setPhase] = useState<Phase>("form");
@@ -328,13 +275,6 @@ export function UploadScreen() {
   const setRole = (name: string, role: FileRole) =>
     setFiles((prev) => prev.map((q) => (q.file.name === name ? { ...q, role } : q)));
 
-  const addTag = (raw: string) => {
-    const t = raw.trim().replace(/,+$/, "");
-    if (!t) return;
-    setTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
-    setTagInput("");
-  };
-
   const canSubmit =
     phase === "form" &&
     files.length > 0 &&
@@ -414,77 +354,22 @@ export function UploadScreen() {
       }
       const survey = resolvedSurvey;
 
-      // 3) Signed upload slots — ONLY for files that don't have one yet.
-      //    Re-initing a file that already has an asset row would mint a second
-      //    pending_upload row for the same object, and there is no asset-delete
-      //    endpoint to reap it.
-      const needSlots = files.filter((q) => !progress.assets[q.file.name]);
-      if (needSlots.length > 0) {
-        setStepText("Requesting upload URLs…");
-        const { uploads } = await initUploads(
-          survey.id,
-          needSlots.map((q) => ({
-            filename: q.file.name,
-            kind: roleToAssetKind(q.role),
-            role: q.role,
-            content_type: contentTypeFor(q.file.name),
-            crs: epsg,
-          }))
-        );
-        const uploadByName = new Map(uploads.map((u) => [u.asset.filename || "", u]));
-        for (const q of needSlots) {
-          const slot = uploadByName.get(q.file.name);
-          if (!slot) throw new Error(`No upload slot returned for ${q.file.name}`);
-          progress.assets[q.file.name] = {
-            assetId: slot.asset.id,
-            url: slot.asset.url,
-            uploadUrl: slot.upload_url,
-            uploaded: false,
-            marked: false,
-          };
-        }
-      }
-
-      // 4) PUT each file, then mark it uploaded. Sequential keeps memory and
-      //    connection pressure sane for multi-GB rasters.
-      for (const q of files) {
-        const slot = progress.assets[q.file.name];
-        if (!slot) throw new Error(`No upload slot for ${q.file.name}`);
-        if (slot.uploaded && slot.marked) {
+      // 3) Signed upload slots for files that have none yet, then PUT each file
+      //    and mark it uploaded; a retry resumes from `progress.assets`.
+      await uploadFiles(uploadApi, {
+        surveyId: survey.id,
+        files: files.map((q) => ({ file: q.file, kind: roleToAssetKind(q.role), role: q.role, crs: epsg })),
+        slots: progress.assets,
+        onStep: setStepText,
+        onStatus: (name, status) =>
           setFiles((prev) =>
-            prev.map((p) => (p.file.name === q.file.name ? { ...p, status: "uploaded", progress: 1 } : p))
-          );
-          continue; // already done on an earlier attempt
-        }
-        setStepText(`Uploading ${q.file.name}…`);
-        setFiles((prev) => prev.map((p) => (p.file.name === q.file.name ? { ...p, status: "uploading" } : p)));
-        try {
-          if (!slot.uploaded) {
-            await putToSignedUrl(slot.uploadUrl, q.file, contentTypeFor(q.file.name), (frac) => {
-              setFiles((prev) => prev.map((p) => (p.file.name === q.file.name ? { ...p, progress: frac } : p)));
-            });
-            slot.uploaded = true;
-          }
-          // ORB-38: this PUT used to sit OUTSIDE the try, so a failure here
-          // escaped the per-file handler — the row stayed "uploading" forever
-          // while the bytes sat in GCS as pending_upload with nothing to
-          // reconcile them. It is idempotent (it just flips one row to
-          // registered) and only GETs auto-retry in lib/api/client.ts, so
-          // it gets its own retry.
-          if (!slot.marked) {
-            await withRetry(() => markAssetUploaded(survey.id, slot.assetId));
-            slot.marked = true;
-          }
-        } catch (err) {
-          setFiles((prev) => prev.map((p) => (p.file.name === q.file.name ? { ...p, status: "error" } : p)));
-          throw err;
-        }
-        setFiles((prev) =>
-          prev.map((p) => (p.file.name === q.file.name ? { ...p, status: "uploaded", progress: 1 } : p))
-        );
-      }
+            prev.map((p) => (p.file.name === name ? { ...p, status, ...(status === "uploaded" ? { progress: 1 } : {}) } : p))
+          ),
+        onProgress: (name, frac) =>
+          setFiles((prev) => prev.map((p) => (p.file.name === name ? { ...p, progress: frac } : p))),
+      });
 
-      // 5) Dispatch processing / register designs — each recorded so a later
+      // 4) Dispatch processing / register designs — each recorded so a later
       //    failure never re-fires an already-accepted workflow.
       const outcome: RunResult = { surveyId: survey.id, workflows: [], designs: [], skips: [] };
       if (dataType === "design") {
@@ -716,43 +601,7 @@ export function UploadScreen() {
 
           <section className="flex flex-col gap-2">
             <p className="caps text-4">Tags</p>
-            <div className="flex min-h-[var(--control-h)] flex-wrap items-center gap-2 rounded-sm border border-control bg-surface px-3 py-1.5">
-              {tags.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1">
-                  <Badge variant="tag">{t}</Badge>
-                  <IconButton
-                    icon={Cancel01Icon}
-                    aria-label={`Remove tag ${t}`}
-                    variant="bare"
-                    size="sm"
-                    onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
-                  />
-                </span>
-              ))}
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault();
-                    addTag(tagInput);
-                  } else if (e.key === "Backspace" && !tagInput && tags.length) {
-                    setTags((prev) => prev.slice(0, -1));
-                  }
-                }}
-                disabled={working}
-                aria-label="Add a tag"
-                placeholder={tags.length === 0 ? "Add tags…" : ""}
-                className="small h-6 min-w-24 flex-1 bg-transparent text-ink-1 outline-none placeholder:text-ink-4"
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {TAG_SUGGESTIONS.filter((s) => !tags.includes(s)).map((s) => (
-                <Button key={s} size="sm" variant="quiet" iconStart={Add01Icon} disabled={working} onClick={() => addTag(s)}>
-                  {s}
-                </Button>
-              ))}
-            </div>
+            <TagInput tags={tags} onChange={setTags} suggestions={TAG_SUGGESTIONS} disabled={working} />
           </section>
 
           <FormFooter note={footerNote}>

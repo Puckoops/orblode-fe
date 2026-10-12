@@ -61,6 +61,8 @@ export interface ViewerActions {
   computeAllStockpiles: () => Promise<void>;
   /** Copy the previous survey's stockpiles into this one, then refresh. */
   copyStockpilesForward: () => Promise<void>;
+  /** Refetch the survey's manifest, after the survey or its files were edited. */
+  reloadManifest: () => Promise<void>;
 
   // Layer / view interaction (scene side effects live in ViewerCanvas).
   handleToggle: (key: string) => void;

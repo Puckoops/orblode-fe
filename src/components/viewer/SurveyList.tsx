@@ -3,25 +3,34 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, Select } from "@puckoops/camelot";
+import { PencilEdit02Icon } from "@hugeicons/core-free-icons";
+import { Alert, Badge, IconButton, Select } from "@puckoops/camelot";
 import { Loader } from "@/components/brand/Loader";
 import { StateChip } from "@/components/common/StateChip";
+import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { surveyState } from "@/lib/status";
 import { formatSurveyDate } from "@/lib/utils";
 
 /** Sibling surveys for the same project: a current-survey selector plus a
- * chronological list with version chips and status badges. */
+ * chronological list with version chips and status badges. `refreshKey`
+ * refetches the list; `onSurveyChanged` runs after a survey is edited here. */
 export function SurveyList({
   projectId,
   currentSurveyId,
+  refreshKey,
+  onSurveyChanged,
 }: {
   projectId: string;
   currentSurveyId: string;
+  refreshKey?: number;
+  onSurveyChanged?: (surveyId: string) => void;
 }) {
   const router = useRouter();
   const [surveys, setSurveys] = useState<Survey[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   // Reset to the loading state the moment projectId changes, so switching
   // projects never briefly shows the previous list or a stale error. Done as a
@@ -50,7 +59,7 @@ export function SurveyList({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, refreshKey, reloadTick]);
 
   const versionOf = useMemo(() => {
     const map = new Map<string, number>();
@@ -98,7 +107,7 @@ export function SurveyList({
         {surveys.map((s) => {
           const active = s.id === currentSurveyId;
           return (
-            <li key={s.id}>
+            <li key={s.id} className="relative">
               <Link
                 href={`/viewer/${s.id}`}
                 aria-current={active ? "page" : undefined}
@@ -114,12 +123,29 @@ export function SurveyList({
                     <StateChip state={surveyState(s.status)} />
                   </span>
                 </span>
-                <span className="caption text-ink-4">{s.survey_type}</span>
+                <span className="caption pr-8 text-ink-4">{s.survey_type}</span>
               </Link>
+              <IconButton
+                icon={PencilEdit02Icon}
+                aria-label={`Edit survey of ${formatSurveyDate(s.survey_date)}`}
+                variant="bare"
+                size="sm"
+                className="absolute right-1.5 bottom-1"
+                onClick={() => setEditingId(s.id)}
+              />
             </li>
           );
         })}
       </ul>
+
+      <EditSurveyDrawer
+        surveyId={editingId}
+        onClose={() => setEditingId(null)}
+        onChanged={(id) => {
+          setReloadTick((t) => t + 1);
+          onSurveyChanged?.(id);
+        }}
+      />
     </div>
   );
 }

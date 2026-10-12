@@ -35,6 +35,18 @@ export const ROLE_LABELS: Record<FileRole, string> = {
   design: "Design",
 };
 
+/** What the planner's dispatch builds from a file of each role; null where nothing is processed. */
+export const PROCESSED_OUTPUT: Record<FileRole, string | null> = {
+  pointcloud: "Point-cloud tiles",
+  dsm: "Terrain DSM tiles",
+  dtm: "Terrain DTM tiles",
+  ortho: "Ortho tiles",
+  contours: "Contour layer",
+  vector: "Vector layer",
+  site_model: null,
+  design: null,
+};
+
 /** Roles the user may switch a file to, per data type (the per-row select). */
 export const SELECTABLE_ROLES: Record<DataType, FileRole[]> = {
   lidar: ["pointcloud"],
@@ -134,6 +146,8 @@ export interface PlannedFile {
   role: FileRole;
   /** Bucket URL of the uploaded object (asset.url from initUploads). */
   url: string;
+  /** This file's horizontal CRS; `PlannerOptions.epsg` applies when absent. */
+  crs?: string;
 }
 
 export interface PlannerOptions {
@@ -167,6 +181,7 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
   const vectorFiles: PlannedFile[] = [];
 
   for (const f of files) {
+    const crs = f.crs || opts.epsg;
     switch (f.role) {
       case "dsm":
       case "dtm":
@@ -175,10 +190,10 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
           request: {
             processor_type: "terrain-quantized-mesh",
             payload: {
-              source: { url: f.url, kind: "terrain", crs: opts.epsg },
+              source: { url: f.url, kind: "terrain", crs },
               surface_type: f.role,
             },
-            inputs: [{ url: f.url, kind: "terrain", crs: opts.epsg }],
+            inputs: [{ url: f.url, kind: "terrain", crs }],
           },
         });
         break;
@@ -187,8 +202,8 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
           label: `Ortho tiles (${f.name})`,
           request: {
             processor_type: "orthophoto-tiles",
-            payload: { source: { url: f.url, kind: "ortho", crs: opts.epsg } },
-            inputs: [{ url: f.url, kind: "ortho", crs: opts.epsg }],
+            payload: { source: { url: f.url, kind: "ortho", crs } },
+            inputs: [{ url: f.url, kind: "ortho", crs }],
           },
         });
         break;
@@ -198,16 +213,16 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
           request: {
             processor_type: "pointcloud-tiles",
             payload: {
-              source: { url: f.url, kind: "pointcloud", crs: opts.epsg },
-              source_crs: opts.epsg,
+              source: { url: f.url, kind: "pointcloud", crs },
+              source_crs: crs,
             },
-            inputs: [{ url: f.url, kind: "pointcloud", crs: opts.epsg }],
+            inputs: [{ url: f.url, kind: "pointcloud", crs }],
           },
         });
         break;
       case "contours":
       case "vector":
-        vectorFiles.push(f);
+        vectorFiles.push({ ...f, crs });
         break;
       case "site_model":
         skips.push({
@@ -228,13 +243,13 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
         processor_type: "vector-features",
         payload: {
           files: vectorFiles.map((v) => ({
-            source: { url: v.url, kind: "vector", crs: opts.epsg },
-            source_crs: opts.epsg,
+            source: { url: v.url, kind: "vector", crs: v.crs },
+            source_crs: v.crs,
             role: v.role === "contours" ? "contours" : "overlay",
             format: v.role === "contours" ? "contour" : "",
           })),
         },
-        inputs: vectorFiles.map((v) => ({ url: v.url, kind: "vector", crs: opts.epsg })),
+        inputs: vectorFiles.map((v) => ({ url: v.url, kind: "vector", crs: v.crs })),
       },
     });
   }

@@ -11,7 +11,7 @@
 // (color maps, contour intervals, digital-twin availability) are the same
 // `useMemo`s that lived in SurveyViewer, now computed here from store state.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft01Icon,
@@ -20,11 +20,13 @@ import {
   Download01Icon,
   Layers01Icon,
   MoreHorizontalIcon,
+  PencilEdit02Icon,
   PlayIcon,
 } from "@hugeicons/core-free-icons";
 import { Alert, Button, EmptyState, IconButton, Menu, MenuItem, MenuSeparator, Tooltip } from "@puckoops/camelot";
 
 import { Loader } from "@/components/brand/Loader";
+import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
 import {
@@ -55,6 +57,8 @@ export function TreePanel() {
   const surveyId = useViewerStore((s) => s.surveyId);
   const setTreePanelOpen = useViewerStore((s) => s.setTreePanelOpen);
   const actions = useViewerActions();
+  const [editing, setEditing] = useState(false);
+  const [surveysKey, setSurveysKey] = useState(0);
 
   const surveyTitle = manifest ? `Survey ${manifest.survey.survey_date}` : "Survey viewer";
 
@@ -71,6 +75,11 @@ export function TreePanel() {
             </p>
           )}
         </div>
+        {manifest && (
+          <Tooltip content="Edit survey">
+            <IconButton icon={PencilEdit02Icon} aria-label="Edit survey" variant="bare" size="sm" onClick={() => setEditing(true)} />
+          </Tooltip>
+        )}
         <Tooltip content="Export measurements">
           <IconButton icon={Download01Icon} aria-label="Export measurements" variant="bare" size="sm" onClick={actions.exportMeasurements} />
         </Tooltip>
@@ -107,7 +116,7 @@ export function TreePanel() {
           manifest ? <DesignsPanel projectId={manifest.survey.project_id} /> : <Loader label="Loading designs" />
         ) : activeModule === "survey" ? (
           manifest ? (
-            <SurveyTree projectId={manifest.survey.project_id} surveyId={surveyId} />
+            <SurveyTree projectId={manifest.survey.project_id} surveyId={surveyId} surveysKey={surveysKey} />
           ) : (
             <Loader label="Loading survey" />
           )
@@ -123,13 +132,22 @@ export function TreePanel() {
           />
         )}
       </div>
+
+      <EditSurveyDrawer
+        surveyId={editing ? surveyId : null}
+        onClose={() => setEditing(false)}
+        onChanged={() => {
+          void actions.reloadManifest();
+          setSurveysKey((k) => k + 1);
+        }}
+      />
     </aside>
   );
 }
 
 /** `survey` module — the existing SurveyList above LayerPanel, store-wired. The
  * layer derivations mirror SurveyViewer's `useMemo`s. */
-function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: string }) {
+function SurveyTree({ projectId, surveyId, surveysKey }: { projectId: string; surveyId: string; surveysKey: number }) {
   const manifest = useViewerStore((s) => s.manifest);
   const layerControls = useViewerStore((s) => s.layerControls);
   const designControls = useViewerStore((s) => s.designControls);
@@ -175,7 +193,14 @@ function SurveyTree({ projectId, surveyId }: { projectId: string; surveyId: stri
 
   return (
     <>
-      <SurveyList projectId={projectId} currentSurveyId={surveyId} />
+      <SurveyList
+        projectId={projectId}
+        currentSurveyId={surveyId}
+        refreshKey={surveysKey}
+        onSurveyChanged={(id) => {
+          if (id === surveyId) void actions.reloadManifest();
+        }}
+      />
       <LayerPanel
         layers={layerControls}
         designs={designControls}
