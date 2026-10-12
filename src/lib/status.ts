@@ -93,3 +93,6 @@ export function varianceState(status: string | null | undefined): StateStyle {
       return { label: "No balance", tone: "neutral", glyph: "circle-dashed" };
   }
 }
+
+/** A survey whose newest run of some processor failed, beside its own status. */
+export const PROCESSING_FAILED: StateStyle = { label: "Processing failed", tone: "red", glyph: "triangle" };

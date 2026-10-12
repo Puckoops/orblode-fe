@@ -4,6 +4,7 @@ import { Logout03Icon, MoreHorizontalIcon, Settings02Icon } from "@hugeicons/cor
 import { IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuSeparator, SegmentedControl, useTheme, type ThemePreference } from "@puckoops/camelot";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth";
+import { releasePush } from "@/lib/push/client";
 
 export const APPEARANCE: { value: ThemePreference; label: string }[] = [
   { value: "light", label: "Light" },
@@ -16,6 +17,7 @@ export function UserMenu() {
   const { preference, setPreference } = useTheme();
 
   const leave = async () => {
+    await releasePush().catch(() => undefined);
     await signOut();
     router.push("/sign-in");
     router.refresh();

@@ -197,8 +197,8 @@ function DetailPanelSurface({
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ type: "spring", stiffness: 420, damping: 34 }}
       style={{ width: PANEL_WIDTH, pointerEvents: isPresent ? "auto" : "none" }}
-      className={`absolute top-3 right-3 flex flex-col rounded-lg ${PANEL_SURFACE} ${
-        collapsed ? "" : "max-h-[calc(100%-1.5rem)]"
+      className={`absolute top-16 right-3 flex flex-col rounded-lg ${PANEL_SURFACE} ${
+        collapsed ? "" : "max-h-[calc(100%-4.75rem)]"
       }`}
     >
       {/* Centered drag highlighter — only grab target for move. */}

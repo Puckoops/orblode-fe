@@ -13,6 +13,7 @@ import {
   type Survey,
 } from "@/lib/api/orblodeSvc";
 import { defaultReconciliationPair, formatDelta, formatPercent, formatTonnes } from "@/lib/reports";
+import { useSiteAlerts } from "@/lib/reports/alerts";
 import { varianceState } from "@/lib/status";
 import { formatSurveyDate } from "@/lib/utils";
 import { ProductionEditor } from "./ProductionEditor";
@@ -56,6 +57,12 @@ export function ReconciliationTab({
 
   const [version, setVersion] = useState(0);
   const reload = useCallback(() => setVersion((v) => v + 1), []);
+  const refreshAlerts = useSiteAlerts((s) => s.refresh);
+  // Saving production re-checks the site before the save answers, so the rail's red count can follow at once.
+  const onProductionSaved = useCallback(() => {
+    reload();
+    void refreshAlerts();
+  }, [reload, refreshAlerts]);
 
   useEffect(() => {
     if (!fromId || !toId || !ordered || !thresholdsValid) return;
@@ -149,7 +156,7 @@ export function ReconciliationTab({
         projectId={projectId}
         materials={materials}
         period={from && to && ordered ? [from.survey_date, to.survey_date] : null}
-        onSaved={reload}
+        onSaved={onProductionSaved}
       />
     </div>
   );

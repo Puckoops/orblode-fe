@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Loader } from "@/components/brand/Loader";
 import type { Project } from "@/lib/api/userSvc";
 import { listSurveys } from "@/lib/api/orblodeSvc";
+import { useProcessing } from "@/lib/processing/store";
 import { lifecycleState } from "@/lib/status";
 import { formatSurveyDate } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ export function ActiveSitesPanel({
   onSiteSelect: (id: string) => void;
   selectedSiteId: string;
 }) {
+  const failed = useProcessing((s) => s.failed);
   const [surveyStats, setSurveyStats] = useState<Record<string, SurveyStats>>({});
   const [filter, setFilter] = useState("");
 
@@ -92,6 +94,7 @@ export function ActiveSitesPanel({
             const selected = selectedSiteId === site.id;
             const state = lifecycleState(site.lifecycle_status);
             const stats = surveyStats[site.id];
+            const failedCount = failed.filter((s) => s.project_id === site.id).length;
             return (
               <li key={site.id}>
                 <button
@@ -113,6 +116,7 @@ export function ActiveSitesPanel({
                     {stats ? (
                       <span className="num-sm text-ink-4">
                         {stats.count} surveys · {stats.latestDate}
+                        {failedCount > 0 && <span className="whitespace-nowrap text-ink-2"> · {failedCount} failed</span>}
                       </span>
                     ) : (
                       <Skeleton width={120} height={12} />

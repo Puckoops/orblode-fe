@@ -13,6 +13,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useProcessing } from "@/lib/processing/store";
+import { isStalled } from "@/lib/processing/summary";
 import {
   ArrowLeft01Icon,
   ChartLineData01Icon,
@@ -149,6 +151,7 @@ export function TreePanel() {
  * layer derivations mirror SurveyViewer's `useMemo`s. */
 function SurveyTree({ projectId, surveyId, surveysKey }: { projectId: string; surveyId: string; surveysKey: number }) {
   const manifest = useViewerStore((s) => s.manifest);
+  const stalled = useProcessing((s) => s.current?.survey_id === surveyId && isStalled(s.current));
   const layerControls = useViewerStore((s) => s.layerControls);
   const designControls = useViewerStore((s) => s.designControls);
   const project = useViewerStore((s) => s.project);
@@ -204,7 +207,7 @@ function SurveyTree({ projectId, surveyId, surveysKey }: { projectId: string; su
       <LayerPanel
         layers={layerControls}
         designs={designControls}
-        processing={manifestLayersEmpty(manifest)}
+        processing={manifestLayersEmpty(manifest) && !stalled}
         surveyStatus={manifest?.survey.status}
         terrainExaggeration={view.terrainExaggeration}
         exaggerationDisabled={viewMode === "2d"}

@@ -40,6 +40,7 @@ import {
   createWorldTerrainAsync,
 } from "cesium";
 import { toast } from "@/lib/toast";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 
 import {
   computeMeasurement,
@@ -131,6 +132,9 @@ import { useScenePicking } from "@/components/viewer/shell/hooks/useScenePicking
 import { useLayerLifecycle } from "@/components/viewer/shell/hooks/useLayerLifecycle";
 import { useCompareLayers } from "@/components/viewer/shell/hooks/useCompareLayers";
 import { useMeasurementHeatmap } from "@/components/viewer/shell/hooks/useMeasurementHeatmap";
+import { ProcessingBanner } from "@/components/viewer/shell/ProcessingBanner";
+import { useProcessing } from "@/lib/processing/store";
+import { isStalled } from "@/lib/processing/summary";
 
 // Zoom-button step: a fraction of the camera's CURRENT altitude, not a fixed
 // meter amount, so one click feels the same whether orbiting the whole site or
@@ -236,6 +240,7 @@ export function ViewerCanvas() {
   const setLayerControls = useViewerStore((s) => s.setLayerControls);
   const setDesignControls = useViewerStore((s) => s.setDesignControls);
 
+  const processingStalled = useProcessing((s) => s.current?.survey_id === surveyId && isStalled(s.current));
   const layersEmpty = manifestLayersEmpty(manifest);
 
   const [clipInputsVersion, setClipInputsVersion] = useState(0);
@@ -1268,7 +1273,7 @@ export function ViewerCanvas() {
     toast.success(`Exported ${features.length} measurement${features.length === 1 ? "" : "s"}`);
   }, [store, surveyId]);
 
-  useManifestLoad({ manifest, layersEmpty, loadManifest, refreshMeasurements, setProject });
+  useManifestLoad({ manifest, layersEmpty: layersEmpty && !processingStalled, loadManifest, refreshMeasurements, setProject });
   useMeasurementsPoll({
     measurementSearch,
     measurements,
@@ -1488,6 +1493,7 @@ export function ViewerCanvas() {
                   />
                 </div>
                 {(!viewerReady || !manifest) && !manifestError && <Loader variant="fill" label="Loading the survey" />}
+                <ProcessingBanner surveyId={surveyId} />
 
                 {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}
                 {isMeasure && <FloatingToolbar />}
@@ -1516,8 +1522,10 @@ export function ViewerCanvas() {
                   />
                 </div>
 
-                {/* Zone 5 — draggable floating detail (expanded or compact). */}
+                {/* Zone 5 — draggable floating detail (expanded or compact), below the bell. */}
                 <DetailPanel />
+
+                <NotificationsBell placement="canvas" />
 
                 {/* Right-click context menu on a measurement (Edit / Redraw / Delete). */}
                 <MeasurementContextMenu />

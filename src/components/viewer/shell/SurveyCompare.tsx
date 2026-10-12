@@ -97,14 +97,14 @@ export function SurveyCompare({ projectId }: { projectId: string }) {
           click-through (pointer-events-none) so the camera stays usable; only
           the thin strip captures the pointer. */}
       <div ref={canvasRef} className="pointer-events-none absolute inset-0 z-20">
-        {/* Epoch labels pinned to the top corners (A left, B right). */}
+        {/* Epoch labels pinned to the top corners (A left, B right, clear of the bell). */}
         {aDate && (
           <span className="num-sm absolute top-3 left-3 rounded-sm border border-hairline bg-surface/90 px-2 py-1 text-ink-1 shadow-[var(--shadow-overlay)] backdrop-blur-md">
             {formatSurveyDate(aDate)}
           </span>
         )}
         {bDate && (
-          <span className="num-sm absolute top-3 right-3 rounded-sm border border-hairline bg-surface/90 px-2 py-1 text-ink-1 shadow-[var(--shadow-overlay)] backdrop-blur-md">
+          <span className="num-sm absolute top-3 right-16 rounded-sm border border-hairline bg-surface/90 px-2 py-1 text-ink-1 shadow-[var(--shadow-overlay)] backdrop-blur-md">
             {formatSurveyDate(bDate)}
           </span>
         )}
