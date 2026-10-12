@@ -40,11 +40,14 @@ import {
   buildProcessorPlan,
   designFormat,
   guessRole,
+  roleNeedsHeader,
   roleToAssetKind,
+  settleRole,
   type DataType,
   type FileRole,
   type PlannedSkip,
 } from "@/lib/upload/planner";
+import { refineRoles } from "@/lib/upload/rasterRole";
 import { UploadTimeoutError } from "@/lib/upload/putToSignedUrl";
 import { uploadApi } from "@/lib/upload/uploadApi";
 
@@ -56,6 +59,7 @@ const DRAFT_KEY = "orblode-upload-draft-v2";
 interface QueuedFile {
   file: File;
   role: FileRole;
+  readingRole: boolean;
   /** 0..1 while uploading. */
   progress: number;
   status: "queued" | "uploading" | "uploaded" | "error";
@@ -251,34 +255,46 @@ export function UploadScreen() {
   // construction, so it simply stops rendering — no ref writes during render.
   const resumeNotice = resume && resume.target === runTarget ? resume.text : null;
 
+  const settle = useCallback((file: File, role: FileRole | null) => setFiles((prev) => settleRole(prev, file, role)), []);
+
   const addFiles = useCallback(
     (list: FileList | File[]) => {
+      const added = Array.from(list);
       setFiles((prev) => {
         const next = [...prev];
-        for (const f of Array.from(list)) {
+        for (const f of added) {
           if (next.some((q) => q.file.name === f.name)) continue; // dedupe by name
-          next.push({ file: f, role: guessRole(f.name, dataType), progress: 0, status: "queued" });
+          next.push({
+            file: f,
+            role: guessRole(f.name, dataType),
+            readingRole: roleNeedsHeader(f.name, dataType),
+            progress: 0,
+            status: "queued",
+          });
         }
         return next;
       });
+      void refineRoles(added, dataType, settle);
     },
-    [dataType]
+    [dataType, settle]
   );
 
   const changeDataType = (t: DataType) => {
     setDataType(t);
     // Roles are type-specific; re-guess rather than carrying stale roles over.
-    setFiles((prev) => prev.map((q) => ({ ...q, role: guessRole(q.file.name, t) })));
+    setFiles((prev) => prev.map((q) => ({ ...q, role: guessRole(q.file.name, t), readingRole: roleNeedsHeader(q.file.name, t) })));
+    void refineRoles(files.map((q) => q.file), t, settle);
   };
 
   const removeFile = (name: string) => setFiles((prev) => prev.filter((q) => q.file.name !== name));
 
   const setRole = (name: string, role: FileRole) =>
-    setFiles((prev) => prev.map((q) => (q.file.name === name ? { ...q, role } : q)));
+    setFiles((prev) => prev.map((q) => (q.file.name === name ? { ...q, role, readingRole: false } : q)));
 
   const canSubmit =
     phase === "form" &&
     files.length > 0 &&
+    !files.some((q) => q.readingRole) &&
     effectiveDatasetName.trim().length > 0 &&
     // ORB-38: an explicit CRS choice is mandatory — see the `epsg` state above.
     epsg.length > 0 &&

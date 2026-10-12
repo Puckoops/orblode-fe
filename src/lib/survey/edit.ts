@@ -1,5 +1,5 @@
 import type { SourceAsset, Survey, UpdateSurveyRequest } from "@/lib/api/orblodeSvc";
-import { ROLE_LABELS, buildProcessorPlan, type FileRole, type PlannedFile, type ProcessorPlan } from "../upload/planner.ts";
+import { ROLE_LABELS, buildProcessorPlan, vectorFeaturesReads, type FileRole, type PlannedFile, type ProcessorPlan } from "../upload/planner.ts";
 
 const EDITABLE_STATUSES = new Set(["pending", "processing", "ready_to_approve", "failed"]);
 
@@ -78,6 +78,7 @@ export function isProcessableAsset(asset: SourceAsset): boolean {
 }
 
 const isVectorRole = (role: FileRole | null) => role === "vector" || role === "contours";
+const joinsVectorBatch = (a: SourceAsset) => isVectorRole(assetRole(a)) && vectorFeaturesReads(assetName(a));
 
 export interface ReprocessPlan extends ProcessorPlan {
   /** Every asset the dispatches reference. */
@@ -90,8 +91,8 @@ export interface ReprocessPlan extends ProcessorPlan {
 export function reprocessPlan(assets: SourceAsset[], opts: { epsg: string; alsoDue?: ReadonlySet<string> }): ReprocessPlan {
   const ready = assets.filter(isProcessableAsset);
   const isDue = (a: SourceAsset) => a.needs_processing === true || (opts.alsoDue?.has(a.id) ?? false);
-  const withVectors = ready.some((a) => isDue(a) && isVectorRole(assetRole(a)));
-  const batch = ready.filter((a) => isDue(a) || (withVectors && isVectorRole(assetRole(a))));
+  const withVectors = ready.some((a) => isDue(a) && joinsVectorBatch(a));
+  const batch = ready.filter((a) => isDue(a) || (withVectors && joinsVectorBatch(a)));
   const files = batch.flatMap((a): PlannedFile[] => {
     const role = assetRole(a);
     return role ? [{ name: assetName(a), role, url: a.url, crs: a.crs || undefined }] : [];
