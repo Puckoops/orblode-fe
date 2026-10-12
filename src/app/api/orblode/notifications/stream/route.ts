@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { orblodeSvcBase, SESSION_COOKIE } from "@/lib/session";
 
-// The upstream stream ends after 10 minutes and the browser reconnects; a platform limit that cuts it
-// sooner only means an earlier reconnect.
-export const maxDuration = 300;
+// Every Vercel plan allows a minute. The route ends the stream itself a little before that, so the
+// browser reconnects (and reloads the inbox) after a clean end rather than a cut-off function.
+export const maxDuration = 60;
+const STREAM_FOR_MS = 55_000;
 
 const reply = (status: number, message: string) => NextResponse.json({ status, error: true, message }, { status });
 
@@ -34,7 +35,12 @@ export async function GET(request: NextRequest) {
       headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
     });
   }
-  return new Response(upstream.body, {
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  upstream.body
+    .pipeTo(writable, { signal: AbortSignal.any([AbortSignal.timeout(STREAM_FOR_MS), request.signal]), preventAbort: true })
+    .catch(() => undefined)
+    .finally(() => writable.close().catch(() => undefined));
+  return new Response(readable, {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
