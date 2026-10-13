@@ -1,10 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import type { Survey } from "../../api/orblodeSvc.ts";
+import type { Measurement, Survey } from "../../api/orblodeSvc.ts";
 import {
   defaultBeforeId,
+  findPile,
   nextCompareSeed,
+  pileDiff,
+  pileIdOf,
+  pileStateOf,
   sortSurveysChronological,
   temporalComparePair,
 } from "../compare.ts";
@@ -82,4 +86,53 @@ test("temporalComparePair rejects single-survey and same-survey params", () => {
   );
   assert.equal(temporalComparePair(null), null);
   assert.equal(temporalComparePair({}), null);
+});
+
+const outline = { type: "Polygon", coordinates: [] };
+const pile = (over: Partial<Measurement>): Measurement =>
+  ({ id: "m", kind: "stockpile", status: "completed", geometry: outline, created_at: 1, updated_at: 1, ...over }) as Measurement;
+
+test("pileIdOf falls back to the measurement id for a pile of its own", () => {
+  assert.equal(pileIdOf(pile({ id: "m1" })), "m1");
+  assert.equal(pileIdOf(pile({ id: "m2", pile_id: "m1" })), "m1");
+});
+
+test("findPile matches by pile id and skips drafts, outline-less rows and other kinds", () => {
+  const list = [
+    pile({ id: "draft", pile_id: "p", draft: true }),
+    pile({ id: "bare", pile_id: "p", geometry: undefined }),
+    pile({ id: "vol", pile_id: "p", kind: "volume" }),
+    pile({ id: "kept", pile_id: "p" }),
+  ];
+  assert.equal(findPile(list, "p")?.id, "kept");
+  assert.equal(findPile(list, "other"), null);
+  assert.equal(findPile([pile({ id: "first" })], "first")?.id, "first");
+});
+
+test("pileStateOf mirrors the inventory's states", () => {
+  const computed = { results: { stockpile: { metrics: { volume_m3: 10 } } }, computed_at: 5, updated_at: 5 };
+  assert.equal(pileStateOf(pile(computed)), "computed");
+  assert.equal(pileStateOf(pile({ ...computed, updated_at: 6 })), "stale");
+  assert.equal(pileStateOf(pile({ ...computed, status: "computing" })), "computing");
+  assert.equal(pileStateOf(pile({ status: "failed" })), "failed");
+  assert.equal(pileStateOf(pile({ status: "draft" })), "not_computed");
+});
+
+test("pileDiff takes B minus A with the change as a share of A", () => {
+  const rows = pileDiff({ volume_m3: 200, tonnage_t: 300, area_m2: 50 }, { volume_m3: 250, tonnage_t: 270, area_m2: 50 });
+  assert.deepEqual(rows, [
+    { key: "volume_m3", label: "Volume", a: 200, b: 250, delta: 50, pct: 25 },
+    { key: "tonnage_t", label: "Tonnage", a: 300, b: 270, delta: -30, pct: -10 },
+    { key: "area_m2", label: "Area", a: 50, b: 50, delta: 0, pct: 0 },
+  ]);
+});
+
+test("pileDiff leaves the change empty when a side has no number", () => {
+  assert.deepEqual(pileDiff(null, { volume_m3: 40 }), [
+    { key: "volume_m3", label: "Volume", a: null, b: 40, delta: null, pct: null },
+  ]);
+  assert.deepEqual(pileDiff({ volume_m3: 0 }, { volume_m3: 40 }), [
+    { key: "volume_m3", label: "Volume", a: 0, b: 40, delta: 40, pct: null },
+  ]);
+  assert.deepEqual(pileDiff(null, null), []);
 });

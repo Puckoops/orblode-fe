@@ -1,11 +1,14 @@
 // Compare Mode helpers — the pure, Cesium-free glue shared by the two entry
 // points (the bottom-center `SurveyCompare` swipe control and the
 // FloatingToolbar's Compare split-button) plus the comparison card. Kept in one
-// module so the epoch-sorting, activation-seeding and temporal-pair detection
-// have a single source of truth and can be unit-tested without React. The
-// cross-survey SurfaceRef pair itself lives in calc.ts (`crossSurveyRefs`).
+// module so the epoch-sorting, activation-seeding, temporal-pair detection and
+// stockpile A/B diff have a single source of truth and can be unit-tested
+// without React. The cross-survey SurfaceRef pair itself lives in calc.ts
+// (`crossSurveyRefs`).
 
-import type { Survey } from "@/lib/api/orblodeSvc";
+import type { Measurement, PileState, Survey } from "@/lib/api/orblodeSvc";
+
+import { metricsOf, resultForKind } from "./calc.ts";
 
 /** Chronological (oldest → newest) so "before"/"after" reads naturally; drops
  * undated surveys (they can't be placed on the timeline). Copies before sort. */
@@ -69,4 +72,59 @@ export function temporalComparePair(
   const bId = to && to.type === "survey_terrain" && typeof to.survey_id === "string" ? to.survey_id : null;
   if (!aId || !bId || aId === bId) return null;
   return { aId, bId };
+}
+
+/** A stockpile's identity across surveys; the first survey's pile is its own id. */
+export function pileIdOf(m: Pick<Measurement, "id" | "pile_id">): string {
+  return m.pile_id || m.id;
+}
+
+/** What the inventory counts as a pile: a kept stockpile with an outline. */
+export function isSavedStockpile(m: Pick<Measurement, "kind" | "draft" | "geometry">): boolean {
+  return m.kind === "stockpile" && !m.draft && !!m.geometry;
+}
+
+export function findPile(measurements: Measurement[], pileId: string): Measurement | null {
+  return measurements.find((m) => isSavedStockpile(m) && pileIdOf(m) === pileId) ?? null;
+}
+
+/** The inventory's pile state, worked out the way orblode-svc does: a pile
+ * edited after its last compute is stale but keeps its numbers. */
+export function pileStateOf(m: Measurement): PileState {
+  const hasResult = "volume_m3" in metricsOf(resultForKind(m));
+  if (m.status === "computing") return "computing";
+  if (hasResult && (m.updated_at ?? 0) > (m.computed_at ?? 0)) return "stale";
+  if (hasResult) return "computed";
+  if (m.status === "failed") return "failed";
+  return "not_computed";
+}
+
+const PILE_DIFF_METRICS: [key: string, label: string][] = [
+  ["volume_m3", "Volume"],
+  ["tonnage_t", "Tonnage"],
+  ["value", "Value"],
+  ["area_m2", "Area"],
+];
+
+export interface PileDiffRow {
+  key: string;
+  label: string;
+  a: number | null;
+  b: number | null;
+  delta: number | null;
+  pct: number | null;
+}
+
+/** B against A for each headline metric either side has. */
+export function pileDiff(a: Record<string, number> | null, b: Record<string, number> | null): PileDiffRow[] {
+  const rows: PileDiffRow[] = [];
+  for (const [key, label] of PILE_DIFF_METRICS) {
+    const av = a?.[key] ?? null;
+    const bv = b?.[key] ?? null;
+    if (av === null && bv === null) continue;
+    const delta = av !== null && bv !== null ? bv - av : null;
+    const pct = delta !== null && av ? (delta / av) * 100 : null;
+    rows.push({ key, label, a: av, b: bv, delta, pct });
+  }
+  return rows;
 }
