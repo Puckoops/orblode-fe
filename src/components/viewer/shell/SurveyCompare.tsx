@@ -15,6 +15,7 @@ import { type Survey } from "@/lib/api/orblodeSvc";
 import { formatSurveyDate } from "@/lib/utils";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import { useCompareSurveys } from "@/components/viewer/shell/hooks/useCompareSurveys";
+import { PileCompare, SideTag } from "@/components/viewer/shell/PileCompare";
 
 // Clamp the divider to a visible band so the handle never slips fully behind an
 // edge (mirrors the hook's inert-when-no-split contract — this is purely UI).
@@ -35,7 +36,7 @@ function EpochPicker({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="caps flex size-5 shrink-0 items-center justify-center rounded-xs bg-surface-3 text-ink-1">{tag}</span>
+      <SideTag tag={tag} />
       <Select
         variant="filter"
         aria-label={`Survey ${tag}`}
@@ -128,14 +129,18 @@ export function SurveyCompare({ projectId }: { projectId: string }) {
 
       {/* Bottom-center A/B pickers + exit — present only in compare mode. The
           toolbar's Compare tool is what turns the mode on; this is the in-mode
-          epoch chooser, not a launcher. */}
+          epoch chooser, not a launcher. Below the pickers, the selected
+          stockpile on A against B. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-5 z-30 flex justify-center">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-hairline bg-surface/90 px-3 py-2 shadow-[var(--shadow-overlay)] backdrop-blur-md">
-          <EpochPicker tag="A" value={compareA} surveys={surveys} onChange={setCompareA} />
-          <Icon icon={ArrowLeftRightIcon} size={16} className="shrink-0 text-ink-4" />
-          <EpochPicker tag="B" value={compareB} surveys={surveys} onChange={setCompareB} />
-          <div className="h-5 w-px bg-hairline" />
-          <IconButton icon={Cancel01Icon} aria-label="Exit compare" variant="bare" size="sm" onClick={deactivate} />
+        <div className="pointer-events-auto flex flex-col rounded-lg border border-hairline bg-surface/90 shadow-[var(--shadow-overlay)] backdrop-blur-md">
+          <div className="flex items-center gap-2 px-3 py-2">
+            <EpochPicker tag="A" value={compareA} surveys={surveys} onChange={setCompareA} />
+            <Icon icon={ArrowLeftRightIcon} size={16} className="shrink-0 text-ink-4" />
+            <EpochPicker tag="B" value={compareB} surveys={surveys} onChange={setCompareB} />
+            <div className="h-5 w-px bg-hairline" />
+            <IconButton icon={Cancel01Icon} aria-label="Exit compare" variant="bare" size="sm" onClick={deactivate} />
+          </div>
+          <PileCompare compareA={compareA} compareB={compareB} dateOf={dateOf} />
         </div>
       </div>
     </>
