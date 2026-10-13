@@ -85,7 +85,7 @@ export interface ReprocessPlan extends ProcessorPlan {
   assets: SourceAsset[];
 }
 
-/** Dispatches for the assets that need processing, each in its own CRS (`epsg` where it has none).
+/** Dispatches for the assets that need processing, each in its own CRS, else its upload's fallback, else `epsg`.
  * vector-features builds every vector layer of a survey from one call, so a vector or contour file
  * that needs processing brings all of the survey's vector and contour files into the batch. */
 export function reprocessPlan(assets: SourceAsset[], opts: { epsg: string; alsoDue?: ReadonlySet<string> }): ReprocessPlan {
@@ -95,7 +95,7 @@ export function reprocessPlan(assets: SourceAsset[], opts: { epsg: string; alsoD
   const batch = ready.filter((a) => isDue(a) || (withVectors && joinsVectorBatch(a)));
   const files = batch.flatMap((a): PlannedFile[] => {
     const role = assetRole(a);
-    return role ? [{ name: assetName(a), role, url: a.url, crs: a.crs || undefined }] : [];
+    return role ? [{ name: assetName(a), role, url: a.url, crs: a.crs || a.declared_crs || undefined }] : [];
   });
   return { ...buildProcessorPlan(files, { epsg: opts.epsg }), assets: batch };
 }

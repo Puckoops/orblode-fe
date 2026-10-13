@@ -1,4 +1,5 @@
 import type { ChipTone, GlyphShape } from "@puckoops/camelot";
+import type { CrsSourceLabel } from "@/lib/upload/review";
 
 export interface StateStyle {
   label: string;
@@ -63,6 +64,29 @@ export const UPLOAD_ROW: Record<"uploading" | "uploaded" | "error", StateStyle> 
   uploaded: { label: "Done", tone: "teal", glyph: "check" },
   error: { label: "Failed", tone: "red", glyph: "triangle" },
 };
+
+/** Where a file's CRS came from. A guess from other files, earlier surveys or the site settles only at high confidence. */
+export function crsSourceState(source: CrsSourceLabel, confidence?: "high" | "medium" | "low"): StateStyle {
+  const label = source[0].toUpperCase() + source.slice(1);
+  switch (source) {
+    case "from file":
+    case "you":
+      return { label, tone: "teal", glyph: "check" };
+    case "assumed":
+      return { label, tone: "amber", glyph: "circle-dashed" };
+    default:
+      return confidence === "high" ? { label, tone: "teal", glyph: "check" } : { label, tone: "amber", glyph: "diamond" };
+  }
+}
+
+/** A CRS the browser read from the start of a file before upload; the server's read replaces it. */
+export const PRELIMINARY_CRS: StateStyle = { label: "From file (preliminary)", tone: "neutral", glyph: "circle-dashed" };
+
+/** An uploaded file the server is still reading. */
+export const READING_FILE: StateStyle = { label: "Reading the file", tone: "blue", glyph: "circle-half" };
+
+/** A file that will be processed but has no CRS yet. */
+export const NEEDS_CRS: StateStyle = { label: "Needs a CRS", tone: "amber", glyph: "triangle" };
 
 /** A stockpile's place in the inventory: whether its numbers match its outline. */
 export function pileState(state: string | null | undefined): StateStyle {

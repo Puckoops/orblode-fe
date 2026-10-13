@@ -9,6 +9,7 @@ import {
   roleNeedsHeader,
   roleToAssetKind,
   settleRole,
+  skipReason,
   type DataType,
   type FileRole,
 } from "../planner.ts";
@@ -283,4 +284,43 @@ test("an orthophoto that isn't a GeoTIFF is stored, not sent to orthophoto-tiles
   assert.deepEqual(plan.skips, [
     { filename: MINE_SITE.jpegs[1], reason: "stored — orthophoto tiles are built only from a GeoTIFF" },
   ]);
+});
+
+test("a file to process with no CRS of its own and no fallback is stored with a reason, not dispatched", () => {
+  const plan = buildProcessorPlan(
+    [
+      { name: "dsm.tif", role: "dsm", url: url("dsm.tif") },
+      { name: "cloud.laz", role: "pointcloud", url: url("cloud.laz"), crs: "EPSG:28356" },
+      { name: "site.ttm", role: "site_model", url: url("site.ttm") },
+    ],
+    { epsg: "" }
+  );
+  assert.deepEqual(
+    plan.dispatches.map((d) => d.request.processor_type),
+    ["pointcloud-tiles"]
+  );
+  assert.deepEqual(plan.skips, [
+    { filename: "dsm.tif", reason: "stored — its CRS isn't known; set one to process it" },
+    { filename: "site.ttm", reason: "3D mesh stored — no processor turns meshes into viewer tiles yet" },
+  ]);
+});
+
+test("skipReason names exactly the files the plan skips", () => {
+  const files = [
+    { name: "ortho.tif", role: "ortho" as const },
+    { name: "ortho.zip", role: "ortho" as const },
+    { name: "contours.dxf", role: "contours" as const },
+    { name: "Mine_Site_DXF_faces.zip", role: "vector" as const },
+    { name: "site.obj", role: "site_model" as const },
+    { name: "cloud.laz", role: "pointcloud" as const },
+    { name: "plan.ifc", role: "design" as const },
+  ];
+  const plan = buildProcessorPlan(
+    files.map((f) => ({ ...f, url: url(f.name) })),
+    { epsg: "EPSG:28356" }
+  );
+  assert.deepEqual(
+    files.filter((f) => skipReason(f.name, f.role)).map((f) => ({ filename: f.name, reason: skipReason(f.name, f.role) })),
+    plan.skips
+  );
 });

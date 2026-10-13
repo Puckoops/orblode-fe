@@ -26,7 +26,7 @@ function fakeApi(overrides: Partial<UploadApi> = {}) {
     },
     markAssetUploaded: async (_surveyId, assetId) => {
       calls.mark.push(assetId);
-      return { id: assetId } as SourceAsset;
+      return { id: assetId, detection: { status: "inspecting" } } as SourceAsset;
     },
     ...overrides,
   };
@@ -41,6 +41,11 @@ const slot = (name: string, uploaded: boolean, marked: boolean): AssetSlot => ({
   uploadUrl: `https://signed/${name}`,
   uploaded,
   marked,
+});
+
+const markedSlot = (name: string): AssetSlot => ({
+  ...slot(name, true, true),
+  asset: { id: `asset-${name}`, detection: { status: "inspecting" } } as SourceAsset,
 });
 
 test("mints slots, uploads and marks every file, reporting each as uploaded", async () => {
@@ -64,12 +69,35 @@ test("mints slots, uploads and marks every file, reporting each as uploaded", as
   ]);
   assert.deepEqual(calls.put, ["https://signed/dsm.tif", "https://signed/cloud.laz"]);
   assert.deepEqual(calls.mark, ["asset-dsm.tif", "asset-cloud.laz"]);
-  assert.deepEqual(slots["dsm.tif"], slot("dsm.tif", true, true));
+  assert.deepEqual(slots["dsm.tif"], markedSlot("dsm.tif"));
   assert.deepEqual(statuses, [
     ["dsm.tif", "uploading"],
     ["dsm.tif", "uploaded"],
     ["cloud.laz", "uploading"],
     ["cloud.laz", "uploaded"],
+  ]);
+});
+
+test("the upload's fallbacks go out as declared_*, never as the file's own crs", async () => {
+  const { api, calls } = fakeApi();
+  await uploadFiles(api, {
+    surveyId: "s1",
+    files: [
+      { file: file("contours.dxf"), kind: "vector", role: "contours", declaredCrs: "EPSG:28356", declaredVerticalDatum: "AHD" },
+      { file: file("dsm.tif"), kind: "terrain", role: "dsm" },
+    ],
+    slots: {},
+  });
+  assert.deepEqual(calls.init[0], [
+    {
+      filename: "contours.dxf",
+      kind: "vector",
+      role: "contours",
+      content_type: "application/octet-stream",
+      declared_crs: "EPSG:28356",
+      declared_vertical_datum: "AHD",
+    },
+    { filename: "dsm.tif", kind: "terrain", role: "dsm", content_type: "image/tiff" },
   ]);
 });
 
@@ -101,6 +129,7 @@ test("a retry resumes: no second slot, no re-sent bytes, only the missing mark",
   );
   assert.deepEqual(calls.put, ["https://signed/c.tif"]);
   assert.deepEqual(calls.mark, ["asset-b.tif", "asset-c.tif"]);
+  assert.deepEqual(slots["b.tif"], markedSlot("b.tif"));
 });
 
 test("a failed upload reports the file as failed, rethrows, and keeps its slot for the retry", async () => {
@@ -125,7 +154,7 @@ test("a failed upload reports the file as failed, rethrows, and keeps its slot f
   fail = false;
   await uploadFiles(api, run);
   assert.equal(calls.init.length, 1);
-  assert.deepEqual(slots["a.tif"], slot("a.tif", true, true));
+  assert.deepEqual(slots["a.tif"], markedSlot("a.tif"));
 });
 
 test("marking uploaded is retried through a transient failure", async () => {

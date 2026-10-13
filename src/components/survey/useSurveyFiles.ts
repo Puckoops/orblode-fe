@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDetectionPoll } from "@/hooks/useDetectionPoll";
+import { refusalMessage } from "@/lib/api/client";
 import {
   generateSurvey,
+  inspectAsset,
   listSurveyAssets,
   removeSurveyAsset,
   updateSurveyAsset,
@@ -18,6 +21,7 @@ import { uploadFiles, type AssetSlot, type UploadFileStatus } from "@/lib/upload
 import { guessRole, roleNeedsHeader, roleToAssetKind, settleRole, type DataType, type FileRole } from "@/lib/upload/planner";
 import { refineRoles } from "@/lib/upload/rasterRole";
 import { UploadTimeoutError } from "@/lib/upload/putToSignedUrl";
+import { isInspecting } from "@/lib/upload/review";
 import { uploadApi } from "@/lib/upload/uploadApi";
 
 export interface ReplaceState {
@@ -65,8 +69,12 @@ export function useSurveyFiles({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [replacing, setReplacing] = useState<Record<string, ReplaceState>>({});
   const [queue, setQueue] = useState<QueuedFile[]>([]);
-  const [queueCrs, setQueueCrs] = useState("");
+  // null until picked: the survey's own CRS stands in; "" is a pick of none.
+  const [queueCrs, setQueueCrs] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [checkedAt, setCheckedAt] = useState(0);
+  const [pollRound, setPollRound] = useState<number | null>(null);
+  const [redetecting, setRedetecting] = useState<ReadonlySet<string>>(new Set());
   // Files added in this drawer count as due even before the list reloads with their needs_processing.
   const [addedIds, setAddedIds] = useState<ReadonlySet<string>>(new Set());
   const [reprocessing, setReprocessing] = useState(false);
@@ -75,21 +83,28 @@ export function useSurveyFiles({
   const replaceRuns = useRef<Record<string, { file: File; slots: Record<string, AssetSlot> }>>({});
   const queueSlots = useRef<Record<string, AssetSlot>>({});
 
+  const showAndWatch = useCallback((list: SourceAsset[]) => {
+    const now = Date.now();
+    setAssets(list);
+    setCheckedAt(now);
+    if (list.some((a) => isInspecting(a, now))) setPollRound((r) => (r ?? 0) + 1);
+  }, []);
+
   const reload = useCallback(async () => {
     try {
       const { assets: list } = await listSurveyAssets(surveyId);
-      setAssets(list || []);
+      showAndWatch(list || []);
       setLoadError(null);
     } catch (err) {
       setLoadError(errorText(err, "The survey's files couldn't load."));
     }
-  }, [surveyId]);
+  }, [surveyId, showAndWatch]);
 
   useEffect(() => {
     let cancelled = false;
     listSurveyAssets(surveyId)
       .then(({ assets: list }) => {
-        if (!cancelled) setAssets(list || []);
+        if (!cancelled) showAndWatch(list || []);
       })
       .catch((err) => {
         if (!cancelled) setLoadError(errorText(err, "The survey's files couldn't load."));
@@ -97,7 +112,35 @@ export function useSurveyFiles({
     return () => {
       cancelled = true;
     };
+  }, [surveyId, showAndWatch]);
+
+  const pollDetections = useCallback(async () => {
+    const { assets: list } = await listSurveyAssets(surveyId);
+    const now = Date.now();
+    setAssets(list || []);
+    setCheckedAt(now);
+    return (list || []).some((a) => isInspecting(a, now));
   }, [surveyId]);
+
+  useDetectionPoll(pollDetections, pollRound);
+
+  const detectAgain = async (asset: SourceAsset) => {
+    setRedetecting((prev) => new Set(prev).add(asset.id));
+    try {
+      const updated = await inspectAsset(surveyId, asset.id);
+      setAssets((prev) => prev?.map((a) => (a.id === asset.id ? { ...a, ...updated } : a)) ?? prev);
+      setCheckedAt(Date.now());
+      setPollRound((r) => (r ?? 0) + 1);
+    } catch (err) {
+      toast.error(refusalMessage(err, "Couldn't ask for the file to be read again. Try again."));
+    } finally {
+      setRedetecting((prev) => {
+        const next = new Set(prev);
+        next.delete(asset.id);
+        return next;
+      });
+    }
+  };
 
   const changed = useCallback(async () => {
     await reload();
@@ -121,7 +164,7 @@ export function useSurveyFiles({
     try {
       await uploadFiles(uploadApi, {
         surveyId,
-        files: [{ file, kind: asset.kind, role: asset.role || assetRole(asset) || "", crs: asset.crs, replaces: asset.id }],
+        files: [{ file, kind: asset.kind, role: asset.role || assetRole(asset) || "", declaredCrs: asset.crs, replaces: asset.id }],
         slots,
         onProgress: (_name, progress) =>
           setReplacing((prev) => (prev[asset.id] ? { ...prev, [asset.id]: { ...prev[asset.id], progress } } : prev)),
@@ -192,17 +235,17 @@ export function useSurveyFiles({
   const dequeue = (name: string) => setQueue((prev) => prev.filter((q) => q.file.name !== name));
 
   const sourceCrs = survey ? surveySourceCrs(survey) : "";
-  const effectiveQueueCrs = queueCrs || sourceCrs;
+  const effectiveQueueCrs = queueCrs ?? sourceCrs;
 
   const uploadQueue = async () => {
-    if (queue.length === 0 || !effectiveQueueCrs || readingRoles) return;
+    if (queue.length === 0 || readingRoles) return;
     const files = queue;
     setAdding(true);
     setQueue((prev) => prev.map((q) => (q.status === "error" ? { ...q, status: "queued", progress: 0 } : q)));
     try {
       await uploadFiles(uploadApi, {
         surveyId,
-        files: files.map((q) => ({ file: q.file, kind: roleToAssetKind(q.role), role: q.role, crs: effectiveQueueCrs })),
+        files: files.map((q) => ({ file: q.file, kind: roleToAssetKind(q.role), role: q.role, declaredCrs: effectiveQueueCrs || undefined })),
         slots: queueSlots.current,
         onStatus: (name, status) =>
           setQueue((prev) =>
@@ -224,7 +267,7 @@ export function useSurveyFiles({
   };
 
   const plan: ReprocessPlan | null = useMemo(
-    () => (assets && sourceCrs ? reprocessPlan(assets, { epsg: sourceCrs, alsoDue: addedIds }) : null),
+    () => (assets ? reprocessPlan(assets, { epsg: sourceCrs, alsoDue: addedIds }) : null),
     [assets, sourceCrs, addedIds]
   );
 
@@ -285,6 +328,9 @@ export function useSurveyFiles({
     dequeue,
     queueCrs: effectiveQueueCrs,
     setQueueCrs,
+    checkedAt,
+    detectAgain,
+    redetecting,
     adding,
     uploadQueue,
     readingRoles,

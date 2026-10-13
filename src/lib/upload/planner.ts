@@ -195,7 +195,7 @@ export interface PlannedFile {
 }
 
 export interface PlannerOptions {
-  /** Horizontal CRS chosen in the form, e.g. "EPSG:32645". */
+  /** Horizontal CRS for files that carry none, e.g. "EPSG:32645"; may be "". */
   epsg: string;
 }
 
@@ -216,6 +216,22 @@ export interface ProcessorPlan {
   skips: PlannedSkip[];
 }
 
+/** Why a file of this role is stored but not processed, or null when the planner dispatches it (a design is registered instead). */
+export function skipReason(filename: string, role: FileRole): string | null {
+  const n = filename.toLowerCase();
+  switch (role) {
+    case "ortho":
+      return isGeoTiff(ext(n)) ? null : "stored — orthophoto tiles are built only from a GeoTIFF";
+    case "contours":
+    case "vector":
+      return vectorFeaturesReads(n) ? null : vectorSkipReason(n);
+    case "site_model":
+      return "3D mesh stored — no processor turns meshes into viewer tiles yet";
+    default:
+      return null;
+  }
+}
+
 /** Builds the processor dispatch plan for a set of uploaded files. */
 export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): ProcessorPlan {
   const dispatches: PlannedDispatch[] = [];
@@ -225,7 +241,13 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
   const vectorFiles: PlannedFile[] = [];
 
   for (const f of files) {
+    if (f.role === "design") continue;
     const crs = f.crs || opts.epsg;
+    const reason = skipReason(f.name, f.role) ?? (crs ? null : "stored — its CRS isn't known; set one to process it");
+    if (reason) {
+      skips.push({ filename: f.name, reason });
+      continue;
+    }
     switch (f.role) {
       case "dsm":
       case "dtm":
@@ -242,18 +264,14 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
         });
         break;
       case "ortho":
-        if (isGeoTiff(ext(f.name))) {
-          dispatches.push({
-            label: `Ortho tiles (${f.name})`,
-            request: {
-              processor_type: "orthophoto-tiles",
-              payload: { source: { url: f.url, kind: "ortho", crs } },
-              inputs: [{ url: f.url, kind: "ortho", crs }],
-            },
-          });
-        } else {
-          skips.push({ filename: f.name, reason: "stored — orthophoto tiles are built only from a GeoTIFF" });
-        }
+        dispatches.push({
+          label: `Ortho tiles (${f.name})`,
+          request: {
+            processor_type: "orthophoto-tiles",
+            payload: { source: { url: f.url, kind: "ortho", crs } },
+            inputs: [{ url: f.url, kind: "ortho", crs }],
+          },
+        });
         break;
       case "pointcloud":
         dispatches.push({
@@ -270,20 +288,7 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
         break;
       case "contours":
       case "vector":
-        if (vectorFeaturesReads(f.name)) {
-          vectorFiles.push({ ...f, crs });
-        } else {
-          skips.push({ filename: f.name, reason: vectorSkipReason(f.name.toLowerCase()) });
-        }
-        break;
-      case "site_model":
-        skips.push({
-          filename: f.name,
-          reason: "3D mesh stored — no processor turns meshes into viewer tiles yet",
-        });
-        break;
-      case "design":
-        // Designs are registered via POST /designs, not a processor dispatch.
+        vectorFiles.push({ ...f, crs });
         break;
     }
   }

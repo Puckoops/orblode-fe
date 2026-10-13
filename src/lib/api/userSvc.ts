@@ -94,6 +94,11 @@ export function createProject(req: CreateProjectRequest): Promise<Project> {
   return apiFetch<Project>(USERS_API, "/orblode/projects", { method: "POST", body: req });
 }
 
+/** Writes only the fields sent. Needs can_manage_users on the project (its project managers and client admins). */
+export function updateProject(id: string, change: Partial<Omit<CreateProjectRequest, "workspace_id">>): Promise<Project> {
+  return apiFetch<Project>(USERS_API, `/orblode/projects/${encodeURIComponent(id)}`, { method: "PUT", body: change });
+}
+
 /** A group of sites. A role on it reaches every site in it; the organisation's owners and admins manage them all. */
 export interface Workspace {
   id: string;
