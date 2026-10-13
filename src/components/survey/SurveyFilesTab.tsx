@@ -1,6 +1,6 @@
 "use client";
 
-import { Cancel01Icon, Delete02Icon, File01Icon, FileSyncIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Delete02Icon, File01Icon, FileScanIcon, FileSyncIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
 import {
   Alert,
   Button,
@@ -21,7 +21,7 @@ import { StateChip } from "@/components/common/StateChip";
 import type { SurveyFiles } from "@/components/survey/useSurveyFiles";
 import type { SourceAsset, Survey, UpdateSurveyAssetRequest } from "@/lib/api/orblodeSvc";
 import { stripErrNamespace } from "@/lib/api/errors";
-import { NEEDS_REPROCESSING, PENDING_UPLOAD, UPLOAD_ROW } from "@/lib/status";
+import { NEEDS_CRS, NEEDS_REPROCESSING, PENDING_UPLOAD, READING_FILE, UPLOAD_ROW, crsSourceState, type StateStyle } from "@/lib/status";
 import { assetName, assetRole } from "@/lib/survey/edit";
 import { toast } from "@/lib/toast";
 import { CRS_OPTIONS, VDATUM_OPTIONS, withCurrent } from "@/lib/upload/options";
@@ -32,9 +32,11 @@ import {
   ROLE_LABELS,
   SELECTABLE_ROLES,
   roleToAssetKind,
+  skipReason,
   type DataType,
   type FileRole,
 } from "@/lib/upload/planner";
+import { crsSourceLabel, detectionNote, effectiveCrs, isInspecting } from "@/lib/upload/review";
 
 const ROLE_ORDER: FileRole[] = ["dsm", "dtm", "ortho", "pointcloud", "contours", "vector", "site_model", "design"];
 
@@ -236,7 +238,20 @@ function AssetRow({
   const isDesign = role === "design";
   const dueForProcessing = !pending && !isDesign && files.isDue(asset);
   const busy = files.busy;
-  const meta = [formatBytes(asset.size_bytes), asset.crs, asset.vertical_datum].filter(Boolean).join(" · ");
+  const crs = effectiveCrs(asset);
+  const meta = [formatBytes(asset.size_bytes), crs, asset.vertical_datum || asset.declared_vertical_datum].filter(Boolean).join(" · ");
+  const inspecting = isInspecting(asset, files.checkedAt);
+  const source = crsSourceLabel(asset);
+  const needsCrs = !pending && !!role && !isDesign && !crs && skipReason(name, role) === null;
+  const crsChip: StateStyle | null = inspecting
+    ? READING_FILE
+    : source
+      ? crsSourceState(source, asset.detection?.crs?.confidence)
+      : needsCrs
+        ? NEEDS_CRS
+        : null;
+  const note = detectionNote(asset, files.checkedAt);
+  const notes = [...(asset.detection?.warnings ?? []), ...(note ? [note] : [])];
 
   return (
     <li className={`px-4 py-3 ${last ? "" : "border-b border-hairline"}`}>
@@ -259,6 +274,16 @@ function AssetRow({
           <div className="flex shrink-0 items-center gap-1">
             {!isDesign && !pending && (
               <>
+                <Tooltip content="Detect again">
+                  <IconButton
+                    icon={FileScanIcon}
+                    aria-label={`Detect ${name} again`}
+                    variant="bare"
+                    size="sm"
+                    disabled={busy || editing || inspecting || files.redetecting.has(asset.id)}
+                    onClick={() => void files.detectAgain(asset)}
+                  />
+                </Tooltip>
                 <Tooltip content="Replace file">
                   <IconButton icon={FileSyncIcon} aria-label={`Replace ${name}`} variant="bare" size="sm" disabled={busy || editing} onClick={onReplace} />
                 </Tooltip>
@@ -283,6 +308,16 @@ function AssetRow({
       </div>
       {replacement?.status === "uploading" && (
         <Progress value={Math.round(replacement.progress * 100)} size="thin" aria-label={`${replacement.file.name} upload`} className="mt-2" />
+      )}
+      {!replacement && (crsChip || notes.length > 0) && (
+        <div className="mt-2 flex flex-col items-start gap-1 pl-7">
+          {crsChip && <StateChip state={crsChip} />}
+          {notes.map((n) => (
+            <p key={n} className="caption text-ink-3">
+              {n}
+            </p>
+          ))}
+        </div>
       )}
       {editing && <AssetEditor asset={asset} onSave={(patch) => files.saveAsset(asset, patch)} onDone={onEditDone} />}
     </li>
@@ -396,17 +431,17 @@ function AddFiles({ files, dataType }: { files: SurveyFiles; dataType: DataType 
               </li>
             ))}
           </ul>
-          <Field label="Coordinate reference system" required hint="The CRS these files are actually in. It defaults to the one the survey was uploaded in.">
+          <Field label="CRS for files that don't say" hint="Optional. Each file's own CRS comes first. This starts as the one the survey was uploaded in.">
             <Select
-              value={files.queueCrs || undefined}
+              value={files.queueCrs}
               onValueChange={files.setQueueCrs}
               disabled={adding}
-              placeholder="Select the CRS of your files…"
+              allLabel="None"
               options={withCurrent(CRS_OPTIONS, files.queueCrs)}
             />
           </Field>
           <div className="flex justify-end">
-            <Button size="sm" variant="primary" loading={adding} disabled={!files.queueCrs || files.readingRoles || (files.busy && !adding)} onClick={() => void files.uploadQueue()}>
+            <Button size="sm" variant="primary" loading={adding} disabled={files.readingRoles || (files.busy && !adding)} onClick={() => void files.uploadQueue()}>
               {failed ? "Retry upload" : `Upload ${queue.length} file${queue.length === 1 ? "" : "s"}`}
             </Button>
           </div>

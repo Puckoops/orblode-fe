@@ -20,6 +20,8 @@ export interface AssetSlot {
   uploadUrl: string;
   uploaded: boolean;
   marked: boolean;
+  /** The asset as marking it uploaded returned it, with its detection queued. */
+  asset?: SourceAsset;
 }
 
 export interface UploadApi {
@@ -33,6 +35,8 @@ export interface UploadFile {
   kind: string;
   role: string;
   crs?: string;
+  declaredCrs?: string;
+  declaredVerticalDatum?: string;
   /** The asset this upload supersedes once it is marked uploaded. */
   replaces?: string;
 }
@@ -67,7 +71,9 @@ export async function uploadFiles(api: UploadApi, run: UploadRun, retry?: RetryO
         kind: f.kind,
         role: f.role,
         content_type: contentTypeFor(f.file.name),
-        crs: f.crs,
+        ...(f.crs ? { crs: f.crs } : {}),
+        ...(f.declaredCrs ? { declared_crs: f.declaredCrs } : {}),
+        ...(f.declaredVerticalDatum ? { declared_vertical_datum: f.declaredVerticalDatum } : {}),
         ...(f.replaces ? { replaces: f.replaces } : {}),
       }))
     );
@@ -104,7 +110,7 @@ export async function uploadFiles(api: UploadApi, run: UploadRun, retry?: RetryO
       // bytes as pending_upload. Marking is idempotent (it flips one row to registered), so it
       // gets its own retry.
       if (!slot.marked) {
-        await withRetry(() => api.markAssetUploaded(surveyId, slot.assetId), retry);
+        slot.asset = await withRetry(() => api.markAssetUploaded(surveyId, slot.assetId), retry);
         slot.marked = true;
       }
     } catch (err) {

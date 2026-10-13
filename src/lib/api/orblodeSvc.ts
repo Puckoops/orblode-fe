@@ -96,14 +96,101 @@ export function updateSurveyStatus(surveyId: string, status: string): Promise<Su
 
 /** One requested upload slot. `kind` is one of the ingest kinds the planner
  * produces: terrain | ortho | pointcloud | vector | site_model. `replaces`
- * names the asset this upload supersedes once it is marked uploaded. */
+ * names the asset this upload supersedes once it is marked uploaded. `crs` is an
+ * explicit choice for this one file and beats what its header says; `declared_*`
+ * are the upload's fallbacks for files that don't say. */
 export interface UploadInitFile {
   filename: string;
   kind: string;
   role?: string;
   content_type?: string;
   crs?: string;
+  declared_crs?: string;
+  declared_vertical_datum?: string;
   replaces?: string;
+}
+
+/** `inspecting` turns stale 120 s after `requested_at`. `unavailable`: no inspector answered. `failed`: it couldn't read the file. */
+export type DetectionStatus = "inspecting" | "done" | "failed" | "unavailable" | "";
+
+export type DetectionClass = "raster" | "pointcloud" | "vector" | "mesh" | "archive" | "image" | "unknown";
+
+export type CrsSource = "header" | "format" | "sibling" | "previous" | "site" | "declared" | "range" | "user";
+
+export interface DetectedCrs {
+  /** "" when the file's WKT matched no EPSG code. */
+  epsg: string;
+  name?: string;
+  source: CrsSource;
+  confidence: "high" | "medium" | "low";
+  candidates?: string[] | null;
+}
+
+export interface DetectedVertical {
+  /** AHD | EGM2008 | EGM96 | ellipsoidal */
+  datum: string;
+  epsg?: string;
+  source: "header" | "name" | "declared" | "user";
+}
+
+export interface DetectedRaster {
+  width: number;
+  height: number;
+  bands: number;
+  data_type: string;
+  pixel_size: number[];
+  nodata: number | null;
+}
+
+export interface DetectedPointcloud {
+  version: string;
+  point_format: number;
+  point_count: number;
+}
+
+export interface DetectedVectorLayer {
+  name: string;
+  geometry: string;
+  has_z: boolean;
+  feature_count: number | null;
+  fields: string[] | null;
+}
+
+export interface DetectedVector {
+  layers: DetectedVectorLayer[] | null;
+  dxf: { sampled: number; faces: number; lines: number; constant_z_lines: number } | null;
+}
+
+export interface DetectedMember {
+  name: string;
+  size: number;
+  class: DetectionClass;
+}
+
+/** What the inspector read from an uploaded file's header, and what orblode-svc decided from it.
+ * The server never changes the asset's role or kind: the upload's review applies `suggested_role`. */
+export interface Detection {
+  status: DetectionStatus;
+  requested_at?: EpochMs;
+  inspected_at?: EpochMs;
+  error?: string;
+  format?: string;
+  class?: DetectionClass;
+  crs?: DetectedCrs | null;
+  vertical?: DetectedVertical | null;
+  /** [minx, miny, maxx, maxy] in the file's own coordinates. */
+  bounds_native?: number[] | null;
+  /** [west, south, east, north]; only when the CRS is known. */
+  bounds_wgs84?: number[] | null;
+  raster?: DetectedRaster | null;
+  pointcloud?: DetectedPointcloud | null;
+  vector?: DetectedVector | null;
+  members?: DetectedMember[] | null;
+  inspected_member?: string;
+  suggested_role?: "dsm" | "dtm" | "ortho" | "pointcloud" | "contours" | "vector" | "site_model" | "";
+  suggested_processor?: string;
+  skip_reason?: string;
+  warnings?: string[] | null;
 }
 
 /** A registered (or pending) source object on a survey. */
@@ -116,8 +203,12 @@ export interface SourceAsset {
   url: string;
   filename?: string;
   size_bytes?: number;
+  /** The resolved CRS: the per-file choice, else what detection settled on. */
   crs?: string;
   vertical_datum?: string;
+  declared_crs?: string;
+  declared_vertical_datum?: string;
+  detection?: Detection | null;
   status: string;
   is_active?: boolean;
   /** Set when the file or its settings changed and its outputs have not been rebuilt; a generate
@@ -172,6 +263,19 @@ export interface UpdateSurveyAssetRequest {
 /** Returns the asset with `needs_processing` set. */
 export function updateSurveyAsset(surveyId: string, assetId: string, body: UpdateSurveyAssetRequest): Promise<SourceAsset> {
   return apiFetch<SourceAsset>(BASE, `/surveys/${surveyId}/assets/${assetId}`, { method: "PATCH", body });
+}
+
+/** Reads the file's header again in the background: answers with `detection.status` "inspecting". */
+export function inspectAsset(surveyId: string, assetId: string): Promise<SourceAsset> {
+  return apiFetch<SourceAsset>(BASE, `/surveys/${surveyId}/assets/${assetId}/inspect`, { method: "POST" });
+}
+
+/** inspectAsset for every active, uploaded asset of the survey. */
+export async function inspectSurveyAssets(surveyId: string): Promise<SourceAsset[]> {
+  const res = await apiFetch<SourceAsset[] | { assets?: SourceAsset[] | null } | null>(BASE, `/surveys/${surveyId}/assets/inspect`, {
+    method: "POST",
+  });
+  return (Array.isArray(res) ? res : res?.assets) ?? [];
 }
 
 /** Soft delete (`status: "removed"`); the server also deactivates the file's processed output, so
