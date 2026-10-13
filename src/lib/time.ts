@@ -18,3 +18,41 @@ export function formatTimestamp(ms: EpochMs | null | undefined): string {
 export function compareNewestFirst(a: EpochMs | null | undefined, b: EpochMs | null | undefined): number {
   return (isEpochMs(b) ? b : 0) - (isEpochMs(a) ? a : 0);
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** How many local midnights lie between then and now: 0 today, 1 yesterday. */
+export function daysAgo(then: EpochMs, now: EpochMs): number {
+  const a = new Date(then);
+  const b = new Date(now);
+  return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86_400_000);
+}
+
+/** "12 Oct", with the year when it isn't now's. */
+export function shortDate(ms: EpochMs, now: EpochMs): string {
+  const d = new Date(ms);
+  const label = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return d.getFullYear() === new Date(now).getFullYear() ? label : `${label} ${d.getFullYear()}`;
+}
+
+/** "Tue 14 Oct 2026, 15:42" in the viewer's time, for a tooltip under a relative time. */
+export function exactTime(ms: EpochMs): string {
+  const d = new Date(ms);
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * People's last active: "Active now" inside the 10 minutes a busy session takes to move it, then
+ * "25 min ago", "3 h ago", "Yesterday", "4 days ago" and a date.
+ */
+export function lastActive(ms: EpochMs, now: EpochMs): string {
+  const minutes = Math.floor(Math.max(0, now - ms) / 60_000);
+  if (minutes < 10) return "Active now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const days = daysAgo(ms, now);
+  if (days === 0) return `${Math.floor(minutes / 60)} h ago`;
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return shortDate(ms, now);
+}

@@ -5,24 +5,8 @@ import { useEffect } from "react";
 import { useAuthClient } from "@/hooks/useAuth";
 import { switchOrganisation } from "@/lib/auth";
 import { organisationLabel, orgLink, unopened, withoutOrg } from "@/lib/organisation/links";
+import { markPointedOut, pointedOut } from "@/lib/organisation/pointedOut";
 import { useOrganisation } from "@/lib/organisation/store";
-
-const POINTED_OUT_KEY = "orblode.organisations.pointed-out";
-
-function pointedOut(): string[] {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(POINTED_OUT_KEY) ?? "[]");
-    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function remember(ids: string[]) {
-  try {
-    localStorage.setItem(POINTED_OUT_KEY, JSON.stringify(ids));
-  } catch {}
-}
 
 async function switchTo(clientId: string, to?: string) {
   const failed = await switchOrganisation(clientId, to);
@@ -62,7 +46,7 @@ export function OrganisationLinks() {
           ),
         });
       }
-      if (fresh.length > 0) remember([...seen, ...fresh.map((o) => o.id)]);
+      markPointedOut(fresh.map((o) => o.id));
     });
     return () => {
       cancelled = true;

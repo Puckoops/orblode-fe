@@ -5,7 +5,7 @@ const GROUPS: { label: string; types: string[] }[] = [
   { label: "Designs", types: ["design_ready", "design_failed"] },
   { label: "Measurements", types: ["measurement_computed", "measurement_failed", "stockpiles_computed"] },
   { label: "Sites", types: ["reconciliation_red", "stock_anomaly", "site_summary"] },
-  { label: "People", types: ["member_joined"] },
+  { label: "People", types: ["member_joined", "added_to_organisation"] },
 ];
 
 export interface NotificationGroup {

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { AppNotification } from "@/lib/api/notifications";
+import { followNoticeLink } from "@/lib/notifications/follow";
 import { relativeTime } from "@/lib/notifications/inbox";
 import { useSiteNames } from "@/lib/notifications/siteNames";
 import { useInbox } from "@/lib/notifications/store";
@@ -56,7 +57,7 @@ export function NotificationsDrawer({ open, onOpenChange }: { open: boolean; onO
     void markRead([notice.id]);
     if (notice.link) {
       onOpenChange(false);
-      router.push(notice.link);
+      void followNoticeLink(notice.link, router.push);
     }
   };
 
