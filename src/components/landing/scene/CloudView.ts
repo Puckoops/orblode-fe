@@ -1,6 +1,6 @@
 import type { PointCloud } from "@/lib/landing/cloud";
 import { eyeOf, type Camera } from "@/lib/landing/descent";
-import { isCoarsePointer } from "./env";
+import { isCoarsePointer } from "../env";
 
 export const GROUND_RGB = [14, 12, 10] as const;
 const GROUND = (0xff000000 | (GROUND_RGB[2] << 16) | (GROUND_RGB[1] << 8) | GROUND_RGB[0]) >>> 0;

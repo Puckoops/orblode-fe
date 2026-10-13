@@ -4,7 +4,7 @@ import { frameFor, heightOn } from "@/lib/landing/grid";
 import { SAMPLE_FRAME, type SceneFrame, type SiteInfo } from "@/lib/landing/site";
 import type { SurveyScene } from "@/lib/landing/survey";
 import { sample } from "@/lib/landing/terrain";
-import { isCoarsePointer } from "./env";
+import { isCoarsePointer } from "../env";
 
 type Pending = { job: Job; resolve: (value: unknown) => void; reject: (reason: Error) => void };
 type Reply = { id: number; result?: unknown; error?: string };

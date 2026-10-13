@@ -12,15 +12,19 @@ import { SiteProvider } from "@/components/landing/SiteContext";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { TryViewer } from "@/components/landing/TryViewer";
-import { landingSite } from "@/lib/landing/showcase";
+import { validateMedia } from "@/lib/landing/media";
+import capture from "@/lib/landing/media.json";
 
 export const metadata: Metadata = {
   title: { absolute: "Orblode · See your site from decision altitude" },
   description: "Orblode turns drone surveys into measurable 3D digital twins of mines, construction sites and infrastructure. Measure, compare and decide in the browser.",
 };
 
-export default async function LandingPage() {
-  const site = await landingSite();
+// Rendered ahead of time from the showcase survey by `npm run landing:capture`; a bad manifest fails the build.
+const media = validateMedia(capture);
+
+export default function LandingPage() {
+  const site = media.site;
   return (
     <div data-landing="" className={styles.landing}>
       <SiteProvider site={site}>
@@ -36,14 +40,14 @@ export default async function LandingPage() {
           </div>
           <SiteHeader />
           <main id="main">
-            <Hero />
+            <Hero media={media} />
             <Proof />
-            <Descent />
-            <Measure site={site} />
-            <Pipeline />
-            <Industries site={site} />
-            <TryViewer />
-            <ClosingCta />
+            <Descent descent={media.descent} frame={media.frame} />
+            <Measure site={site} media={media} />
+            <Pipeline contours={media.stills.contoursPipeline!} />
+            <Industries site={site} stills={media.stills} />
+            <TryViewer turntable={media.turntable} />
+            <ClosingCta backdrop={media.stills.closing!} />
           </main>
           <SiteFooter site={site} />
         </DemoRequestProvider>

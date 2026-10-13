@@ -1,10 +1,11 @@
+import type { LandingMedia } from "@/lib/landing/media";
 import type { SiteInfo } from "@/lib/landing/site";
-import { PIT } from "@/lib/landing/terrain";
 import styles from "./landing.module.css";
-import { ContourMap, CutFillCells } from "./MapCanvases";
-import { SurveyContours } from "./SurveyMaps";
+import { LandingPicture } from "./LandingPicture";
 
-export function Industries({ site }: { site: SiteInfo }) {
+const SIZES = "(max-width: 620px) 100vw, (max-width: 1100px) 50vw, 33vw";
+
+export function Industries({ site, stills }: { site: SiteInfo; stills: LandingMedia["stills"] }) {
   return (
     <section id="industries" aria-labelledby="industries-title" className={styles.section}>
       <div className={styles.sectionHead}>
@@ -15,30 +16,17 @@ export function Industries({ site }: { site: SiteInfo }) {
       </div>
       <div className={styles.industries}>
         <article className={styles.industry}>
-          {site.mode === "sample" ? (
-            <ContourMap
-              region={{ x0: -330, x1: 190, y0: -200, y1: 190 }}
-              step={2.5}
-              tint
-              minorAlpha={0.16}
-              majorAlpha={0.55}
-              lineWidth={1.6}
-              size={[1280, 960]}
-              label={`Contour map of an open pit with ${PIT.benches} benches`}
-            />
-          ) : (
-            <SurveyContours label={`Contour map of ${site.name}`} size={[1280, 960]} />
-          )}
+          <LandingPicture picture={stills.contoursMining!} alt={`Contour map of ${site.name}`} sizes={SIZES} className={styles.mapImage} />
           <div className={styles.industryBody}>
             <h3>Mining and quarries</h3>
             <p>Stockpile inventories, pit progress and reconciliation against the mine plan, from every flight.</p>
             <span className={styles.meta}>
-              {site.mode === "sample" ? `2 m contours · ${PIT.benches} benches · ${PIT.depth} m deep` : `Contours of ${site.name} · ${site.surveyDate}`}
+              Contours of {site.name} · {site.surveyDate}
             </span>
           </div>
         </article>
         <article className={styles.industry}>
-          <CutFillCells label="Cut and fill of a construction pad in 10 metre cells, with Lot 4 outlined" />
+          <LandingPicture picture={stills.construction!} alt="Cut and fill of a construction pad in 10 metre cells, with Lot 4 outlined" sizes={SIZES} className={styles.mapImage} />
           <div className={styles.industryBody}>
             <h3>Construction and earthworks</h3>
             <p>As-built against design, cut and fill by cell, and progress claims backed by survey evidence.</p>
@@ -46,16 +34,11 @@ export function Industries({ site }: { site: SiteInfo }) {
           </div>
         </article>
         <article className={styles.industry}>
-          <ContourMap
-            region={{ x0: -430, x1: -30, y0: -430, y1: -130 }}
-            step={2.5}
-            tint={false}
-            minorAlpha={0.1}
-            majorAlpha={0.28}
-            lineWidth={1.6}
-            size={[1280, 960]}
-            corridor
-            label="Corridor plan with chainage every 50 metres and asset markers, over contours"
+          <LandingPicture
+            picture={stills.corridor!}
+            alt="Corridor plan with chainage every 50 metres and asset markers, over contours"
+            sizes={SIZES}
+            className={styles.mapImage}
           />
           <div className={styles.industryBody}>
             <h3>Infrastructure and utilities</h3>

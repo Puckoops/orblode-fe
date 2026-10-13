@@ -11,3 +11,6 @@ export function watchVisibility(el: Element, onChange: (visible: boolean) => voi
   observer.observe(el);
   return () => observer.disconnect();
 }
+
+/** Whether the visitor asked for less data (Chrome's Data Saver / Lite mode); false where browsers don't say. */
+export const saveData = () => !!(navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;

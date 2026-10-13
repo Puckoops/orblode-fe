@@ -1,9 +1,11 @@
 import { formatNumber, formatSigned } from "@/lib/landing/format";
+import type { LandingMedia } from "@/lib/landing/media";
 import type { SiteInfo } from "@/lib/landing/site";
-import { EARLIER_PILE_SCALE } from "@/lib/landing/terrain";
 import styles from "./landing.module.css";
-import { CutFillMap, ProfileChart, SurveyCompare } from "./MeasureTiles";
-import { ChangeFigures, ReliefFigures, SurveyPicture, SurveyProfile, SurveySwipe } from "./SurveyMaps";
+import { LandingPicture } from "./LandingPicture";
+import { SurveySwipe } from "./SurveyMaps";
+
+type Media = Pick<LandingMedia, "figures" | "stills">;
 
 const FORMATS = ["GeoTIFF", "LAS / LAZ", "LandXML", "DXF", "IFC", "OBJ", "OSGB / 3MX", "SHP / GeoJSON"];
 
@@ -35,21 +37,59 @@ function CutFillRow({ cut, fill, legend }: { cut: number; fill: number; legend: 
   );
 }
 
-function WideTile({ site }: { site: SiteInfo }) {
-  if (site.mode === "sample") {
-    return (
-      <>
-        <div className={styles.tileTop}>
-          <h3>Cut and fill against the design</h3>
-          <p>Load the design surface, pick the area, and get cut, fill and net on a 0.2 m grid.</p>
-        </div>
-        <CutFillMap />
-        {site.cutFill && <CutFillRow cut={site.cutFill.cut} fill={site.cutFill.fill} legend />}
-      </>
-    );
-  }
-  const measured = site.cutFill ? <CutFillRow cut={site.cutFill.cut} fill={site.cutFill.fill} legend={false} /> : null;
-  if (site.earlierDate) {
+/** Ground added and removed between the two surveys, from the capture's preview grid. */
+function ChangeFigures({ figures }: { figures: Media["figures"] }) {
+  const change = figures.change;
+  return (
+    <div className={styles.cutFillRow}>
+      <div>
+        <span className={styles.figureKey}>Added</span>
+        <span className={styles.figureValue}>{change ? `${formatNumber(change.added)} m³` : "–"}</span>
+      </div>
+      <div>
+        <span className={styles.figureKey}>Removed</span>
+        <span className={styles.figureValue}>{change ? `${formatNumber(change.removed)} m³` : "–"}</span>
+      </div>
+      <div>
+        <span className={styles.figureKey}>Net</span>
+        <span className={styles.figureValue}>{change ? `${formatSigned(change.added - change.removed)} m³` : "–"}</span>
+      </div>
+      <p className={styles.small}>
+        Estimated on this page&apos;s {formatNumber(figures.cell, 1)} m preview grid; Orblode computes on 0.2 m.{" "}
+        {change ? `Colour saturates at ±${formatNumber(change.range, 1)} m.` : ""}
+      </p>
+    </div>
+  );
+}
+
+function ReliefFigures({ figures }: { figures: Media["figures"] }) {
+  return (
+    <div className={styles.cutFillRow}>
+      <div>
+        <span className={styles.figureKey}>Lowest</span>
+        <span className={styles.figureValue}>{formatNumber(figures.zmin, 1)} m</span>
+      </div>
+      <div>
+        <span className={styles.figureKey}>Highest</span>
+        <span className={styles.figureValue}>{formatNumber(figures.zmax, 1)} m</span>
+      </div>
+      <div>
+        <span className={styles.figureKey}>Contours</span>
+        <span className={styles.figureValue}>{formatNumber(figures.interval, figures.interval < 1 ? 2 : 0)} m</span>
+      </div>
+    </div>
+  );
+}
+
+function WideTile({ site, media }: { site: SiteInfo; media: Media }) {
+  const measured = site.cutFill ? (
+    <>
+      <p className={styles.small}>{site.cutFill.label}, computed in Orblode:</p>
+      <CutFillRow cut={site.cutFill.cut} fill={site.cutFill.fill} legend={false} />
+    </>
+  ) : null;
+  const change = media.stills.change;
+  if (site.earlierDate && change) {
     return (
       <>
         <div className={styles.tileTop}>
@@ -59,19 +99,19 @@ function WideTile({ site }: { site: SiteInfo }) {
           </p>
         </div>
         <div className={styles.mapFrame}>
-          <SurveyPicture kind="change" label={`Height change across ${site.name} between ${site.earlierDate} and ${site.surveyDate}`} />
+          <LandingPicture
+            picture={change}
+            alt={`Height change across ${site.name} between ${site.earlierDate} and ${site.surveyDate}`}
+            sizes="(max-width: 760px) 100vw, 60vw"
+            className={`${styles.mapImage} ${styles.fitImage}`}
+            style={{ aspectRatio: "16 / 10" }}
+          />
         </div>
-        {site.cutFill ? (
-          <>
-            <p className={styles.small}>{site.cutFill.label}, computed in Orblode:</p>
-            {measured}
-          </>
-        ) : (
-          <ChangeFigures />
-        )}
+        {measured ?? <ChangeFigures figures={media.figures} />}
       </>
     );
   }
+  const relief = media.stills.relief!;
   return (
     <>
       <div className={styles.tileTop}>
@@ -81,37 +121,21 @@ function WideTile({ site }: { site: SiteInfo }) {
         </p>
       </div>
       <div className={styles.mapFrame}>
-        <SurveyPicture kind="relief" label={`Elevation of ${site.name} from the ${site.surveyDate} survey`} />
+        <LandingPicture
+          picture={relief}
+          alt={`Elevation of ${site.name} from the ${site.surveyDate} survey`}
+          sizes="(max-width: 760px) 100vw, 60vw"
+          className={`${styles.mapImage} ${styles.fitImage}`}
+          style={{ aspectRatio: "16 / 10" }}
+        />
       </div>
-      {site.cutFill ? (
-        <>
-          <p className={styles.small}>{site.cutFill.label}, computed in Orblode:</p>
-          {measured}
-        </>
-      ) : (
-        <ReliefFigures />
-      )}
+      {measured ?? <ReliefFigures figures={media.figures} />}
     </>
   );
 }
 
-function CompareTile({ site }: { site: SiteInfo }) {
-  if (site.mode === "sample") {
-    return (
-      <>
-        <div className={styles.tileTop}>
-          <h3>Change between surveys</h3>
-          <p>
-            Drag across the image to compare {site.earlierDate} with {site.surveyDate}.
-          </p>
-        </div>
-        <SurveyCompare before={shortDate(site.earlierDate ?? "")} after={shortDate(site.surveyDate)} />
-        <p className={styles.small}>
-          {site.featured?.name} grew by {formatNumber((site.featured?.volume ?? 0) * (1 - EARLIER_PILE_SCALE))} m³ between flights.
-        </p>
-      </>
-    );
-  }
+function CompareTile({ site, media }: { site: SiteInfo; media: Media }) {
+  const before = media.stills.swipeBefore!, after = media.stills.swipeAfter!;
   return site.earlierDate ? (
     <>
       <div className={styles.tileTop}>
@@ -120,7 +144,7 @@ function CompareTile({ site }: { site: SiteInfo }) {
           Drag across the image to compare {site.earlierDate} with {site.surveyDate}.
         </p>
       </div>
-      <SurveySwipe before={shortDate(site.earlierDate)} after={shortDate(site.surveyDate)} />
+      <SurveySwipe before={shortDate(site.earlierDate)} after={shortDate(site.surveyDate)} beforePicture={before} afterPicture={after} />
     </>
   ) : (
     <>
@@ -128,7 +152,7 @@ function CompareTile({ site }: { site: SiteInfo }) {
         <h3>Photo and elevation</h3>
         <p>Drag across the image to swap the orthophoto for the surface model.</p>
       </div>
-      <SurveySwipe before="Elevation" after="Photo" />
+      <SurveySwipe before="Elevation" after="Photo" beforePicture={before} afterPicture={after} />
     </>
   );
 }
@@ -141,7 +165,6 @@ function Receipt({ site }: { site: SiteInfo }) {
         ["Volume", f.volume !== null ? `${formatNumber(f.volume)} m³` : "–"],
         ...(f.area !== null ? ([["Footprint", `${formatNumber(f.area)} m²`]] as [string, string][]) : []),
         ...(f.base ? ([["Base", f.base]] as [string, string][]) : []),
-        ...(site.mode === "sample" ? ([["Grid", "0.2 m"]] as [string, string][]) : []),
         ...(f.computedAt ? ([["Computed", f.computedAt]] as [string, string][]) : []),
         ["Survey", site.surveyDate],
         ["CRS", site.crs],
@@ -165,17 +188,11 @@ function Receipt({ site }: { site: SiteInfo }) {
           </div>
         ))}
       </dl>
-      {site.mode === "sample" && (
-        <p className={styles.share}>
-          <code>orblode.com/s/kr14-stockpile-1</code>
-          <span>Opens this exact view</span>
-        </p>
-      )}
     </>
   );
 }
 
-export function Measure({ site }: { site: SiteInfo }) {
+export function Measure({ site, media }: { site: SiteInfo; media: Media }) {
   return (
     <section id="measure" aria-labelledby="measure-title" className={styles.section}>
       <div className={styles.sectionHead}>
@@ -187,21 +204,22 @@ export function Measure({ site }: { site: SiteInfo }) {
       </div>
       <div className={styles.bento}>
         <article className={`${styles.tile} ${styles.tileWide}`}>
-          <WideTile site={site} />
+          <WideTile site={site} media={media} />
         </article>
         <article className={styles.tile}>
-          <CompareTile site={site} />
+          <CompareTile site={site} media={media} />
         </article>
         <article className={styles.tile}>
           <div className={styles.tileTop}>
             <h3>Sections through anything</h3>
-            <p>
-              {site.mode === "sample"
-                ? "Draw a line and read the profile. A to A′ crosses the pit and its eight benches."
-                : `Draw a line and read the profile. A to A′ runs west to east${site.featured ? ` through ${site.featured.name}` : " across the site"}.`}
-            </p>
+            <p>Draw a line and read the profile. A to A′ runs west to east{site.featured ? ` through ${site.featured.name}` : " across the site"}.</p>
           </div>
-          {site.mode === "sample" ? <ProfileChart /> : <SurveyProfile />}
+          <LandingPicture
+            picture={media.stills.profile!}
+            alt={`Elevation section from A in the west to A prime in the east${site.featured ? ` through ${site.featured.name}` : ""}`}
+            sizes="(max-width: 760px) 100vw, 30vw"
+            className={styles.mapImage}
+          />
         </article>
         <article className={styles.tile}>
           <Receipt site={site} />

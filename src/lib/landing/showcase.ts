@@ -1,28 +1,28 @@
 import "server-only";
 import { fromUrl } from "geotiff";
-import { sampleSite, type SiteInfo } from "./site";
+import type { SiteInfo } from "./site";
 import { MAX_READ_WIDTH } from "./raster";
-import { siteFromShowcase, type ShowcaseEntry } from "./showcaseSite";
-
-/** How long a rendered landing page keeps the showcase before asking orblode-svc again. */
-export const SHOWCASE_REVALIDATE_SECONDS = 300;
+import { displayDate, siteFromShowcase, type ShowcaseEntry } from "./showcaseSite";
 
 /**
- * The site the landing page shows: the survey flagged as the showcase in orblode-svc, or the
- * invented sample quarry when nothing usable is flagged or orblode-svc can't be reached.
+ * The survey flagged as the showcase in orblode-svc, for the landing capture. Throws when
+ * orblode-svc can't be reached or nothing usable is flagged: a capture of the sample site would
+ * silently replace the real one.
  */
-export async function landingSite(): Promise<SiteInfo> {
+export async function showcaseForCapture(): Promise<{ site: SiteInfo; surveyId: string }> {
   const base = process.env.ORBLODE_SVC_URL?.replace(/\/+$/, "");
-  if (!base) return sampleSite();
-  try {
-    const res = await fetch(`${base}/showcase`, { next: { revalidate: SHOWCASE_REVALIDATE_SECONDS }, signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return sampleSite();
-    const body = (await res.json()) as { data?: { surveys?: ShowcaseEntry[] } } | null;
-    return (await siteFromShowcase(body?.data?.surveys ?? [], (path) => hasPreview(`${base}${path}`))) ?? sampleSite();
-  } catch (err) {
-    console.warn("[landing] showcase unavailable, showing the sample site:", err instanceof Error ? err.message : err);
-    return sampleSite();
-  }
+  if (!base) throw new Error("Set ORBLODE_SVC_URL to orblode-svc's /api/v1 base");
+  const res = await fetch(`${base}/showcase`, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`GET /showcase answered ${res.status}`);
+  const entries = ((await res.json()) as { data?: { surveys?: ShowcaseEntry[] } } | null)?.data?.surveys ?? [];
+  const site = await siteFromShowcase(entries, (path) => hasPreview(`${base}${path}`));
+  if (!site) throw new Error("No flagged survey has a DSM the landing can draw");
+  const primary = entries
+    .filter((e) => displayDate(e.survey.survey_date) === site.surveyDate)
+    .sort((a, b) => a.survey.survey_date.localeCompare(b.survey.survey_date))
+    .at(-1);
+  if (!primary) throw new Error("The drawn survey isn't among the flagged ones");
+  return { site, surveyId: primary.survey.id };
 }
 
 /**

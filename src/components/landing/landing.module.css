@@ -118,7 +118,9 @@
 
 .window { position: relative; isolation: isolate; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-window); background: var(--window); }
 .layer { position: absolute; inset: 0; }
-canvas.layer { display: block; width: 100%; height: 100%; }
+canvas.layer, img.layer, video.layer { display: block; width: 100%; height: 100%; }
+.mediaCover { object-fit: cover; }
+.landing picture { display: contents; }
 .sceneCanvas { opacity: 0; transition: opacity 1.4s var(--ease); }
 .sceneCanvas[data-ready] { opacity: 1; }
 .hud { pointer-events: none; font: 400 11.5px/1.55 var(--font-mono); letter-spacing: 0.06em; color: rgb(242 230 214 / 0.74); font-variant-numeric: tabular-nums; }
@@ -142,6 +144,8 @@ canvas.layer { display: block; width: 100%; height: 100%; }
 .reticle::before { left: 50%; top: 0; bottom: 0; width: 1px; }
 .reticle::after { top: 50%; left: 0; right: 0; height: 1px; }
 .hudSite { position: absolute; left: clamp(20px, 4vw, 56px); top: 96px; }
+.heroPause { position: absolute; z-index: 3; right: 26px; bottom: 100px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: rgb(var(--bg-rgb) / 0.6); color: var(--body-hi); font: 500 11.5px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; appearance: none; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.heroPause:hover { border-color: rgb(242 230 214 / 0.45); }
 .hudRead { position: absolute; right: 26px; bottom: 26px; display: grid; justify-items: end; gap: 4px; text-align: right; }
 .scalebar { display: flex; align-items: center; gap: 8px; }
 .scalebar i { display: block; width: 100px; height: 6px; border: 1px solid rgb(242 230 214 / 0.7); border-top: 0; }
@@ -215,9 +219,8 @@ canvas.layer { display: block; width: 100%; height: 100%; }
 .tile p { font-size: 14.5px; }
 .tileWide { grid-column: span 2; }
 .tileTop { display: grid; gap: 6px; }
-.mapCanvas { display: block; width: 100%; height: auto; max-width: 100%; background: var(--window); opacity: 0; transition: opacity 0.9s var(--ease); }
-.mapCanvas[data-ready] { opacity: 1; }
-.fitCanvas { object-fit: contain; }
+.mapImage { display: block; width: 100%; height: auto; max-width: 100%; background: var(--window); }
+.fitImage { object-fit: contain; }
 .mapFrame { position: relative; overflow: hidden; container-type: inline-size; border: 1px solid var(--line); border-radius: 12px; background: var(--window); }
 .mapTag { position: absolute; padding: 5px 7px; border-radius: 6px; background: rgb(var(--bg-rgb) / 0.7); font: 11px/1 var(--font-mono); color: var(--ink); }
 .mapTagNorth { top: 10px; right: 10px; }
@@ -229,7 +232,7 @@ canvas.layer { display: block; width: 100%; height: 100%; }
 .cutFillLegend { margin-left: auto; display: flex; align-items: center; gap: 8px; font: 11px/1 var(--font-mono); color: var(--muted); }
 .cutFillLegend i { display: block; width: 120px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #c4d4e8, #60768f, #2c2722, #b06842, #f6cea8); }
 .compare { --split: 50%; position: relative; aspect-ratio: 1; max-width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--window); }
-.compare canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.compare img { position: absolute; inset: 0; width: 100%; height: 100%; }
 .compareAfter { clip-path: inset(0 0 0 var(--split)); }
 .compareHandle { position: absolute; top: 0; bottom: 0; left: var(--split); width: 1px; background: var(--ink); pointer-events: none; }
 .compareHandle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 26px; height: 26px; box-sizing: border-box; transform: translate(-50%, -50%); border: 1px solid var(--ink); border-radius: 50%; background: rgb(var(--bg-rgb) / 0.75); }
@@ -263,19 +266,30 @@ canvas.layer { display: block; width: 100%; height: 100%; }
 .node span { font: 12px/1.4 var(--font-mono); color: var(--muted); }
 .landing .timing { color: var(--accent); }
 .nodeTwin { overflow: hidden; padding: 0; border-color: rgb(var(--accent-rgb) / 0.45); }
-.nodeTwin .mapCanvas { border-bottom: 1px solid var(--line); }
+.nodeTwin .mapImage { border-bottom: 1px solid var(--line); }
 .nodeBody { display: grid; gap: 3px; padding: 12px 14px 14px; }
 
 .industries { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .industry { min-width: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--raised); }
-.industry .mapCanvas { border-bottom: 1px solid var(--line); }
+.industry .mapImage { border-bottom: 1px solid var(--line); }
 .industryBody { display: grid; gap: 10px; padding: 20px 22px 24px; }
 .industryBody h3 { font-size: 21px; letter-spacing: -0.025em; }
 .industryBody p { font-size: 15px; }
 .meta { font: 11.5px/1.5 var(--font-mono); letter-spacing: 0.04em; color: var(--muted); }
 
 .tryWindow { height: clamp(460px, 72svh, 760px); }
-.tryCanvas { cursor: crosshair; touch-action: pan-y; }
+.tryCanvas { cursor: grab; touch-action: pan-y; }
+.tryCanvas:active { cursor: grabbing; }
+.tryOverlay { z-index: 1; pointer-events: none; overflow: visible; }
+.tryLine { stroke: rgba(242, 230, 214, 0.95); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.tryPill { fill: rgba(10, 9, 8, 0.82); stroke: rgba(216, 128, 80, 0.85); }
+.tryPillText { fill: var(--ink); font: 500 12px var(--font-mono); }
+.tryRing { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.tryDot { fill: var(--ink); }
+.tryLabel { fill: var(--ink); font: 500 11px var(--font-mono); }
+.presetList { display: flex; flex-wrap: wrap; gap: 6px; }
+.presetList button { padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--body); font: 500 12px/1 var(--font-sans); cursor: pointer; appearance: none; }
+.presetList button[aria-pressed="true"] { border-color: transparent; background: var(--ink); color: var(--bg); }
 .tryCanvas:focus-visible { outline-offset: -4px; }
 .tryControls { position: absolute; z-index: 2; top: 16px; left: 16px; right: 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 12px; pointer-events: none; }
 .tryControls > * { pointer-events: auto; }
@@ -295,7 +309,7 @@ canvas.layer { display: block; width: 100%; height: 100%; }
 
 .closing { padding-block: 0 14px; }
 .closingWindow { min-height: clamp(440px, 62svh, 640px); box-sizing: border-box; display: grid; align-items: center; padding: clamp(28px, 5vw, 72px); }
-.closingWindow .mapCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.closingWindow .mapImage { position: absolute; inset: 0; width: 100%; height: 100%; }
 .closingScrim { pointer-events: none; background: radial-gradient(80% 90% at 20% 50%, rgb(var(--bg-rgb) / 0.82), rgb(var(--bg-rgb) / 0.35) 70%, rgb(var(--bg-rgb) / 0.1)); }
 .closingCopy { position: relative; z-index: 2; max-width: 720px; display: grid; gap: 20px; }
 .closingTitle { font-size: clamp(36px, 5.4vw, 78px); line-height: 0.98; }
@@ -371,7 +385,7 @@ canvas.layer { display: block; width: 100%; height: 100%; }
   .flowWires { display: none; }
   .industries { grid-template-columns: minmax(0, 1fr); }
   .industry { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr); }
-  .industry .mapCanvas { height: 100%; object-fit: cover; border-bottom: 0; border-right: 1px solid var(--line); }
+  .industry .mapImage { height: 100%; object-fit: cover; border-bottom: 0; border-right: 1px solid var(--line); }
   .industryBody { align-content: center; }
   .footerCard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .footerBrand { grid-column: 1 / -1; }
@@ -407,7 +421,7 @@ canvas.layer { display: block; width: 100%; height: 100%; }
 }
 @media (max-width: 620px) {
   .industry { display: flex; }
-  .industry .mapCanvas { height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .industry .mapImage { height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
   .tabAlt { display: none; }
   .stat { padding: 18px 14px 20px 0; }
   .stat:nth-child(even) { padding-left: 14px; }

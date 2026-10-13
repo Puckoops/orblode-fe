@@ -1,307 +1,290 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { PointCloud } from "@/lib/landing/cloud";
-import { formatEastNorth, formatNumber } from "@/lib/landing/format";
-import { clamp } from "@/lib/landing/math";
+import { useEffect, useRef, useState } from "react";
+import { formatHeading } from "@/lib/landing/format";
+import { formatMeasurement, loadOrder, measureBetween, turntableFrame, wrapIndex, type LandingMedia } from "@/lib/landing/media";
+import { prefersReducedMotion, watchVisibility } from "./env";
 import styles from "./landing.module.css";
-import { CloudView } from "./scene/CloudView";
-import { accent, ink } from "./scene/draw";
-import { cssFont, prefersReducedMotion, watchVisibility } from "./scene/env";
-import { loadScene } from "./scene/jobs";
+import { LandingPicture } from "./LandingPicture";
 import { useSite } from "./SiteContext";
 
+type Turntable = LandingMedia["turntable"];
 
-type Point = [number, number, number];
+/** One frame per 5°, so 14.5 px of drag per frame keeps the old viewer's 0.006 rad per pixel. */
+const PX_PER_FRAME = 14.5;
+const SPIN_MS = 250;
+const DECODED = 12;
 
-/** The sample site to orbit and measure: drag turns it, a click drops a point, and two points give a distance. */
-export function TryViewer() {
+
+/** Pre-rendered frames of the twin, keyed by colouring: fetched once, decoded on demand into a small cache. */
+class FrameSet {
+  private blobs = new Map<number, Blob>();
+  private bitmaps = new Map<number, ImageBitmap>();
+  private started = false;
+  constructor(private readonly t: Turntable, private readonly pattern: string, private readonly onLoad: (i: number) => void) {}
+
+  load() {
+    if (this.started) return;
+    this.started = true;
+    const queue = loadOrder(this.t.frames);
+    const next = async (): Promise<void> => {
+      const i = queue.shift();
+      if (i === undefined) return;
+      try {
+        const res = await fetch(turntableFrame(this.pattern, i));
+        if (res.ok) {
+          this.blobs.set(i, await res.blob());
+          this.onLoad(i);
+        }
+      } catch {}
+      return next();
+    };
+    for (let k = 0; k < 4; k++) void next();
+  }
+
+  async bitmap(i: number): Promise<ImageBitmap | null> {
+    const hit = this.bitmaps.get(i);
+    if (hit) {
+      this.bitmaps.delete(i);
+      this.bitmaps.set(i, hit);
+      return hit;
+    }
+    const blob = this.blobs.get(i);
+    if (!blob) return null;
+    const bitmap = await createImageBitmap(blob);
+    this.bitmaps.set(i, bitmap);
+    for (const [key, old] of this.bitmaps) {
+      if (this.bitmaps.size <= DECODED) break;
+      this.bitmaps.delete(key);
+      old.close();
+    }
+    return bitmap;
+  }
+
+  dispose() {
+    for (const bitmap of this.bitmaps.values()) bitmap.close();
+    this.bitmaps.clear();
+  }
+}
+
+/** The survey as a turntable: drag turns it through pre-rendered frames, and each preset shows a measurement between two points. */
+export function TryViewer({ turntable }: { turntable: Turntable }) {
   const site = useSite();
   const frameRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [index, setIndex] = useState(0);
+  const [elevation, setElevation] = useState(false);
+  const [preset, setPreset] = useState<number | null>(null);
+  const [drawn, setDrawn] = useState(false);
+  const indexRef = useRef(0);
+  const elevationRef = useRef(false);
+  const nearRef = useRef(false);
+  const spinningRef = useRef(true);
+  const setsRef = useRef<{ photo: FrameSet; elevation: FrameSet } | null>(null);
+  const showRef = useRef<(i: number) => void>(() => {});
 
   useEffect(() => {
-    const frame = frameRef.current, canvas = frame?.querySelector("canvas");
-    if (!frame || !canvas) return;
-    const find = <T extends HTMLElement>(name: string) => frame.querySelector<T>(`[data-part="${name}"]`);
-    const title = find("title"), d3 = find("distance"), dh = find("horizontal"), dz = find("height"), grade = find("grade");
-    const photo = find<HTMLButtonElement>("photo"), elevation = find<HTMLButtonElement>("elevation");
+    const frame = frameRef.current, canvas = canvasRef.current, ctx = canvas?.getContext("2d");
+    if (!frame || !canvas || !ctx) return;
+    let alive = true, visible = false, timer = 0, painting = 0;
+    canvas.width = turntable.width;
+    canvas.height = turntable.height;
+    spinningRef.current = !prefersReducedMotion();
 
-    const view = new CloudView(canvas, { maxWidth: 1500, pickable: true });
-    let nearest = 260, farthest = 1400;
-    let mono = cssFont(frame, "--font-mono", "monospace");
-    let cloud: PointCloud | null = null, visible = false, dirty = true, alive = true, spinning = !prefersReducedMotion();
-    let last = performance.now(), sinceDraw = 1, raf = 0;
-    const picks: Point[] = [];
+    const paint = async (set: FrameSet, i: number) => {
+      const ticket = ++painting;
+      const bitmap = await set.bitmap(i).catch(() => null);
+      if (!alive || !bitmap || ticket !== painting) return;
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      setDrawn(true);
+    };
+    const current = (): FrameSet => (elevationRef.current ? sets.elevation : sets.photo);
+    const onLoad = (elevationSet: boolean) => (i: number) => {
+      if (elevationSet === elevationRef.current && i === indexRef.current) void paint(current(), i);
+    };
+    const sets = {
+      photo: new FrameSet(turntable, turntable.photo, onLoad(false)),
+      elevation: new FrameSet(turntable, turntable.elevation, onLoad(true)),
+    };
+    setsRef.current = sets;
+    showRef.current = (i) => void paint(current(), i);
 
-    loadScene(site).then(
-      (scene) => {
-        if (!alive) return;
-        const f = scene.frame;
-        Object.assign(view.camera, { tx: f.cx, ty: f.cy, tz: (f.ground + f.low) / 2, yaw: 0.9, pitch: 0.62, dist: f.radius * 1.53, fov: 0.85 });
-        nearest = f.radius * 0.6;
-        farthest = f.radius * 3.3;
-        cloud = scene.cloud;
-        dirty = true;
+    const spin = () => {
+      if (!alive || !visible || !spinningRef.current) return;
+      const next = wrapIndex(indexRef.current + 1, turntable.frames);
+      indexRef.current = next;
+      setIndex(next);
+      timer = window.setTimeout(spin, SPIN_MS);
+    };
+    const stopWatching = watchVisibility(
+      frame,
+      (v) => {
+        visible = v;
+        window.clearTimeout(timer);
+        if (!v) return;
+        nearRef.current = true;
+        current().load();
+        timer = window.setTimeout(spin, SPIN_MS);
       },
-      () => {},
+      "100% 0px",
     );
-    document.fonts?.ready.then(() => {
-      mono = cssFont(frame, "--font-mono", "monospace");
-      dirty = true;
-    });
-
-    const blank = () => [d3, dh, dz, grade].forEach((el) => el && (el.textContent = "–"));
-    const updateReadout = () => {
-      if (!title) return;
-      if (!picks.length) {
-        title.textContent = "Click a point on the ground to start.";
-        return blank();
-      }
-      const [a, b] = picks;
-      if (!b) {
-        title.textContent = `A: ${formatEastNorth(a[0], a[1], site.origin)} · Z ${formatNumber(a[2], 1)} m. Now click B.`;
-        return blank();
-      }
-      const horizontal = Math.hypot(b[0] - a[0], b[1] - a[1]), rise = b[2] - a[2];
-      title.textContent = `A to B on the ${site.surveyDate} survey.`;
-      if (d3) d3.textContent = `${formatNumber(Math.hypot(horizontal, rise), 1)} m`;
-      if (dh) dh.textContent = `${formatNumber(horizontal, 1)} m`;
-      if (dz) dz.textContent = `${rise >= 0 ? "+" : "−"}${formatNumber(Math.abs(rise), 1)} m`;
-      if (grade) grade.textContent = horizontal > 0.05 ? `${formatNumber((Math.abs(rise) / horizontal) * 100, 1)}%` : "–";
-    };
-
-    const overlay = (ctx: CanvasRenderingContext2D) => {
-      const points = picks.map(([x, y, z]) => view.project(x, y, z + 0.4));
-      const [a, b] = points;
-      if (a && b) {
-        ctx.setLineDash([5, 4]);
-        ctx.strokeStyle = ink(0.95);
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        const [p, q] = picks, label = `${formatNumber(Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]), 1)} m`;
-        ctx.font = `500 12px ${mono}`;
-        const w = ctx.measureText(label).width + 16, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 18;
-        ctx.fillStyle = "rgba(10,9,8,0.82)";
-        ctx.strokeStyle = accent(0.85);
-        ctx.beginPath();
-        ctx.roundRect(mx - w / 2, my - 12, w, 24, 6);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = ink();
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(label, mx, my + 1);
-        ctx.textAlign = "start";
-        ctx.textBaseline = "alphabetic";
-      }
-      points.forEach((pt, i) => {
-        if (!pt) return;
-        ctx.strokeStyle = accent();
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 7, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = ink();
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.font = `500 11px ${mono}`;
-        ctx.fillText(i ? "B" : "A", pt.x + 10, pt.y - 8);
-      });
-    };
-
-    const stopSpinning = () => {
-      spinning = false;
-    };
-    const pick = (clientX: number, clientY: number) => {
-      const i = view.pick(clientX, clientY);
-      if (i < 0 || !cloud) return;
-      stopSpinning();
-      if (picks.length >= 2) picks.length = 0;
-      picks.push([cloud.x[i], cloud.y[i], cloud.z[i]]);
-      updateReadout();
-      dirty = true;
-    };
-
-    let drag: { x: number; y: number; yaw: number; pitch: number; moved: boolean } | null = null;
-    const onDown = (e: PointerEvent) => {
-      drag = { x: e.clientX, y: e.clientY, yaw: view.camera.yaw, pitch: view.camera.pitch, moved: false };
-      canvas.setPointerCapture?.(e.pointerId);
-    };
-    const onMove = (e: PointerEvent) => {
-      if (!drag) return;
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 4) {
-        drag.moved = true;
-        stopSpinning();
-      }
-      if (!drag.moved) return;
-      view.camera.yaw = drag.yaw - dx * 0.006;
-      if (e.pointerType !== "touch") view.camera.pitch = clamp(drag.pitch + dy * 0.004, 0.22, 1.5);
-      dirty = true;
-    };
-    const onUp = (e: PointerEvent) => {
-      if (drag && !drag.moved) pick(e.clientX, e.clientY);
-      drag = null;
-    };
-    const onCancel = () => {
-      drag = null;
-    };
-    const zoom = (factor: number) => {
-      view.camera.dist = clamp(view.camera.dist * factor, nearest, farthest);
-      stopSpinning();
-      dirty = true;
-    };
-    const onKey = (e: KeyboardEvent) => {
-      const cam = view.camera;
-      if (e.key === "ArrowLeft") cam.yaw += 0.08;
-      else if (e.key === "ArrowRight") cam.yaw -= 0.08;
-      else if (e.key === "ArrowUp") cam.pitch = clamp(cam.pitch + 0.06, 0.22, 1.5);
-      else if (e.key === "ArrowDown") cam.pitch = clamp(cam.pitch - 0.06, 0.22, 1.5);
-      else if (e.key === "+" || e.key === "=") return zoom(0.82);
-      else if (e.key === "-" || e.key === "_") return zoom(1 / 0.82);
-      else return;
-      e.preventDefault();
-      stopSpinning();
-      dirty = true;
-    };
-    const setColour = (byElevation: boolean) => {
-      view.colourMix = byElevation ? 1 : 0;
-      view.splat = byElevation ? 0.45 : 1.25;
-      photo?.setAttribute("aria-pressed", String(!byElevation));
-      elevation?.setAttribute("aria-pressed", String(byElevation));
-      dirty = true;
-    };
-    const onClick = (e: MouseEvent) => {
-      const action = (e.target as HTMLElement).closest<HTMLElement>("[data-action]")?.dataset.action;
-      if (action === "photo") setColour(false);
-      else if (action === "elevation") setColour(true);
-      else if (action === "zoom-in") zoom(0.8);
-      else if (action === "zoom-out") zoom(1 / 0.8);
-      else if (action === "clear") {
-        picks.length = 0;
-        updateReadout();
-        dirty = true;
-      }
-    };
-
-    canvas.addEventListener("pointerdown", onDown);
-    canvas.addEventListener("pointermove", onMove);
-    canvas.addEventListener("pointerup", onUp);
-    canvas.addEventListener("pointercancel", onCancel);
-    canvas.addEventListener("keydown", onKey);
-    frame.addEventListener("click", onClick);
-
-    const tick = (now: number) => {
-      raf = requestAnimationFrame(tick);
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
-      if (!visible || !cloud) return;
-      if (spinning) {
-        view.camera.yaw += dt * 0.04;
-        sinceDraw += dt;
-        if (sinceDraw > 1 / 30) dirty = true;
-      }
-      if (!dirty) return;
-      dirty = false;
-      sinceDraw = 0;
-      view.render(cloud, overlay);
-      canvas.dataset.ready = "";
-    };
-
-    const stopWatching = watchVisibility(frame, (v) => {
-      visible = v;
-      if (v) {
-        view.resize();
-        dirty = true;
-      }
-    });
-    const resizer = new ResizeObserver(() => {
-      view.resize();
-      dirty = true;
-    });
-    resizer.observe(canvas);
-    raf = requestAnimationFrame(tick);
-
     return () => {
       alive = false;
-      cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
       stopWatching();
-      resizer.disconnect();
-      canvas.removeEventListener("pointerdown", onDown);
-      canvas.removeEventListener("pointermove", onMove);
-      canvas.removeEventListener("pointerup", onUp);
-      canvas.removeEventListener("pointercancel", onCancel);
-      canvas.removeEventListener("keydown", onKey);
-      frame.removeEventListener("click", onClick);
+      sets.photo.dispose();
+      sets.elevation.dispose();
     };
-  }, [site]);
+  }, [turntable]);
+
+  useEffect(() => {
+    elevationRef.current = elevation;
+    const sets = setsRef.current;
+    if (!sets || !nearRef.current) return;
+    (elevation ? sets.elevation : sets.photo).load();
+    showRef.current(indexRef.current);
+  }, [elevation]);
+
+  useEffect(() => {
+    indexRef.current = index;
+    showRef.current(index);
+  }, [index]);
+
+  const turnTo = (i: number) => {
+    spinningRef.current = false;
+    setIndex(wrapIndex(i, turntable.frames));
+  };
+
+  const drag = useRef<{ x: number; start: number; moved: boolean } | null>(null);
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    drag.current = { x: e.clientX, start: indexRef.current, moved: false };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved && Math.abs(dx) > 4) d.moved = true;
+    if (d.moved) turnTo(d.start - Math.round(dx / PX_PER_FRAME));
+  };
+  const onPointerUp = () => {
+    drag.current = null;
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+    if (e.key === "ArrowLeft") turnTo(indexRef.current + 1);
+    else if (e.key === "ArrowRight") turnTo(indexRef.current - 1);
+    else if (e.key === "Home") turnTo(0);
+    else return;
+    e.preventDefault();
+  };
+
+  const chosen = preset === null ? null : turntable.presets[preset];
+  const reading = chosen ? formatMeasurement(measureBetween(chosen.a, chosen.b)) : null;
+  const marks = chosen?.marks[index] ?? null;
+  const [ax, ay, bx, by] = (marks ?? [0, 0, 0, 0]).map((v, k) => v * (k % 2 ? turntable.height : turntable.width));
+  const pill = chosen && reading ? reading.distance : "";
+  const pillWidth = pill.length * 7.4 + 16;
 
   return (
     <section id="try" aria-labelledby="try-title" className={styles.section}>
       <div className={styles.sectionHead}>
         <span className={`${styles.eyebrow} ${styles.eyebrowAccent}`}>Try it</span>
         <h2 id="try-title" className={styles.sectionTitle}>
-          {site.mode === "sample" ? "Measure the sample site yourself." : `Measure ${site.name} yourself.`}
+          Measure {site.name} yourself.
         </h2>
-        <p>Drag to orbit. Click two points on the ground to measure between them.</p>
+        <p>Drag to orbit. Pick a measurement to see it on the survey.</p>
       </div>
       <div ref={frameRef} className={`${styles.window} ${styles.tryWindow}`}>
+        <LandingPicture picture={turntable.poster} alt="" className={`${styles.layer} ${styles.mediaCover}`} />
         <canvas
+          ref={canvasRef}
           tabIndex={0}
-          aria-label="Sample site in 3D. Drag or use the arrow keys to orbit, plus and minus to zoom, and click the ground to measure."
-          className={`${styles.layer} ${styles.sceneCanvas} ${styles.tryCanvas}`}
+          role="slider"
+          aria-label={`${site.name} in 3D. Drag or use the arrow keys to turn it.`}
+          aria-valuemin={0}
+          aria-valuemax={turntable.frames - 1}
+          aria-valuenow={index}
+          aria-valuetext={`Heading ${formatHeading(turntable.yaw0 + index * turntable.step)}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onKeyDown={onKeyDown}
+          data-ready={drawn ? "" : undefined}
+          className={`${styles.layer} ${styles.mediaCover} ${styles.sceneCanvas} ${styles.tryCanvas}`}
         />
+        <svg aria-hidden="true" viewBox={`0 0 ${turntable.width} ${turntable.height}`} preserveAspectRatio="xMidYMid slice" className={`${styles.layer} ${styles.tryOverlay}`}>
+          {marks && (
+            <>
+              <line x1={ax} y1={ay} x2={bx} y2={by} className={styles.tryLine} />
+              <g transform={`translate(${(ax + bx) / 2} ${(ay + by) / 2 - 18})`}>
+                <rect x={-pillWidth / 2} y={-12} width={pillWidth} height={24} rx={6} className={styles.tryPill} />
+                <text textAnchor="middle" dominantBaseline="middle" y={1} className={styles.tryPillText}>
+                  {pill}
+                </text>
+              </g>
+              {[
+                [ax, ay, "A"],
+                [bx, by, "B"],
+              ].map(([x, y, label]) => (
+                <g key={label} transform={`translate(${x} ${y})`}>
+                  <circle r={7} className={styles.tryRing} />
+                  <circle r={2.5} className={styles.tryDot} />
+                  <text x={10} y={-8} className={styles.tryLabel}>
+                    {label}
+                  </text>
+                </g>
+              ))}
+            </>
+          )}
+        </svg>
         <div className={styles.tryControls}>
           <div role="group" aria-label="Colour points by" className={styles.segmented}>
-            <button type="button" data-part="photo" data-action="photo" aria-pressed="true">
+            <button type="button" aria-pressed={!elevation} onClick={() => setElevation(false)}>
               Photo
             </button>
-            <button type="button" data-part="elevation" data-action="elevation" aria-pressed="false">
+            <button type="button" aria-pressed={elevation} onClick={() => setElevation(true)}>
               Elevation
             </button>
           </div>
           <div className={styles.tryTools}>
-            <button type="button" data-action="zoom-in" aria-label="Zoom in" className={styles.roundButton}>
-              +
-            </button>
-            <button type="button" data-action="zoom-out" aria-label="Zoom out" className={styles.roundButton}>
-              −
-            </button>
-            <button type="button" data-action="clear" className={`${styles.btn} ${styles.btnGhost} ${styles.btnSmall}`}>
+            <button type="button" onClick={() => setPreset(null)} className={`${styles.btn} ${styles.btnGhost} ${styles.btnSmall}`}>
               Clear
             </button>
           </div>
         </div>
         <div aria-live="polite" className={styles.readout}>
-          <p data-part="title" className={styles.readoutTitle}>
-            Click a point on the ground to start.
+          <div role="group" aria-label="Measurements" className={styles.presetList}>
+            {turntable.presets.map((p, i) => (
+              <button key={p.name} type="button" aria-pressed={preset === i} onClick={() => setPreset(preset === i ? null : i)}>
+                {p.name}
+              </button>
+            ))}
+          </div>
+          <p className={styles.readoutTitle}>
+            {chosen ? `${chosen.name}, A to B on the ${site.surveyDate} survey.` : "Pick a measurement to start."}
           </p>
           <dl>
             <div>
               <dt>Distance</dt>
-              <dd data-part="distance">–</dd>
+              <dd>{reading?.distance ?? "–"}</dd>
             </div>
             <div>
               <dt>Horizontal</dt>
-              <dd data-part="horizontal">–</dd>
+              <dd>{reading?.horizontal ?? "–"}</dd>
             </div>
             <div>
               <dt>Height change</dt>
-              <dd data-part="height">–</dd>
+              <dd>{reading?.height ?? "–"}</dd>
             </div>
             <div>
               <dt>Grade</dt>
-              <dd data-part="grade">–</dd>
+              <dd>{reading?.grade ?? "–"}</dd>
             </div>
           </dl>
         </div>
         <span aria-hidden="true" className={styles.hint}>
-          Drag to orbit · Click to measure
+          Drag to orbit · Pick a measurement
         </span>
       </div>
     </section>

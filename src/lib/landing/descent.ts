@@ -65,6 +65,14 @@ export function cameraAt(s: number, time: number, motion: boolean, poses: readon
   return cam;
 }
 
+/** On a phone the copy covers the top of the window, so the camera looks further ahead to set the subject lower. */
+export function lookAheadOnNarrow(cam: Camera, s: number) {
+  const ahead = ((cam.dist * Math.tan(cam.fov / 2)) / Math.sin(cam.pitch)) * 0.35 * siteOpacity(s);
+  cam.tx += Math.sin(cam.yaw) * ahead;
+  cam.ty += Math.cos(cam.yaw) * ahead;
+  return cam;
+}
+
 /** Where the camera sits: `dist` back from its target along a heading of `yaw` (clockwise from north), `pitch` below level. */
 export function eyeOf(cam: Camera): [number, number, number] {
   const level = Math.cos(cam.pitch);
