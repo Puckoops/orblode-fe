@@ -1,17 +1,118 @@
 "use client";
 
-import { Logout01Icon, UserAdd01Icon, UserRemove01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Logout01Icon, UserAdd01Icon, UserRemove01Icon } from "@hugeicons/core-free-icons";
 import { Badge, Band, Button, HelperText, IconButton, Select, Skeleton, Table, TBody, Td, Th, THead, Tr } from "@puckoops/camelot";
 import { useCallback, useEffect, useState } from "react";
-import { useConfirm } from "@/components/common/confirm";
+import { useConfirm, type ConfirmRequest } from "@/components/common/confirm";
 import { refusalMessage } from "@/lib/api/client";
 import { signOut } from "@/lib/auth";
-import { changeMemberRole, listOrgMembers, removeOrgMember, type OrgMember, type OrgRole } from "@/lib/api/userSvc";
+import {
+  changeMemberRole,
+  invitePageUrl,
+  listInvitations,
+  listOrgMembers,
+  removeOrgMember,
+  resendInvitation,
+  revokeInvitation,
+  type Invitation,
+  type OrgMember,
+  type OrgRole,
+} from "@/lib/api/userSvc";
 import { canRemove, ORG_ROLES, orgRoleChoices, orgRoleLabel } from "@/lib/access/roles";
 import { useOrganisation, useOrgViewer } from "@/lib/organisation/store";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 import { InviteMemberDialog } from "./InviteMemberDialog";
+
+/** Invitations sent to people with no account yet, until they accept: resend one for a new link, or revoke it. */
+function PendingInvitations({ refreshKey, confirm }: { refreshKey: number; confirm: (request: ConfirmRequest) => void }) {
+  const [invitations, setInvitations] = useState<Invitation[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    listInvitations()
+      .then(setInvitations)
+      .catch((err) => {
+        console.error("Failed to fetch invitations:", err);
+        setInvitations([]);
+      });
+  }, []);
+
+  useEffect(load, [load, refreshKey]);
+
+  if (!invitations || invitations.length === 0) return null;
+
+  const resend = async (inv: Invitation) => {
+    setBusy(inv.id);
+    try {
+      await resendInvitation(inv.id, invitePageUrl());
+      toast.success(`Sent ${inv.email} a new link.`);
+      load();
+    } catch (err) {
+      toast.error(refusalMessage(err, "Couldn't send it again. Try again."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const revoke = (inv: Invitation) =>
+    confirm({
+      title: `Revoke the invitation to ${inv.email}?`,
+      description: "Its link stops working. You can invite them again later.",
+      confirmLabel: "Revoke",
+      onConfirm: async () => {
+        try {
+          await revokeInvitation(inv.id);
+          load();
+        } catch (err) {
+          toast.error(refusalMessage(err, "Couldn't revoke it. Try again."));
+        }
+      },
+    });
+
+  return (
+    <Band heading="Invitations" caption="Sent to people who don't use Orblode yet. Each link works for 7 days; sending it again makes a new one.">
+      <Table minWidth={560}>
+        <THead>
+          <Tr>
+            <Th>Email</Th>
+            <Th>Role</Th>
+            <Th>Invited by</Th>
+            <Th>Link</Th>
+            <Th>
+              <span className="visually-hidden">Actions</span>
+            </Th>
+          </Tr>
+        </THead>
+        <TBody>
+          {invitations.map((inv) => (
+            <Tr key={inv.id}>
+              <Td primary>
+                <span className="block">{inv.email}</span>
+                {inv.teams.length > 0 && <span className="caption block text-ink-4">{inv.teams.map((t) => t.name).join(", ")}</span>}
+              </Td>
+              <Td>{orgRoleLabel(inv.role)}</Td>
+              <Td>{inv.invited_by || <span className="text-ink-4">—</span>}</Td>
+              <Td>
+                {inv.expired ? (
+                  <span className="text-ink-4">Expired</span>
+                ) : (
+                  <span className="num-sm">Until {formatSurveyDate(inv.expires_at.slice(0, 10))}</span>
+                )}
+              </Td>
+              <Td className="whitespace-nowrap text-right">
+                <Button variant="ghost" size="sm" loading={busy === inv.id} onClick={() => void resend(inv)}>
+                  Send again
+                </Button>
+                <IconButton icon={Cancel01Icon} aria-label={`Revoke the invitation to ${inv.email}`} variant="bare" size="sm" onClick={() => revoke(inv)} />
+              </Td>
+            </Tr>
+          ))}
+        </TBody>
+      </Table>
+    </Band>
+  );
+}
 
 /** The organisation's people: their role, their teams, adding someone, changing a role and removing someone. */
 export function PeopleSettings() {
@@ -21,6 +122,7 @@ export function PeopleSettings() {
   const { confirm, confirmDialog } = useConfirm();
   const [members, setMembers] = useState<OrgMember[] | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [invitationsKey, setInvitationsKey] = useState(0);
   const [changing, setChanging] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -172,7 +274,13 @@ export function PeopleSettings() {
           <HelperText className="mt-3">You’re the only owner. Make someone else an owner before you step down or leave.</HelperText>
         )}
       </Band>
-      {inviting && <InviteMemberDialog onClose={() => setInviting(false)} onInvited={() => load()} />}
+      {viewer?.can_manage_people && <PendingInvitations refreshKey={invitationsKey} confirm={confirm} />}
+      {inviting && (
+        <InviteMemberDialog
+          onClose={() => setInviting(false)}
+          onInvited={(result) => (result.status === "added" ? load() : setInvitationsKey((k) => k + 1))}
+        />
+      )}
       {confirmDialog}
     </>
   );

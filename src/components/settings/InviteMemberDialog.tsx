@@ -3,19 +3,20 @@
 import { Button, Checkbox, Dialog, Field, HelperText, Input, Select } from "@puckoops/camelot";
 import { useEffect, useState, type FormEvent } from "react";
 import { refusalMessage } from "@/lib/api/client";
-import { inviteMember, listTeams, type OrgMember, type OrgRole, type Team } from "@/lib/api/userSvc";
+import { invitePageUrl, inviteMember, listTeams, type InviteResult, type OrgRole, type Team } from "@/lib/api/userSvc";
 import { ORG_ROLES } from "@/lib/access/roles";
+import { looksLikeEmail } from "@/lib/email";
 import { useOrgViewer } from "@/lib/organisation/store";
 import { toast } from "@/lib/toast";
 
-const blank = { name: "", email: "", password: "", role: "member" as OrgRole, teamIds: [] as string[] };
-
-/** Adds someone to the organisation with a role and, optionally, teams. A new address gets an account with the
- * temporary password and a verification email; an existing account keeps its own password. Mounted for each
- * opening, so it starts empty. */
-export function InviteMemberDialog({ onClose, onInvited }: { onClose: () => void; onInvited: (member: OrgMember) => void }) {
+/** Adds someone to the organisation by email with a role and, optionally, teams. Someone with an account joins at
+ * once and is told by email; someone with none is emailed an invitation to set one up. Mounted for each opening,
+ * so it starts empty. */
+export function InviteMemberDialog({ onClose, onInvited }: { onClose: () => void; onInvited: (result: InviteResult) => void }) {
   const viewer = useOrgViewer();
-  const [form, setForm] = useState(blank);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<OrgRole>("member");
+  const [teamIds, setTeamIds] = useState<string[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,27 +31,23 @@ export function InviteMemberDialog({ onClose, onInvited }: { onClose: () => void
   }, []);
 
   const roles = ORG_ROLES.filter((r) => r.value !== "owner" || viewer?.can_manage_owners);
-  const set = <K extends keyof typeof blank>(key: K, value: (typeof blank)[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (!form.name.trim() || !form.email.trim() || !form.password) {
-      setError("Fill in the name, the email and a temporary password.");
+    if (!looksLikeEmail(email.trim())) {
+      setError("Enter their email address.");
       return;
     }
     setError(null);
     setBusy(true);
     try {
-      const member = await inviteMember({
-        name: form.name.trim(),
-        email: form.email.trim(),
-        password: form.password,
-        role: form.role,
-        team_ids: form.teamIds,
-        verify_url: new URL("/verify", window.location.origin).toString(),
-      });
-      toast.success(`Added ${member.name || member.email}.`);
-      onInvited(member);
+      const result = await inviteMember({ email: email.trim(), role, team_ids: teamIds, invite_url: invitePageUrl() });
+      toast.success(
+        result.status === "added"
+          ? `Added ${result.member.name || result.member.email}. We emailed them to let them know.`
+          : `Invitation sent to ${result.invitation.email}.`,
+      );
+      onInvited(result);
       onClose();
     } catch (err) {
       setError(refusalMessage(err, "Couldn't add them. Try again."));
@@ -64,7 +61,7 @@ export function InviteMemberDialog({ onClose, onInvited }: { onClose: () => void
       open
       onOpenChange={(next) => !next && !busy && onClose()}
       title="Add someone"
-      description="They sign in with this email. Someone new gets an account with the temporary password and an email to confirm their address; someone with an account keeps their own password."
+      description="If they already use Orblode, they join straight away. If not, we email them an invitation to set up their account."
       width={520}
       footer={
         <>
@@ -78,17 +75,11 @@ export function InviteMemberDialog({ onClose, onInvited }: { onClose: () => void
       }
     >
       <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
-        <Field label="Name">
-          <Input value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={100} autoFocus />
-        </Field>
         <Field label="Email">
-          <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} maxLength={254} />
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} autoFocus />
         </Field>
-        <Field label="Temporary password" hint="At least 8 characters with an upper-case letter, a digit and a symbol. Used only for a new account.">
-          <Input type="password" value={form.password} onChange={(e) => set("password", e.target.value)} maxLength={72} autoComplete="new-password" />
-        </Field>
-        <Field label="Role" hint={ORG_ROLES.find((r) => r.value === form.role)?.description}>
-          <Select value={form.role} onValueChange={(v) => set("role", v as OrgRole)} options={roles.map((r) => ({ value: r.value, label: r.label }))} />
+        <Field label="Role" hint={ORG_ROLES.find((r) => r.value === role)?.description}>
+          <Select value={role} onValueChange={(v) => setRole(v as OrgRole)} options={roles.map((r) => ({ value: r.value, label: r.label }))} />
         </Field>
         {teams.length > 0 && (
           <fieldset className="flex flex-col gap-2">
@@ -97,8 +88,8 @@ export function InviteMemberDialog({ onClose, onInvited }: { onClose: () => void
               <Checkbox
                 key={t.id}
                 label={t.name}
-                checked={form.teamIds.includes(t.id)}
-                onCheckedChange={(on) => set("teamIds", on ? [...form.teamIds, t.id] : form.teamIds.filter((id) => id !== t.id))}
+                checked={teamIds.includes(t.id)}
+                onCheckedChange={(on) => setTeamIds((ids) => (on ? [...ids, t.id] : ids.filter((id) => id !== t.id)))}
               />
             ))}
           </fieldset>

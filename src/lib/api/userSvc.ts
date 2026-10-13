@@ -178,14 +178,27 @@ export interface OrgMember {
 }
 
 export interface InviteRequest {
-  name: string;
   email: string;
-  /** Used only when the address has no account yet; the person changes it after signing in. */
-  password: string;
   role: OrgRole;
   team_ids: string[];
-  verify_url?: string;
+  /** The page the invitation's link opens; user-svc uses it only on an allowed origin. */
+  invite_url?: string;
 }
+
+/** An invitation waiting for someone with no account to set one up. */
+export interface Invitation {
+  id: string;
+  email: string;
+  role: OrgRole;
+  teams: { id: string; name: string }[];
+  invited_by?: string;
+  expires_at: string;
+  expired: boolean;
+  created_at: string;
+}
+
+/** Someone with an account is added straight away; someone with none is emailed an invitation. */
+export type InviteResult = { status: "added"; member: OrgMember } | { status: "invited"; invitation: Invitation };
 
 export function getOrganisation(): Promise<Organisation> {
   return apiFetch<Organisation>(USERS_API, "/orblode/organisation");
@@ -200,9 +213,29 @@ export function listOrgMembers(): Promise<OrgMember[]> {
   return apiFetch<OrgMember[]>(USERS_API, "/orblode/organisation/members");
 }
 
-export function inviteMember(req: InviteRequest): Promise<OrgMember> {
-  return apiFetch<OrgMember>(USERS_API, "/orblode/organisation/members", { method: "POST", body: req });
+export function inviteMember(req: InviteRequest): Promise<InviteResult> {
+  return apiFetch<InviteResult>(USERS_API, "/orblode/organisation/members", { method: "POST", body: req });
 }
+
+/** Pending invitations, expired ones included. */
+export function listInvitations(): Promise<Invitation[]> {
+  return apiFetch<Invitation[]>(USERS_API, "/orblode/organisation/invitations");
+}
+
+/** A new link that works for 7 days; the old one stops working. */
+export function resendInvitation(id: string, inviteUrl?: string): Promise<Invitation> {
+  return apiFetch<Invitation>(USERS_API, `/orblode/organisation/invitations/${encodeURIComponent(id)}/resend`, {
+    method: "POST",
+    body: inviteUrl ? { invite_url: inviteUrl } : {},
+  });
+}
+
+export async function revokeInvitation(id: string): Promise<void> {
+  await apiFetch<null>(USERS_API, `/orblode/organisation/invitations/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** Where an invitation's link lands on this site. */
+export const invitePageUrl = () => new URL("/invite", window.location.origin).toString();
 
 /** Only owners make or unmake owners, and the last owner stays (409). */
 export function changeMemberRole(userId: string, role: OrgRole): Promise<OrgMember> {
