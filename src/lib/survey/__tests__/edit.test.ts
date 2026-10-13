@@ -147,3 +147,20 @@ test("a vector file vector-features can't read neither dispatches nor pulls the 
     ["Surface.ttm"]
   );
 });
+
+test("face meshes and JPEG zips stored as vectors before they were told apart stay out of a vector reprocess", () => {
+  const plan = reprocessPlan(
+    [
+      asset("Mine_Site_07_Dec_2025_DXF_88_851_faces.zip", "vector", { kind: "vector" }),
+      asset("Mine_Site_07_Dec_2025_JFIF_JPEG_GDA94_MGA_zone_56_4727_5000_.zip", "vector", { kind: "vector" }),
+      asset("Mine_Site_07_Dec_2025_DXF_Contours_1_unit.zip", "contours", { kind: "vector" }),
+      asset("pads.geojson", "vector", { kind: "vector", needs_processing: true }),
+    ],
+    { epsg: "EPSG:28356" }
+  );
+  assert.deepEqual(
+    plan.dispatches[0]?.request.inputs?.map((i) => i.url),
+    ["gs://b/original/s1/Mine_Site_07_Dec_2025_DXF_Contours_1_unit.zip", "gs://b/original/s1/pads.geojson"]
+  );
+  assert.deepEqual(plan.skips, []);
+});

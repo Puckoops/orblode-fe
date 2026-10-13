@@ -196,3 +196,91 @@ test("a vector file ogr2ogr can't read is stored with a reason and left out of t
     ["Surface.ttm", "notes"]
   );
 });
+
+const MINE_SITE = {
+  ttm: "Mine_Site_07_Dec_2025_TTM_233_198_faces.ttm",
+  jpegs: [
+    "Mine_Site_07_Dec_2025_JFIF_JPEG_GDA94_MGA_zone_56_16588_17544_.zip",
+    "Mine_Site_07_Dec_2025_JFIF_JPEG_GDA94_MGA_zone_56_4727_5000_.zip",
+  ],
+  faces: [
+    "Mine_Site_07_Dec_2025_DXF_1_623_034_faces.zip",
+    "Mine_Site_07_Dec_2025_DXF_233_198_faces.zip",
+    "Mine_Site_07_Dec_2025_DXF_88_851_faces.zip",
+  ],
+  czml: "Mine_Site_07_Dec_2025_CZML_Ground_Control_and_Checkpoint_Locations.czml",
+  contours: "Mine_Site_07_Dec_2025_DXF_Contours_1_unit.zip",
+  vectors: [
+    "Mine_Site_07_Dec_2025_GeoJSON_Automatically_Generated_Terrain_Boundary_Mask.json",
+    "Mine_Site_07_Dec_2025_Polygons_of_interest (1).json",
+    "Mine_Site_07_Dec_2025_Polygons_of_interest.json",
+  ],
+};
+
+test("a Propeller export's face meshes and JPEG zips guess mesh and orthophoto, not vector", () => {
+  for (const name of MINE_SITE.faces) assert.equal(guessRole(name, "preprocessed"), "site_model", name);
+  assert.equal(guessRole("pit_faces.dxf", "preprocessed"), "site_model");
+  for (const name of MINE_SITE.jpegs) assert.equal(guessRole(name, "preprocessed"), "ortho", name);
+  assert.equal(guessRole(MINE_SITE.czml, "preprocessed"), "vector");
+  assert.equal(guessRole(MINE_SITE.contours, "preprocessed"), "contours");
+  for (const name of MINE_SITE.vectors) assert.equal(guessRole(name, "preprocessed"), "vector", name);
+  assert.equal(guessRole("surfaces.dxf", "preprocessed"), "vector");
+});
+
+test("only the Mine Site files ogr2ogr reads as 2D vectors reach vector-features", () => {
+  const all = [MINE_SITE.ttm, ...MINE_SITE.jpegs, ...MINE_SITE.faces, MINE_SITE.czml, MINE_SITE.contours, ...MINE_SITE.vectors];
+  const plan = buildProcessorPlan(
+    all.map((name) => ({ name, role: guessRole(name, "preprocessed"), url: url(name) })),
+    { epsg: "EPSG:28356" }
+  );
+  assert.deepEqual(
+    plan.dispatches.map((d) => d.request.processor_type),
+    ["vector-features"]
+  );
+  assert.deepEqual(
+    plan.dispatches[0].request.inputs?.map((i) => i.url),
+    [MINE_SITE.contours, ...MINE_SITE.vectors].map(url)
+  );
+  assert.deepEqual(
+    plan.skips.map((s) => s.filename).sort(),
+    [MINE_SITE.ttm, ...MINE_SITE.jpegs, ...MINE_SITE.faces, MINE_SITE.czml].sort()
+  );
+});
+
+test("a file kept out of vector-features by hand says what it is", () => {
+  const plan = buildProcessorPlan(
+    [MINE_SITE.faces[0], MINE_SITE.jpegs[0], MINE_SITE.czml, "notes"].map((name) => ({
+      name,
+      role: "vector" as const,
+      url: url(name),
+    })),
+    { epsg: "EPSG:28356" }
+  );
+  assert.deepEqual(plan.dispatches, []);
+  assert.deepEqual(
+    plan.skips.map((s) => s.reason),
+    [
+      "stored — a DXF face mesh is a 3D surface, not vector linework; pick 3D mesh",
+      "stored — a ZIP of JPEG images holds no vector data",
+      "stored — GDAL can't read CZML, so no vector layer is built",
+      "stored — vector layers are built only from DXF, SHP, GeoJSON, KML or GeoPackage files, or a ZIP of them",
+    ]
+  );
+});
+
+test("an orthophoto that isn't a GeoTIFF is stored, not sent to orthophoto-tiles", () => {
+  const plan = buildProcessorPlan(
+    [
+      { name: MINE_SITE.jpegs[1], role: "ortho", url: url(MINE_SITE.jpegs[1]) },
+      { name: "site_ortho.TIF", role: "ortho", url: url("site_ortho.TIF") },
+    ],
+    { epsg: "EPSG:28356" }
+  );
+  assert.deepEqual(
+    plan.dispatches.map((d) => d.request.inputs?.[0]?.url),
+    [url("site_ortho.TIF")]
+  );
+  assert.deepEqual(plan.skips, [
+    { filename: MINE_SITE.jpegs[1], reason: "stored — orthophoto tiles are built only from a GeoTIFF" },
+  ]);
+});
