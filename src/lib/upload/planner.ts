@@ -75,8 +75,21 @@ function ext(name: string): string {
 /** What vector-features hands to ogr2ogr, directly or from inside a ZIP. */
 const VECTOR_FEATURE_EXTENSIONS = new Set(["dxf", "shp", "geojson", "json", "kml", "gpkg", "zip"]);
 
+/** Exports with a vector extension and no 2D linework: a DXF mesh of 3D faces
+ * (Propeller's `…_DXF_<n>_faces.zip`), or an orthophoto as JPEG tiles in a ZIP (`…_JFIF_JPEG_….zip`). */
+const isFaceMesh = (lowerName: string) => /(^|[\s._-])faces\.(zip|dxf)$/.test(lowerName);
+const isJpegZip = (lowerName: string) => ext(lowerName) === "zip" && /jfif|jpe?g/.test(lowerName);
+
 export function vectorFeaturesReads(filename: string): boolean {
-  return VECTOR_FEATURE_EXTENSIONS.has(ext(filename));
+  const n = filename.toLowerCase();
+  return VECTOR_FEATURE_EXTENSIONS.has(ext(n)) && !isFaceMesh(n) && !isJpegZip(n);
+}
+
+function vectorSkipReason(lowerName: string): string {
+  if (isFaceMesh(lowerName)) return "stored — a DXF face mesh is a 3D surface, not vector linework; pick 3D mesh";
+  if (isJpegZip(lowerName)) return "stored — a ZIP of JPEG images holds no vector data";
+  if (ext(lowerName) === "czml") return "stored — GDAL can't read CZML, so no vector layer is built";
+  return "stored — vector layers are built only from DXF, SHP, GeoJSON, KML or GeoPackage files, or a ZIP of them";
 }
 
 const isGeoTiff = (e: string) => e === "tif" || e === "tiff";
@@ -100,7 +113,8 @@ export function guessRole(filename: string, dataType: DataType): FileRole {
 
   // preprocessed — sniff the role from the name, then the extension.
   if (e === "las" || e === "laz") return "pointcloud";
-  if (e === "obj" || e === "osgb" || e === "3mx" || e === "ttm") return "site_model";
+  if (e === "obj" || e === "osgb" || e === "3mx" || e === "ttm" || isFaceMesh(n)) return "site_model";
+  if (isJpegZip(n)) return "ortho";
   if (isGeoTiff(e)) return rasterRoleFromName(n) ?? "dsm";
   if (VECTOR_FEATURE_EXTENSIONS.has(e)) return n.includes("contour") ? "contours" : "vector";
   return "vector";
@@ -228,14 +242,18 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
         });
         break;
       case "ortho":
-        dispatches.push({
-          label: `Ortho tiles (${f.name})`,
-          request: {
-            processor_type: "orthophoto-tiles",
-            payload: { source: { url: f.url, kind: "ortho", crs } },
-            inputs: [{ url: f.url, kind: "ortho", crs }],
-          },
-        });
+        if (isGeoTiff(ext(f.name))) {
+          dispatches.push({
+            label: `Ortho tiles (${f.name})`,
+            request: {
+              processor_type: "orthophoto-tiles",
+              payload: { source: { url: f.url, kind: "ortho", crs } },
+              inputs: [{ url: f.url, kind: "ortho", crs }],
+            },
+          });
+        } else {
+          skips.push({ filename: f.name, reason: "stored — orthophoto tiles are built only from a GeoTIFF" });
+        }
         break;
       case "pointcloud":
         dispatches.push({
@@ -255,10 +273,7 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
         if (vectorFeaturesReads(f.name)) {
           vectorFiles.push({ ...f, crs });
         } else {
-          skips.push({
-            filename: f.name,
-            reason: "stored — vector layers are built only from DXF, SHP, GeoJSON, KML or GeoPackage files, or a ZIP of them",
-          });
+          skips.push({ filename: f.name, reason: vectorSkipReason(f.name.toLowerCase()) });
         }
         break;
       case "site_model":
