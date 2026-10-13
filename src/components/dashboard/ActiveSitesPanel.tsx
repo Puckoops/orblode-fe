@@ -9,6 +9,7 @@ import type { Project } from "@/lib/api/userSvc";
 import { listSurveys } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
 import { lifecycleState } from "@/lib/status";
+import { useCurrentWorkspace } from "@/lib/workspaces/store";
 import { formatSurveyDate } from "@/lib/utils";
 
 interface SurveyStats {
@@ -27,6 +28,8 @@ export function ActiveSitesPanel({
   selectedSiteId: string;
 }) {
   const failed = useProcessing((s) => s.failed);
+  // Without a workspace to ask, the server decides when the site is made.
+  const mayCreateSite = useCurrentWorkspace()?.can_create_project ?? true;
   const [surveyStats, setSurveyStats] = useState<Record<string, SurveyStats>>({});
   const [filter, setFilter] = useState("");
 
@@ -82,9 +85,11 @@ export function ActiveSitesPanel({
                   icon={Location01Icon}
                   title="No sites yet."
                   action={
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href="/upload?new=1">New site</Link>
-                    </Button>
+                    mayCreateSite ? (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href="/upload?new=1">New site</Link>
+                      </Button>
+                    ) : undefined
                   }
                 />
               )}
@@ -129,14 +134,16 @@ export function ActiveSitesPanel({
         </ul>
       </div>
 
-      <div className="mt-4 px-5">
-        <Button asChild variant="quiet" className="w-full">
-          <Link href="/upload?new=1">
-            <Icon icon={Add01Icon} size={16} />
-            New site
-          </Link>
-        </Button>
-      </div>
+      {mayCreateSite && (
+        <div className="mt-4 px-5">
+          <Button asChild variant="quiet" className="w-full">
+            <Link href="/upload?new=1">
+              <Icon icon={Add01Icon} size={16} />
+              New site
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

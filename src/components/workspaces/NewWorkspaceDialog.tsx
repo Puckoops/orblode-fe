@@ -7,7 +7,7 @@ import { createWorkspace } from "@/lib/api/userSvc";
 import { toast } from "@/lib/toast";
 import { useWorkspaces } from "@/lib/workspaces/store";
 
-/** Makes a workspace with the caller as its first member, and opens it. */
+/** Makes a workspace with the caller as its admin, and opens it. */
 export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const refresh = useWorkspaces((s) => s.refresh);
   const select = useWorkspaces((s) => s.select);
@@ -38,7 +38,7 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
       const created = await createWorkspace({ name: name.trim(), description: description.trim() });
       await refresh();
       await select(created.id);
-      toast.success(`Created ${created.name}. Add people to it from its settings.`);
+      toast.success(`Created ${created.name}. Give people and teams access from its settings.`);
       setBusy(false);
       close(false);
     } catch (err) {
@@ -52,7 +52,7 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
       open={open}
       onOpenChange={close}
       title="New workspace"
-      description="A group of sites. You're its first member; everyone you add sees every site in it."
+      description="A group of sites. You're its admin; the people and teams you give a role here have it on every site in it."
       footer={
         <>
           <Button variant="quiet" disabled={busy} onClick={() => close(false)}>

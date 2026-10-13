@@ -11,6 +11,8 @@ const workspace = (id: string, is_default = false): Workspace => ({
   user_ids: [],
   is_default,
   project_count: 0,
+  can_manage: false,
+  can_create_project: false,
   created_at: "",
   updated_at: "",
 });

@@ -32,7 +32,11 @@ export function MoveSite({ site, onMoved, className }: { site: Project; onMoved:
   };
 
   return (
-    <Field className={className} label="Workspace" hint="Everyone in the workspace sees the site; people with roles on it join the new one.">
+    <Field
+      className={className}
+      label="Workspace"
+      hint="Roles on the workspace reach the site, so moving it takes them away and brings the new workspace's. Roles given on the site itself stay."
+    >
       <Select
         value={site.workspace_id || undefined}
         placeholder="Not in a workspace"

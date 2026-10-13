@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
+import { SiteAccess } from "@/components/access/SiteAccess";
 import { MoveSite } from "@/components/workspaces/MoveSite";
 import { getProject, type Project } from "@/lib/api/userSvc";
 import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
@@ -112,6 +113,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
         </p>
 
         <MoveSite site={projectData} onMoved={onClose} className="mb-6" />
+        <SiteAccess site={projectData} className="mb-6" />
 
         <dl className="mb-8 grid grid-cols-3 gap-2">
           <Stat value={String(surveys.length)} label="surveys" />
