@@ -26,7 +26,22 @@ export interface Profile {
   membership: AuthMembership | null;
 }
 
+/** user-svc's answer to a sign-in, a switch of organisation or a password change. */
+export interface LoginReply {
+  token: string;
+  expire_at: number;
+  user: unknown;
+  client: unknown;
+  membership?: unknown;
+}
+
 const str = (v: unknown) => (typeof v === "string" ? v : "");
+
+/** The profile a sign-in reply carries, or null when it carries none. */
+export function profileFromLogin(reply: Partial<LoginReply> | null | undefined): Profile | null {
+  if (!reply) return null;
+  return parseProfile(JSON.stringify({ user: reply.user, client: reply.client, membership: reply.membership }));
+}
 
 /** The profile cookie's JSON, or null when it is missing or not shaped like one. */
 export function parseProfile(raw: string | undefined | null): Profile | null {

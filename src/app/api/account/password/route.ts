@@ -1,16 +1,8 @@
 import { NextResponse } from "next/server";
 import { failure, methodNotAllowed } from "@/app/api/auth/shared";
-import { parseProfile } from "@/lib/profile";
+import { profileFromLogin, type LoginReply } from "@/lib/profile";
 import { PRODUCT, PROFILE_COOKIE, renewedCookieOptions, SESSION_COOKIE } from "@/lib/session";
 import { asSignedIn } from "../shared";
-
-interface Login {
-  token: string;
-  expire_at: number;
-  user: unknown;
-  client: unknown;
-  membership?: unknown;
-}
 
 /**
  * Changes the signed-in person's password. user-svc ends every other session and answers a new
@@ -18,12 +10,12 @@ interface Login {
  */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
-  const reply = await asSignedIn<Login>("POST", () => "/user/password/change", {
+  const reply = await asSignedIn<LoginReply>("POST", () => "/user/password/change", {
     current_password: typeof body?.current_password === "string" ? body.current_password : "",
     new_password: typeof body?.new_password === "string" ? body.new_password : "",
     type: PRODUCT,
   });
-  const profile = reply.ok ? parseProfile(JSON.stringify({ user: reply.data?.user, client: reply.data?.client, membership: reply.data?.membership })) : null;
+  const profile = reply.ok ? profileFromLogin(reply.data) : null;
   if (!reply.ok || !reply.data?.token || !profile) {
     return failure(reply.ok ? { status: 502, ok: false } : reply, {
       401: "Sign in again to change your password.",

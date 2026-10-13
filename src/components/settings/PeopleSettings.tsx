@@ -18,11 +18,27 @@ import {
   type OrgMember,
   type OrgRole,
 } from "@/lib/api/userSvc";
-import { canRemove, ORG_ROLES, orgRoleChoices, orgRoleLabel } from "@/lib/access/roles";
+import { canRemove, hasJoined, ORG_ROLES, orgRoleChoices, orgRoleLabel } from "@/lib/access/roles";
 import { useOrganisation, useOrgViewer } from "@/lib/organisation/store";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 import { InviteMemberDialog } from "./InviteMemberDialog";
+
+/**
+ * Runs load, and again whenever key changes, someone joins (the notice bumps the organisation's
+ * people) or the page comes back into view, since people join from elsewhere.
+ */
+function useReloadOnChange(load: () => void, key = 0) {
+  const membersVersion = useOrganisation((s) => s.membersVersion);
+  useEffect(load, [load, membersVersion, key]);
+  useEffect(() => {
+    const reload = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", reload);
+    return () => document.removeEventListener("visibilitychange", reload);
+  }, [load]);
+}
 
 /** Invitations sent to people with no account yet, until they accept: resend one for a new link, or revoke it. */
 function PendingInvitations({ refreshKey, confirm }: { refreshKey: number; confirm: (request: ConfirmRequest) => void }) {
@@ -38,7 +54,7 @@ function PendingInvitations({ refreshKey, confirm }: { refreshKey: number; confi
       });
   }, []);
 
-  useEffect(load, [load, refreshKey]);
+  useReloadOnChange(load, refreshKey);
 
   if (!invitations || invitations.length === 0) return null;
 
@@ -134,7 +150,7 @@ export function PeopleSettings() {
       });
   }, []);
 
-  useEffect(load, [load]);
+  useReloadOnChange(load);
 
   const owners = members?.filter((m) => m.role === "owner").length ?? 0;
 
@@ -223,6 +239,7 @@ export function PeopleSettings() {
                       </span>
                       {m.name && m.email && <span className="caption block text-ink-4">{m.email}</span>}
                       {!m.is_verified && <span className="caption block text-ink-4">Hasn’t confirmed their email yet</span>}
+                      {!self && !hasJoined(m) && <span className="caption block text-ink-4">Hasn’t joined yet</span>}
                     </Td>
                     <Td>
                       {choices.length > 1 ? (
