@@ -129,9 +129,12 @@ export function UploadScreen() {
   const router = useRouter();
 
   // Destination
-  const [destination, setDestination] = useState<"existing" | "new">("existing");
+  const [chosenDestination, setDestination] = useState<"existing" | "new">("existing");
   const projects = useWorkspaceSites();
   const workspace = useCurrentWorkspace();
+  // Without a workspace to ask, the server decides when the site is made.
+  const mayCreateSite = workspace?.can_create_project ?? true;
+  const destination = mayCreateSite ? chosenDestination : "existing";
   const [siteId, setSiteId] = useState("");
   const [linkedSite, setLinkedSite] = useState<string | null>(null);
   const [newSiteName, setNewSiteName] = useState("");
@@ -514,7 +517,7 @@ export function UploadScreen() {
               onValueChange={(v) => !working && setDestination(v)}
               options={[
                 { value: "existing", label: "Existing site" },
-                { value: "new", label: "New site" },
+                ...(mayCreateSite ? [{ value: "new" as const, label: "New site" }] : []),
               ]}
             />
             {destination === "existing" ? (

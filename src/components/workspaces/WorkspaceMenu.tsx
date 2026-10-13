@@ -5,6 +5,7 @@ import { Icon, Menu, MenuItem, MenuLabel, MenuSeparator, Skeleton } from "@pucko
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuthClient } from "@/hooks/useAuth";
+import { useOrgViewer } from "@/lib/organisation/store";
 import { useCurrentWorkspace, useWorkspaces } from "@/lib/workspaces/store";
 import styles from "@/components/shell/shell.module.css";
 import { NewWorkspaceDialog } from "./NewWorkspaceDialog";
@@ -20,6 +21,7 @@ export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
   const unavailable = useWorkspaces((s) => s.unavailable);
   const select = useWorkspaces((s) => s.select);
   const current = useCurrentWorkspace();
+  const mayCreate = useOrgViewer()?.can_create_workspaces ?? false;
   const [creating, setCreating] = useState(false);
   const company = client?.company_name?.trim() || client?.name?.trim() || "";
   const classes = `${styles.workspaceTrigger} ${compact ? styles.workspaceCompact : ""}`;
@@ -71,9 +73,11 @@ export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
             Workspace settings
           </MenuItem>
         )}
-        <MenuItem icon={Add01Icon} onSelect={() => setCreating(true)}>
-          New workspace
-        </MenuItem>
+        {mayCreate && (
+          <MenuItem icon={Add01Icon} onSelect={() => setCreating(true)}>
+            New workspace
+          </MenuItem>
+        )}
       </Menu>
       <NewWorkspaceDialog open={creating} onOpenChange={setCreating} />
     </>
