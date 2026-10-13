@@ -8,6 +8,7 @@ const GONE = "This invitation is no longer valid. Ask whoever sent it for a new 
 interface Accepted {
   email: string;
   organisation: string;
+  client_id?: string;
 }
 
 /** What the invitation's link opens: whose organisation, for which email, from whom. */
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Accepts the invitation, setting up the account, then signs the person in. */
+/** Accepts the invitation, setting up the account, then signs the person in to the organisation that invited them. */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const password = typeof body?.password === "string" ? body.password : "";
@@ -36,5 +37,5 @@ export async function POST(request: Request) {
       409: "You already have an account with this email. Enter its password to join.",
     });
   }
-  return signIn(reply.data.email, password, false);
+  return signIn(reply.data.email, password, false, reply.data.client_id);
 }

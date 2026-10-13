@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { getOrganisation, type Organisation } from "@/lib/api/userSvc";
+import { getOrganisation, listMyOrganisations, type Organisation } from "@/lib/api/userSvc";
+import type { OrganisationChoice } from "@/lib/organisation/links";
 
 interface OrganisationState {
   clientId: string;
@@ -8,7 +9,15 @@ interface OrganisationState {
   load: (clientId: string) => Promise<void>;
   /** Reads it again, after a change to the person's role or the member privileges. */
   refresh: () => Promise<void>;
+  /** Every organisation the person is in, for the switcher; null until loaded or when it could not be. */
+  mine: OrganisationChoice[] | null;
+  loadMine: () => Promise<OrganisationChoice[] | null>;
+  /** Goes up when the organisation's people may have changed, such as when someone joins. */
+  membersVersion: number;
+  bumpMembers: () => void;
 }
+
+let loadingMine: Promise<OrganisationChoice[] | null> | null = null;
 
 // Both layouts mount the loader; the second asks while the first is still reading.
 let loading: { clientId: string; done: Promise<void> } | null = null;
@@ -37,6 +46,24 @@ export const useOrganisation = create<OrganisationState>((set, get) => ({
       console.error("Failed to fetch the organisation:", err);
     }
   },
+  mine: null,
+  loadMine: () => {
+    loadingMine ??= listMyOrganisations()
+      .then((mine) => {
+        set({ mine });
+        return mine;
+      })
+      .catch((err) => {
+        console.error("Failed to fetch your organisations:", err);
+        return null;
+      })
+      .finally(() => {
+        loadingMine = null;
+      });
+    return loadingMine;
+  },
+  membersVersion: 0,
+  bumpMembers: () => set((s) => ({ membersVersion: s.membersVersion + 1 })),
 }));
 
 /** What the signed-in person may do in the organisation; null while it loads. */

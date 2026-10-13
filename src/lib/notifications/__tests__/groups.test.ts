@@ -22,6 +22,13 @@ test("groupTypes sections the types in a fixed order and drops empty sections", 
   );
 });
 
+test("groupTypes puts someone joining under People", () => {
+  assert.deepEqual(groupTypes([type("member_joined"), type("site_summary")]).map((g) => [g.label, g.types.map((t) => t.type)]), [
+    ["Sites", ["site_summary"]],
+    ["People", ["member_joined"]],
+  ]);
+});
+
 test("groupTypes puts a type it doesn't know under Other", () => {
   assert.deepEqual(groupTypes([type("weekly_digest"), type("design_failed")]).map((g) => g.label), ["Designs", "Other"]);
 });

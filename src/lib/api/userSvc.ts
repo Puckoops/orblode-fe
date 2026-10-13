@@ -1,5 +1,6 @@
 import { ApiError, apiFetch, USERS_API } from "@/lib/api/client";
 import { readBody } from "@/lib/api/envelope";
+import type { OrganisationChoice } from "@/lib/organisation/links";
 import type { Profile } from "@/lib/profile";
 
 // user-svc, through /api/users: identity, and Orblode's workspaces and projects under /orblode/*.
@@ -199,6 +200,11 @@ export interface Invitation {
 
 /** Someone with an account is added straight away; someone with none is emailed an invitation. */
 export type InviteResult = { status: "added"; member: OrgMember } | { status: "invited"; invitation: Invitation };
+
+/** Every organisation the signed-in person is in, in the order sign-in picks them. */
+export function listMyOrganisations(): Promise<OrganisationChoice[]> {
+  return apiFetch<OrganisationChoice[]>(USERS_API, "/orblode/session/organisations");
+}
 
 export function getOrganisation(): Promise<Organisation> {
   return apiFetch<Organisation>(USERS_API, "/orblode/organisation");

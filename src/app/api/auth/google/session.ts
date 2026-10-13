@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
 import type { Reply } from "@/lib/account";
-import { parseProfile } from "@/lib/profile";
+import { profileFromLogin, type LoginReply } from "@/lib/profile";
 import { PROFILE_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
 import { failure } from "../shared";
 
-export interface Login {
-  token: string;
-  expire_at: number;
-  user: unknown;
-  client: unknown;
-  membership?: unknown;
-}
+export type Login = LoginReply;
 
 /** user-svc's 403 for an account Google vouched for that belongs to no organisation, as opposed to an inactive one. */
 export const isWithoutOrganisation = (reply: Reply<unknown>) =>
@@ -18,7 +12,7 @@ export const isWithoutOrganisation = (reply: Reply<unknown>) =>
 
 /** Answers a user-svc /user/oauth reply: the session and profile cookies on success, Orblode's words otherwise. */
 export function googleSession(reply: Reply<Login>, remember: boolean) {
-  const profile = reply.ok ? parseProfile(JSON.stringify({ user: reply.data?.user, client: reply.data?.client, membership: reply.data?.membership })) : null;
+  const profile = reply.ok ? profileFromLogin(reply.data) : null;
   if (!reply.ok || !reply.data?.token || !profile) {
     return failure(reply.ok ? { status: 502, ok: false } : reply, {
       400: "Google sign-in isn't available right now. Sign in with your email instead.",

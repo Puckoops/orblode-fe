@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import type { AccessEntry, OrgMember, OrgViewer, Team } from "../../api/userSvc.ts";
-import { canRemove, describeRoles, grantableSubjects, orgRoleChoices, parseSubjectKey, roleLabel, splitAccess, subjectKey } from "../roles.ts";
+import { canRemove, describeRoles, grantableSubjects, hasJoined, orgRoleChoices, parseSubjectKey, roleLabel, splitAccess, subjectKey } from "../roles.ts";
 
 const viewer = (role: OrgViewer["role"]): OrgViewer => ({
   user_id: "me",
@@ -18,6 +18,11 @@ test("roles read in the scope's order with their labels", () => {
   assert.equal(describeRoles(["reviewer", "survey_manager"], "workspace"), "Survey manager, Reviewer");
   assert.equal(describeRoles(["client_viewer"], "project"), "Viewer");
   assert.equal(roleLabel("site_owner"), "site owner");
+});
+
+test("someone added has joined once they open the organisation", () => {
+  assert.equal(hasJoined(member("new", "member")), false);
+  assert.equal(hasJoined({ ...member("in", "member"), last_login_time: "2026-10-13T10:20:00Z" }), true);
 });
 
 test("only owners make or unmake owners", () => {

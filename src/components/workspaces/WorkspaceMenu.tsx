@@ -1,18 +1,21 @@
 "use client";
 
-import { Add01Icon, Briefcase01Icon, Settings02Icon, Tick02Icon, UnfoldMoreIcon } from "@hugeicons/core-free-icons";
-import { Icon, Menu, MenuItem, MenuLabel, MenuSeparator, Skeleton } from "@puckoops/camelot";
+import { Add01Icon, Briefcase01Icon, Building03Icon, Settings02Icon, Tick02Icon, UnfoldMoreIcon } from "@hugeicons/core-free-icons";
+import { Badge, Icon, Menu, MenuItem, MenuLabel, MenuSeparator, Skeleton, toast } from "@puckoops/camelot";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuthClient } from "@/hooks/useAuth";
-import { useOrgViewer } from "@/lib/organisation/store";
+import { switchOrganisation } from "@/lib/auth";
+import { organisationLabel } from "@/lib/organisation/links";
+import { useOrganisation, useOrgViewer } from "@/lib/organisation/store";
 import { useCurrentWorkspace, useWorkspaces } from "@/lib/workspaces/store";
 import styles from "@/components/shell/shell.module.css";
 import { NewWorkspaceDialog } from "./NewWorkspaceDialog";
 
 /**
  * The workspace dropdown at the top of the left pane: the open workspace and its organisation, a
- * switch to any other, its settings and a new one. `compact` is the collapsed rail's icon-only form.
+ * switch to any other workspace or, for someone in several, organisation, the workspace's settings
+ * and a new one. `compact` is the collapsed rail's icon-only form.
  */
 export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
@@ -22,7 +25,16 @@ export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
   const select = useWorkspaces((s) => s.select);
   const current = useCurrentWorkspace();
   const mayCreate = useOrgViewer()?.can_create_workspaces ?? false;
+  const organisations = useOrganisation((s) => s.mine);
   const [creating, setCreating] = useState(false);
+  const [switching, setSwitching] = useState(false);
+
+  const openOrganisation = async (id: string) => {
+    setSwitching(true);
+    const failed = await switchOrganisation(id);
+    setSwitching(false);
+    toast.error("Couldn’t open that organisation", failed);
+  };
   const company = client?.company_name?.trim() || client?.name?.trim() || "";
   const classes = `${styles.workspaceTrigger} ${compact ? styles.workspaceCompact : ""}`;
 
@@ -68,6 +80,28 @@ export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
           </MenuItem>
         ))}
         <MenuSeparator />
+        {organisations && organisations.length > 1 && (
+          <>
+            <MenuLabel>Organisations</MenuLabel>
+            {organisations.map((o) => (
+              <MenuItem
+                key={o.id}
+                icon={o.current ? Tick02Icon : Building03Icon}
+                disabled={switching}
+                onSelect={() => !o.current && void openOrganisation(o.id)}
+              >
+                {organisationLabel(o)}
+                {!o.current && !o.joined && (
+                  <>
+                    {" "}
+                    <Badge variant="tag">New</Badge>
+                  </>
+                )}
+              </MenuItem>
+            ))}
+            <MenuSeparator />
+          </>
+        )}
         {current && (
           <MenuItem icon={Settings02Icon} onSelect={() => router.push("/settings?tab=workspace")}>
             Workspace settings

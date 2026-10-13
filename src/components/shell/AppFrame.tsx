@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import { NotificationsLive } from "@/components/notifications/NotificationsLive";
+import { OrganisationLinks } from "@/components/organisation/OrganisationLinks";
 import { WorkspaceSync } from "@/components/workspaces/WorkspaceSync";
 import { AppRail } from "./AppRail";
 import { TITLES } from "./nav";
@@ -41,6 +42,7 @@ export function AppFrame({ children, variant = "dashboard" }: { children: ReactN
       )}
       <NotificationsLive />
       <WorkspaceSync />
+      <OrganisationLinks />
       {children}
     </AppShell>
   );

@@ -7,16 +7,19 @@ import { NOTIFICATIONS_STREAM, type AppNotification } from "@/lib/api/notificati
 import { toastsFor, type NoticeToast } from "@/lib/notifications/inbox";
 import { useAuthUser } from "@/hooks/useAuth";
 import { useInbox } from "@/lib/notifications/store";
+import { useOrganisation } from "@/lib/organisation/store";
 import { useProcessing } from "@/lib/processing/store";
 import { syncPush } from "@/lib/push/client";
 import { useSiteAlerts } from "@/lib/reports/alerts";
 
 /**
  * Some notices change what the rail counts: a survey notice which surveys have failed (and maybe
- * the one open in the viewer), a red reconciliation which sites reconcile red.
+ * the one open in the viewer), a red reconciliation which sites reconcile red. Someone joining
+ * changes the organisation's people.
  */
 function follow(notice: AppNotification) {
   if (notice.type === "reconciliation_red") void useSiteAlerts.getState().refresh();
+  if (notice.type === "member_joined") useOrganisation.getState().bumpMembers();
   if (!notice.type.startsWith("survey_")) return;
   const processing = useProcessing.getState();
   void processing.refreshFailed();
@@ -113,6 +116,7 @@ export function NotificationsLive() {
           void refresh().then(queue);
           void refreshFailed();
           void refreshAlerts();
+          useOrganisation.getState().bumpMembers();
         }
         connectedBefore = true;
       });

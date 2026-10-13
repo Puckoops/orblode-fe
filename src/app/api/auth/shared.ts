@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import { accountPost, type Reply } from "@/lib/account";
-import { parseProfile } from "@/lib/profile";
-import { PROFILE_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
+import { profileFromLogin, type LoginReply } from "@/lib/profile";
+import { PROFILE_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, sessionCookieOptions, userSvcBase } from "@/lib/session";
 
-interface Login {
-  token: string;
-  expire_at: number;
-  user: unknown;
-  client: unknown;
-  membership?: unknown;
-}
-
-/** Signs in at user-svc and answers the browser with the session cookies set, or with why it failed. */
-export async function signIn(email: string, password: unknown, remember: boolean) {
-  const reply = await accountPost<Login>("/user/login", { email, password });
-  const profile = reply.ok ? parseProfile(JSON.stringify({ user: reply.data?.user, client: reply.data?.client, membership: reply.data?.membership })) : null;
+/**
+ * Signs in at user-svc and answers the browser with the session cookies set, or with why it failed.
+ * With clientId, the session opens that organisation rather than the one used last, when the person
+ * is in it.
+ */
+export async function signIn(email: string, password: unknown, remember: boolean, clientId?: string) {
+  let reply = await accountPost<LoginReply>("/user/login", { email, password });
+  if (reply.ok && reply.data?.token && clientId && profileFromLogin(reply.data)?.client.id !== clientId) {
+    const switched = await switchClient(reply.data.token, clientId);
+    if (switched.ok) reply = switched;
+  }
+  const profile = reply.ok ? profileFromLogin(reply.data) : null;
   if (!reply.ok || !reply.data?.token || !profile) {
     return failure(reply.ok ? { status: 502, ok: false } : reply, {
       400: "Invalid email or password.",
@@ -30,6 +30,22 @@ export async function signIn(email: string, password: unknown, remember: boolean
   if (remember) response.cookies.set(REMEMBER_COOKIE, "1", options);
   else response.cookies.delete(REMEMBER_COOKIE);
   return response;
+}
+
+/** Re-issues the session behind token for another organisation the person is in. */
+export async function switchClient(token: string, clientId: string): Promise<Reply<LoginReply>> {
+  try {
+    const res = await fetch(`${userSvcBase()}/orblode/session/client`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ client_id: clientId }),
+      cache: "no-store",
+    });
+    const json = (await res.json().catch(() => null)) as { error?: boolean; message?: string; data?: LoginReply } | null;
+    return { status: res.status, ok: res.ok && !!json && !json.error, message: json?.message, data: json?.data };
+  } catch {
+    return { status: 502, ok: false };
+  }
 }
 
 /** Answers the browser for a user-svc call that failed, in Orblode's words where there are some for that status. */
