@@ -26,10 +26,10 @@ import {
   Grid3x3Icon,
   LayoutTwoColumnIcon,
   MinusIcon,
+  MountainIcon,
   MousePointerIcon,
   PentagonIcon,
   Redo02Icon,
-  ScissorsIcon,
   Tick02Icon,
   Undo02Icon,
 } from "@hugeicons/core-free-icons";
@@ -101,22 +101,24 @@ export function FloatingToolbar() {
   return <FloatingToolbarV2 />;
 }
 
-// Interaction v2 toolbar (plan §4): a pure CREATE-plane surface — three
-// primitive buttons whose dropdowns list that group's templates (Propeller
-// pattern), plus machine-driven Undo/Redo. No edit overloads: editing enters
+// Interaction v2 toolbar (plan §4): a pure CREATE-plane surface — the three
+// primitive buttons whose dropdowns list that group's templates, and
+// Cross-section on its own button (Propeller pattern), plus machine-driven
+// Undo/Redo. No edit overloads: editing enters
 // through the selected object (P2), never through these tools.
 
 const GROUP_META: Record<TemplateGroup, { label: string; icon: IconDefinition }> = {
   point: { label: "Point", icon: MousePointerIcon },
   line: { label: "Line", icon: MinusIcon },
   polygon: { label: "Polygon", icon: PentagonIcon },
+  section: { label: "Cross-section", icon: MountainIcon },
 };
 
 const TEMPLATE_ICONS: Partial<Record<string, IconDefinition>> = {
   point: MousePointerIcon,
   probe: CircleIcon,
   line: MinusIcon,
-  section: ScissorsIcon,
+  section: MountainIcon,
   slope: ChartAreaIcon,
   polygon: PentagonIcon,
 };

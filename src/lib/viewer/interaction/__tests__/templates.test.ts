@@ -33,8 +33,8 @@ test("toolKeyFor matches the legacy palette:* scheme for every template", () => 
   for (const t of TEMPLATES) assert.equal(toolKeyFor(t.id), `palette:${t.id}`);
 });
 
-test("templatesFor covers exactly the three toolbar groups, non-empty each", () => {
-  const groups: TemplateGroup[] = ["point", "line", "polygon"];
+test("templatesFor covers exactly the toolbar groups, non-empty each", () => {
+  const groups: TemplateGroup[] = ["point", "line", "polygon", "section"];
   let total = 0;
   for (const g of groups) {
     const list = templatesFor(g);

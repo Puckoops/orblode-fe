@@ -19,12 +19,12 @@ const queued = new Map<string, Promise<void>>();
 /** The cross_section the server last confirmed, per measurement, while saves are in flight. */
 const confirmed = new Map<string, unknown>();
 
-export function useCrossSectionSettings(measurement: Pick<Measurement, "id" | "kind" | "params"> | null) {
+export function useCrossSectionSettings(measurement: Pick<Measurement, "id" | "params"> | null) {
   const store = useViewerStoreApi();
   const { patchMeasurement } = useViewerActions();
   const id = measurement?.id ?? null;
   const settings = useMemo(
-    () => (measurement ? crossSectionOf(measurement.kind, measurement.params) : null),
+    () => (measurement ? crossSectionOf(measurement.params) : null),
     [measurement]
   );
 

@@ -1,5 +1,6 @@
-// Template registry (plan §5): three primitive GROUPS × N templates. The toolbar
-// renders from this table (primitive buttons + dropdowns); the machine stores the
+// Template registry (plan §5): toolbar GROUPS × N templates — the three
+// primitives, plus Cross-section on a button of its own as in Propeller. The toolbar
+// renders from this table (group buttons + dropdowns); the machine stores the
 // armed template; commit resolves kind with the template as the FIRST source,
 // falling back to the panel calcType → mode default (checklist C8 unchanged —
 // every P1 template carries defaultKind:null, exactly today's behavior).
@@ -18,8 +19,8 @@ export type TemplateId =
   | "probe"
   | "slope";
 
-/** Toolbar grouping: which primitive button's dropdown a template lives under. */
-export type TemplateGroup = "point" | "line" | "polygon";
+/** Toolbar grouping: which button (and its dropdown) a template lives under. */
+export type TemplateGroup = "point" | "line" | "polygon" | "section";
 
 export interface MeasureTemplate {
   id: TemplateId;
@@ -42,7 +43,7 @@ export const TEMPLATES: MeasureTemplate[] = [
 
   // Line group
   { id: "line", label: "Line", group: "line", primitive: "polyline", defaultKind: null, calcType: "length", drawOpts: { label: "Line" } },
-  { id: "section", label: "Section", group: "line", primitive: "polyline", defaultKind: null, calcType: "cross-section", drawOpts: { label: "Section" } },
+  { id: "section", label: "Cross-section", group: "section", primitive: "polyline", defaultKind: null, calcType: "cross-section", drawOpts: { label: "Cross-section" } },
   { id: "slope", label: "Slope", group: "line", primitive: "polyline", defaultKind: null, calcType: "slope", drawOpts: { label: "Slope", slope: true } },
 
   // Polygon group
