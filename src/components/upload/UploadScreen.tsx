@@ -671,7 +671,7 @@ export function UploadScreen() {
 
   return (
     <Page>
-      <PageHeader title="Upload" subtitle="Add survey data or designs to your site" />
+      <PageHeader title="Create" subtitle="Add survey data or designs to your site" />
 
       {phase === "review" && review ? (
         <ReviewCard

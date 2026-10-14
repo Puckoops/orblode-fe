@@ -17,7 +17,7 @@ import { NAV, type NavItem } from "./nav";
 import { railDotClass } from "./railDot";
 import { UserMenu } from "./UserMenu";
 
-/** The global app rail: the workspace dropdown, then Sites, Upload, Outputs and Reports, then the signed-in
+/** The global app rail: the workspace dropdown, then Sites, Create, Files and Reports, then the signed-in
  * person. Collapsed it shows icons only. Its counts are the current workspace's. */
 export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   const pathname = usePathname();

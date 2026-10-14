@@ -2,10 +2,10 @@ import { useSyncExternalStore } from "react";
 
 export type ViewMode = "grid" | "list";
 
-// One choice for the whole Outputs page, folders and files alike, kept per browser. The server snapshot
+// One choice for the whole Files page, folders and files alike, kept per browser. The server snapshot
 // is grid, so hydration agrees.
-const STORAGE_KEY = "orblode:outputs-view";
-const EVENT = "orblode:outputs-view-change";
+const STORAGE_KEY = "orblode:files-view";
+const EVENT = "orblode:files-view-change";
 /** The last choice storage refused, which wins until the page reloads. */
 let unsaved: ViewMode | null = null;
 

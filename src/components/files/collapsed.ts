@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-// The Outputs cards someone folded away, by card key, kept per browser. Every card starts open, and the
+// The Files cards someone folded away, by card key, kept per browser. Every card starts open, and the
 // server snapshot is open too, so hydration agrees.
-const STORAGE_KEY = "orblode:outputs-collapsed";
-const EVENT = "orblode:outputs-collapsed-change";
+const STORAGE_KEY = "orblode:files-collapsed";
+const EVENT = "orblode:files-collapsed-change";
 const LIMIT = 500;
 const NONE: ReadonlySet<string> = new Set();
 
