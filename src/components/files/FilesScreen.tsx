@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowDown01Icon, BlueprintIcon, File01Icon, Folder01Icon, RefreshIcon, Upload01Icon } from "@hugeicons/core-free-icons";
-import { Alert, Band, Button, EmptyState, Icon, IconButton, Page, PageHeader, SearchInput, TextLink } from "@puckoops/camelot";
+import { ArrowDown01Icon, BlueprintIcon, File01Icon, Folder01Icon, PencilEdit02Icon, RefreshIcon, Upload01Icon } from "@hugeicons/core-free-icons";
+import { Alert, Band, Button, EmptyState, Icon, IconButton, Page, PageHeader, SearchInput, TextLink, Tooltip } from "@puckoops/camelot";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Loader } from "@/components/brand/Loader";
+import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { listDesigns, listSurveyAssets, listSurveys, type DesignRecord, type SourceAsset } from "@/lib/api/orblodeSvc";
 import { listOrgMembers } from "@/lib/api/userSvc";
 import { assetName } from "@/lib/survey/edit";
@@ -45,6 +46,7 @@ export function FilesScreen() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [query, setQuery] = useState("");
   const [view, setView] = useViewMode();
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [people, setPeople] = useState(() => peopleById([]));
 
   // Another workspace's sites start a fresh load; the refresh button resets in its click handler. Either
@@ -153,10 +155,25 @@ export function FilesScreen() {
     </div>
   );
 
+  // Edits refetch without the loader, so the page keeps its place while the drawer is open.
+  const editDrawer = (
+    <EditSurveyDrawer surveyId={editingId} onClose={() => setEditingId(null)} onChanged={() => setRefreshTick((t) => t + 1)} initialTab="files" />
+  );
+
   if (open) {
     return (
       <PeopleProvider value={people}>
-        <FolderView open={open} sites={sites} loadError={loadError} query={q} toolbar={toolbar} view={view} onRefresh={refresh} />
+        <FolderView
+          open={open}
+          sites={sites}
+          loadError={loadError}
+          query={q}
+          toolbar={toolbar}
+          view={view}
+          onRefresh={refresh}
+          onEditSurvey={setEditingId}
+        />
+        {editDrawer}
       </PeopleProvider>
     );
   }
@@ -206,10 +223,11 @@ export function FilesScreen() {
           ) : q ? (
             <SearchResults sites={visible} view={view} />
           ) : (
-            visible.map((site) => <SiteSection key={site.project.id} site={site} view={view} />)
+            visible.map((site) => <SiteSection key={site.project.id} site={site} view={view} onEditSurvey={setEditingId} />)
           )}
         </div>
       </Page>
+      {editDrawer}
     </PeopleProvider>
   );
 }
@@ -217,7 +235,7 @@ export function FilesScreen() {
 const surveyCardKey = (surveyId: string) => `survey:${surveyId}`;
 const designsCardKey = (siteId: string) => `designs:${siteId}`;
 
-function SiteSection({ site, view }: { site: SiteGroup; view: ViewMode }) {
+function SiteSection({ site, view, onEditSurvey }: { site: SiteGroup; view: ViewMode; onEditSurvey: (surveyId: string) => void }) {
   const [collapsed, setCollapsed] = useCollapsed();
   const keys = [...site.surveys.map((sg) => surveyCardKey(sg.survey.id)), ...(site.designs.length > 0 ? [designsCardKey(site.project.id)] : [])];
   const allCollapsed = keys.every((k) => collapsed.has(k));
@@ -240,7 +258,16 @@ function SiteSection({ site, view }: { site: SiteGroup; view: ViewMode }) {
       <div className="flex flex-col gap-4">
         {site.surveys.map((sg) => {
           const key = surveyCardKey(sg.survey.id);
-          return <SurveyCard key={sg.survey.id} group={sg} view={view} collapsed={collapsed.has(key)} onToggle={() => toggle(key)} />;
+          return (
+            <SurveyCard
+              key={sg.survey.id}
+              group={sg}
+              view={view}
+              collapsed={collapsed.has(key)}
+              onToggle={() => toggle(key)}
+              onEdit={() => onEditSurvey(sg.survey.id)}
+            />
+          );
         })}
         {site.designs.length > 0 && (
           <FolderCard
@@ -260,20 +287,38 @@ function SiteSection({ site, view }: { site: SiteGroup; view: ViewMode }) {
   );
 }
 
-function SurveyCard({ group, view, collapsed, onToggle }: { group: SurveyGroup; view: ViewMode; collapsed: boolean; onToggle: () => void }) {
+function SurveyCard({
+  group,
+  view,
+  collapsed,
+  onToggle,
+  onEdit,
+}: {
+  group: SurveyGroup;
+  view: ViewMode;
+  collapsed: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+}) {
   const { survey, assets } = group;
   const folders = assetFolders(assets);
+  const date = formatSurveyDate(survey.survey_date);
   return (
     <FolderCard
       id={surveyAnchor(survey.id)}
-      title={<span className="num">{formatSurveyDate(survey.survey_date)}</span>}
+      title={<span className="num">{date}</span>}
       caption={`${survey.survey_type || "survey"} · ${folders.length} folder${folders.length === 1 ? "" : "s"} · ${fileCount(assets.length)}`}
       collapsed={collapsed}
       onToggle={onToggle}
       action={
-        <TextLink as={Link} href={`/viewer/${survey.id}`} arrow="forward" className="caption">
-          Open in viewer
-        </TextLink>
+        <span className="flex items-center gap-2">
+          <Tooltip content="Edit survey">
+            <IconButton icon={PencilEdit02Icon} aria-label={`Edit survey of ${date}`} variant="bare" size="sm" onClick={onEdit} />
+          </Tooltip>
+          <TextLink as={Link} href={`/viewer/${survey.id}`} arrow="forward" className="caption">
+            Open in viewer
+          </TextLink>
+        </span>
       }
     >
       <Folders

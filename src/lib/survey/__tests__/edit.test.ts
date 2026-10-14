@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SourceAsset, Survey } from "@/lib/api/orblodeSvc";
-import { assetRole, isSurveyEditable, reprocessPlan, surveyDetailsOf, surveyDetailsPatch, surveySourceCrs } from "../edit.ts";
+import { assetRole, canReprocess, isSurveyEditable, reprocessPlan, surveyDetailsOf, surveyDetailsPatch, surveySourceCrs } from "../edit.ts";
 
 const survey = (over: Partial<Survey> = {}): Survey => ({
   id: "s1",
@@ -163,4 +163,14 @@ test("face meshes and JPEG zips stored as vectors before they were told apart st
     ["gs://b/original/s1/Mine_Site_07_Dec_2025_DXF_Contours_1_unit.zip", "gs://b/original/s1/pads.geojson"]
   );
   assert.deepEqual(plan.skips, []);
+});
+
+test("canReprocess offers files a processor builds a layer from, and nothing pending, retired, stored-only or a design", () => {
+  assert.equal(canReprocess(asset("dsm.tif", "dsm")), true);
+  assert.equal(canReprocess(asset("toe.dxf", "contours", { kind: "vector" })), true);
+  assert.equal(canReprocess(asset("dsm.tif", "dsm", { status: "pending_upload" })), false);
+  assert.equal(canReprocess(asset("dsm.tif", "dsm", { status: "superseded", is_active: false })), false);
+  assert.equal(canReprocess(asset("pit.obj", "site_model", { kind: "site_model" })), false);
+  assert.equal(canReprocess(asset("ortho.jpg", "ortho", { kind: "ortho" })), false);
+  assert.equal(canReprocess(asset("design.dxf", "design", { kind: "vector" })), false);
 });

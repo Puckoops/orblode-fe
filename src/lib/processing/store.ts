@@ -16,6 +16,8 @@ interface ProcessingState {
   loadCurrent: (surveyId: string) => Promise<void>;
   /** Runs each retryable failure again; resolves to how many started. */
   retry: (surveyId: string, failures: ProcessingFailure[]) => Promise<number>;
+  /** Reloads what's shown for a survey after its files were sent to processing elsewhere. */
+  refreshSurvey: (surveyId: string) => Promise<void>;
 }
 
 export const useProcessing = create<ProcessingState>((set, get) => ({
@@ -41,7 +43,11 @@ export const useProcessing = create<ProcessingState>((set, get) => ({
 
   retry: async (surveyId, failures) => {
     const results = await Promise.allSettled(failures.filter((f) => f.retryable).map((f) => retryProcessing(surveyId, f.workflow_id)));
-    await Promise.all([get().refreshFailed(), get().current?.survey_id === surveyId ? get().loadCurrent(surveyId) : Promise.resolve()]);
+    await get().refreshSurvey(surveyId);
     return results.filter((r) => r.status === "fulfilled").length;
+  },
+
+  refreshSurvey: async (surveyId) => {
+    await Promise.all([get().refreshFailed(), get().current?.survey_id === surveyId ? get().loadCurrent(surveyId) : Promise.resolve()]);
   },
 }));

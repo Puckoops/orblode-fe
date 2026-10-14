@@ -76,6 +76,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   if (!projectData) return null;
 
   const retryable = failedHere.flatMap((s) => s.failures.filter((f) => f.retryable));
+  const changedSince = failedHere.some((s) => s.failures.some((f) => f.inputs_changed));
   const dateOf = (surveyId: string) => {
     const survey = surveys.find((s) => s.id === surveyId);
     return survey ? formatSurveyDate(survey.survey_date) : "A survey";
@@ -139,6 +140,9 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
                 {dateOf(s.survey_id)}: {failureTitle(s)}
               </span>
             ))}
+            {changedSince && (
+              <span className="mt-1 block">Some read files that have changed since, so Retry leaves them out: reprocess them in Edit survey → Files.</span>
+            )}
           </Alert>
         )}
 

@@ -5,6 +5,7 @@ import { useDetectionPoll } from "@/hooks/useDetectionPoll";
 import { refusalMessage } from "@/lib/api/client";
 import {
   generateSurvey,
+  getSurveyProcessing,
   inspectAsset,
   listSurveyAssets,
   removeSurveyAsset,
@@ -12,10 +13,13 @@ import {
   updateSurveyStatus,
   type SourceAsset,
   type Survey,
+  type SurveyProcessing,
   type UpdateSurveyAssetRequest,
 } from "@/lib/api/orblodeSvc";
 import { stripErrNamespace } from "@/lib/api/errors";
-import { assetName, assetRole, reprocessPlan, surveySourceCrs, type ReprocessPlan } from "@/lib/survey/edit";
+import { useProcessing } from "@/lib/processing/store";
+import { failuresByAsset } from "@/lib/processing/summary";
+import { assetName, assetRole, canReprocess, reprocessPlan, surveySourceCrs, type ReprocessPlan } from "@/lib/survey/edit";
 import { toast } from "@/lib/toast";
 import { uploadFiles, type AssetSlot, type UploadFileStatus } from "@/lib/upload/pipeline";
 import { guessRole, roleNeedsHeader, roleToAssetKind, settleRole, type DataType, type FileRole } from "@/lib/upload/planner";
@@ -77,6 +81,9 @@ export function useSurveyFiles({
   const [redetecting, setRedetecting] = useState<ReadonlySet<string>>(new Set());
   // Files added in this drawer count as due even before the list reloads with their needs_processing.
   const [addedIds, setAddedIds] = useState<ReadonlySet<string>>(new Set());
+  // Unchanged files picked to run through their processor again.
+  const [chosenIds, setChosenIds] = useState<ReadonlySet<string>>(new Set());
+  const [processing, setProcessing] = useState<SurveyProcessing | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
   const [dispatched, setDispatched] = useState<DispatchOutcome | null>(null);
   // Upload slots per run, kept across a failure so the retry resumes (ORB-38).
@@ -123,6 +130,25 @@ export function useSurveyFiles({
   }, [surveyId]);
 
   useDetectionPoll(pollDetections, pollRound);
+
+  // Without the survey's processing the files show no failures; the site panel and the viewer still do.
+  const loadProcessing = useCallback(async () => {
+    try {
+      setProcessing(await getSurveyProcessing(surveyId));
+    } catch {}
+  }, [surveyId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSurveyProcessing(surveyId)
+      .then((p) => {
+        if (!cancelled) setProcessing(p);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [surveyId]);
 
   const detectAgain = async (asset: SourceAsset) => {
     setRedetecting((prev) => new Set(prev).add(asset.id));
@@ -267,9 +293,11 @@ export function useSurveyFiles({
   };
 
   const plan: ReprocessPlan | null = useMemo(
-    () => (assets ? reprocessPlan(assets, { epsg: sourceCrs, alsoDue: addedIds }) : null),
-    [assets, sourceCrs, addedIds]
+    () => (assets ? reprocessPlan(assets, { epsg: sourceCrs, alsoDue: new Set([...addedIds, ...chosenIds]) }) : null),
+    [assets, sourceCrs, addedIds, chosenIds]
   );
+
+  const failures = useMemo(() => failuresByAsset(processing, assets ?? []), [processing, assets]);
 
   const reprocess = async () => {
     if (!survey || !plan || plan.dispatches.length === 0) return;
@@ -295,6 +323,7 @@ export function useSurveyFiles({
         const urls = new Set(d.request.inputs?.map((i) => i.url));
         const done = new Set(plan.assets.filter((a) => urls.has(a.url)).map((a) => a.id));
         setAddedIds((prev) => new Set([...prev].filter((id) => !done.has(id))));
+        setChosenIds((prev) => new Set([...prev].filter((id) => !done.has(id))));
       }
       toast.success(`${plural(count, "processing workflow")} dispatched`);
     } catch (err) {
@@ -306,12 +335,24 @@ export function useSurveyFiles({
     } finally {
       if (count > 0) setDispatched({ count, terrain });
       if (count > 0 || statusMoved) await changed();
+      if (count > 0) await Promise.all([loadProcessing(), useProcessing.getState().refreshSurvey(surveyId)]);
       setReprocessing(false);
     }
   };
 
   const uploading = adding || Object.values(replacing).some((r) => r.status === "uploading");
-  const isDue = (asset: SourceAsset) => asset.needs_processing === true || addedIds.has(asset.id);
+  const isDue = (asset: SourceAsset) => asset.needs_processing === true || addedIds.has(asset.id) || chosenIds.has(asset.id);
+  /** Due only because it was picked, so it can be left out again. */
+  const isChosen = (asset: SourceAsset) => chosenIds.has(asset.id) && asset.needs_processing !== true && !addedIds.has(asset.id);
+  const choose = (list: SourceAsset[], on: boolean) =>
+    setChosenIds((prev) => {
+      const next = new Set(prev);
+      for (const a of list) {
+        if (on && canReprocess(a)) next.add(a.id);
+        else next.delete(a.id);
+      }
+      return next;
+    });
 
   return {
     assets,
@@ -336,6 +377,10 @@ export function useSurveyFiles({
     readingRoles,
     plan,
     isDue,
+    isChosen,
+    choose,
+    failures,
+    processing,
     reprocess,
     reprocessing,
     dispatched,

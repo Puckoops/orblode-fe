@@ -1,5 +1,5 @@
 import type { SourceAsset, Survey, UpdateSurveyRequest } from "@/lib/api/orblodeSvc";
-import { ROLE_LABELS, buildProcessorPlan, vectorFeaturesReads, type FileRole, type PlannedFile, type ProcessorPlan } from "../upload/planner.ts";
+import { PROCESSED_OUTPUT, ROLE_LABELS, buildProcessorPlan, skipReason, vectorFeaturesReads, type FileRole, type PlannedFile, type ProcessorPlan } from "../upload/planner.ts";
 
 const EDITABLE_STATUSES = new Set(["pending", "processing", "ready_to_approve", "failed"]);
 
@@ -75,6 +75,12 @@ export function assetName(asset: SourceAsset): string {
 /** Listed and holding its bytes: not removed, superseded or still waiting for its upload. */
 export function isProcessableAsset(asset: SourceAsset): boolean {
   return asset.is_active !== false && asset.status !== "removed" && asset.status !== "superseded" && asset.status !== "pending_upload";
+}
+
+/** A processable file whose role builds a layer from a file like it: one worth running through its processor again. */
+export function canReprocess(asset: SourceAsset): boolean {
+  const role = assetRole(asset);
+  return isProcessableAsset(asset) && role !== null && PROCESSED_OUTPUT[role] !== null && skipReason(assetName(asset), role) === null;
 }
 
 const isVectorRole = (role: FileRole | null) => role === "vector" || role === "contours";

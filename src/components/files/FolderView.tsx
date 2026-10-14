@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderOffIcon, RefreshIcon, SearchRemoveIcon } from "@hugeicons/core-free-icons";
+import { FolderOffIcon, PencilEdit02Icon, RefreshIcon, SearchRemoveIcon } from "@hugeicons/core-free-icons";
 import { Alert, Breadcrumbs, Button, EmptyState, IconButton, Page, PageHeader, type Crumb } from "@puckoops/camelot";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -19,6 +19,7 @@ export function FolderView({
   toolbar,
   view,
   onRefresh,
+  onEditSurvey,
 }: {
   open: OpenFolder;
   sites: SiteGroup[] | null;
@@ -27,8 +28,10 @@ export function FolderView({
   toolbar: ReactNode;
   view: ViewMode;
   onRefresh: () => void;
+  onEditSurvey: (surveyId: string) => void;
 }) {
   const folder = sites ? resolveFolder(sites, open) : null;
+  const survey = folder?.survey;
   const loading = sites === null && !loadError;
   const entries = folder ? folder.entries.filter((e) => nameMatches(e.name, query)) : [];
 
@@ -64,10 +67,15 @@ export function FolderView({
         }
         actions={
           <>
-            {folder?.survey && (
-              <Button asChild variant="ghost">
-                <Link href={`/viewer/${folder.survey.id}`}>Open in viewer</Link>
-              </Button>
+            {survey && (
+              <>
+                <Button variant="ghost" iconStart={PencilEdit02Icon} onClick={() => onEditSurvey(survey.id)}>
+                  Edit survey
+                </Button>
+                <Button asChild variant="ghost">
+                  <Link href={`/viewer/${survey.id}`}>Open in viewer</Link>
+                </Button>
+              </>
             )}
             <IconButton icon={RefreshIcon} aria-label="Refresh" disabled={loading} onClick={onRefresh} />
           </>
