@@ -1,4 +1,5 @@
 import type { AppNotification } from "../api/notifications.ts";
+import { clockTime, daysAgo, shortDate, weekdayTime, type EpochMs } from "../time.ts";
 
 /** How many notices the bell keeps in memory; older ones are a refetch away. */
 export const INBOX_LIMIT = 50;
@@ -59,19 +60,71 @@ export function toastsFor(notices: AppNotification[]): NoticeToast[] {
   return [{ title: `${notices.length} new notifications`, body: `${lead.title}, and ${notices.length - 1} more.`, tone: failed ? "error" : "default" }];
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** Which part of the inbox a notice sits in, by the viewer's calendar. */
+export type DayGroup = "today" | "yesterday" | "week" | "older";
 
-/** "just now", "5 min ago", "3 h ago", "2 d ago", then "12 Oct" (with the year when it isn't this one). */
-export function relativeTime(ms: number, now: number): string {
-  const seconds = Math.max(0, Math.round((now - ms) / 1000));
-  if (seconds < 60) return "just now";
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days} d ago`;
-  const d = new Date(ms);
-  const label = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-  return d.getFullYear() === new Date(now).getFullYear() ? label : `${label} ${d.getFullYear()}`;
+export const DAY_GROUP_LABELS: Record<DayGroup, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
+  week: "Last 7 days",
+  older: "Older",
+};
+
+export function dayGroup(ms: EpochMs, now: EpochMs): DayGroup {
+  const days = daysAgo(ms, now);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return "week";
+  return "older";
+}
+
+/**
+ * A notice's time, as precise as its group leaves room for: "Just now", "12 min ago" and "3 h ago"
+ * today, "15:42" yesterday, "Mon 15:42" within the week, then "12 Oct".
+ */
+export function noticeTime(ms: EpochMs, now: EpochMs): string {
+  switch (dayGroup(ms, now)) {
+    case "today": {
+      const minutes = Math.floor(Math.max(0, now - ms) / 60_000);
+      if (minutes < 1) return "Just now";
+      if (minutes < 60) return `${minutes} min ago`;
+      return `${Math.floor(minutes / 60)} h ago`;
+    }
+    case "yesterday":
+      return clockTime(ms);
+    case "week":
+      return weekdayTime(ms);
+    default:
+      return shortDate(ms, now);
+  }
+}
+
+export interface NoticeGroup {
+  group: DayGroup;
+  label: string;
+  notices: AppNotification[];
+}
+
+/** Notices, newest first, under their day's heading. */
+export function groupNotices(notices: AppNotification[], now: EpochMs): NoticeGroup[] {
+  const groups: NoticeGroup[] = [];
+  for (const notice of notices) {
+    const group = dayGroup(notice.created_at, now);
+    const last = groups[groups.length - 1];
+    if (last?.group === group) last.notices.push(notice);
+    else groups.push({ group, label: DAY_GROUP_LABELS[group], notices: [notice] });
+  }
+  return groups;
+}
+
+/** The Chip tone a notice's icon takes: red for a failure, teal for finished work, amber for something to look at. */
+export type NoticeTone = "red" | "teal" | "amber" | "neutral";
+
+const NEEDS_A_LOOK = new Set(["uploads_unfinished", "stock_anomaly"]);
+
+export function noticeTone(type: string): NoticeTone {
+  const tone = toneFor(type);
+  if (tone === "error") return "red";
+  if (tone === "success") return "teal";
+  return NEEDS_A_LOOK.has(type) ? "amber" : "neutral";
 }

@@ -1,7 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AppNotification } from "../../api/notifications.ts";
-import { arrivedWhileAway, BURST_SIZE, INBOX_LIMIT, markNoticesRead, mergeNotices, relativeTime, toastsFor, toneFor } from "../inbox.ts";
+import {
+  arrivedWhileAway,
+  BURST_SIZE,
+  dayGroup,
+  groupNotices,
+  INBOX_LIMIT,
+  markNoticesRead,
+  mergeNotices,
+  noticeTime,
+  noticeTone,
+  toastsFor,
+  toneFor,
+} from "../inbox.ts";
 
 const notice = (id: string, created_at: number, read_at = 0): AppNotification => ({
   id,
@@ -48,15 +60,50 @@ test("toneFor reads failures and red reconciliations as errors and finished work
   assert.equal(toneFor("site_summary"), "default");
 });
 
-test("relativeTime counts up, then switches to a date", () => {
-  const now = new Date(2026, 9, 12, 12, 0, 0).getTime();
-  assert.equal(relativeTime(now - 20_000, now), "just now");
-  assert.equal(relativeTime(now - 5 * 60_000, now), "5 min ago");
-  assert.equal(relativeTime(now - 3 * 3_600_000, now), "3 h ago");
-  assert.equal(relativeTime(now - 2 * 86_400_000, now), "2 d ago");
-  assert.equal(relativeTime(new Date(2026, 8, 1).getTime(), now), "1 Sep");
-  assert.equal(relativeTime(new Date(2025, 11, 31).getTime(), now), "31 Dec 2025");
-  assert.equal(relativeTime(now + 60_000, now), "just now");
+test("noticeTime is as precise as its day group leaves room for", () => {
+  const now = new Date(2026, 9, 14, 12, 0).getTime();
+  assert.equal(noticeTime(now - 20_000, now), "Just now");
+  assert.equal(noticeTime(now + 60_000, now), "Just now");
+  assert.equal(noticeTime(now - 12 * 60_000, now), "12 min ago");
+  assert.equal(noticeTime(now - 3 * 3_600_000, now), "3 h ago");
+  assert.equal(noticeTime(new Date(2026, 9, 13, 15, 42).getTime(), now), "15:42");
+  assert.equal(noticeTime(new Date(2026, 9, 12, 9, 5).getTime(), now), "Mon 09:05");
+  assert.equal(noticeTime(new Date(2026, 8, 1, 10, 0).getTime(), now), "1 Sep");
+  assert.equal(noticeTime(new Date(2025, 11, 31, 10, 0).getTime(), now), "31 Dec 2025");
+});
+
+test("dayGroup follows the calendar, not 24-hour spans", () => {
+  const now = new Date(2026, 9, 14, 0, 30).getTime();
+  assert.equal(dayGroup(new Date(2026, 9, 14, 0, 1).getTime(), now), "today");
+  assert.equal(dayGroup(new Date(2026, 9, 13, 23, 50).getTime(), now), "yesterday");
+  assert.equal(dayGroup(new Date(2026, 9, 8, 12, 0).getTime(), now), "week");
+  assert.equal(dayGroup(new Date(2026, 9, 7, 12, 0).getTime(), now), "older");
+});
+
+test("groupNotices keeps the order and opens a heading per day group", () => {
+  const now = new Date(2026, 9, 14, 12, 0).getTime();
+  const at = (d: number, h: number) => new Date(2026, 9, d, h).getTime();
+  const groups = groupNotices([notice("a", at(14, 11)), notice("b", at(14, 9)), notice("c", at(13, 18)), notice("d", at(2, 9))], now);
+  assert.deepEqual(
+    groups.map((g) => [g.label, g.notices.map((n) => n.id)]),
+    [
+      ["Today", ["a", "b"]],
+      ["Yesterday", ["c"]],
+      ["Older", ["d"]],
+    ],
+  );
+  assert.deepEqual(groupNotices([], now), []);
+});
+
+test("noticeTone reads failures red, finished work teal and what needs a look amber", () => {
+  assert.equal(noticeTone("survey_failed"), "red");
+  assert.equal(noticeTone("reconciliation_red"), "red");
+  assert.equal(noticeTone("design_ready"), "teal");
+  assert.equal(noticeTone("stockpiles_computed"), "teal");
+  assert.equal(noticeTone("uploads_unfinished"), "amber");
+  assert.equal(noticeTone("stock_anomaly"), "amber");
+  assert.equal(noticeTone("member_joined"), "neutral");
+  assert.equal(noticeTone("added_to_organisation"), "neutral");
 });
 
 test("toastsFor gives each notice its own toast until a burst", () => {
