@@ -6,10 +6,8 @@ import { useRouter } from "next/navigation";
 import { PencilEdit02Icon } from "@hugeicons/core-free-icons";
 import { Alert, Badge, IconButton, Select } from "@puckoops/camelot";
 import { Loader } from "@/components/brand/Loader";
-import { StateChip } from "@/components/common/StateChip";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { listSurveys, type Survey } from "@/lib/api/orblodeSvc";
-import { surveyState } from "@/lib/status";
 import { formatSurveyDate } from "@/lib/utils";
 
 /** Sibling surveys for the same project: a current-survey selector plus a
@@ -120,7 +118,6 @@ export function SurveyList({
                   <span className="num truncate font-medium text-ink-1">{formatSurveyDate(s.survey_date)}</span>
                   <span className="flex shrink-0 items-center gap-1.5">
                     <Badge variant="tag">V{versionOf.get(s.id)}</Badge>
-                    <StateChip state={surveyState(s.status)} />
                   </span>
                 </span>
                 <span className="caption pr-8 text-ink-4">{s.survey_type}</span>
