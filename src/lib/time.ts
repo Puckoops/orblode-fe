@@ -42,13 +42,13 @@ export function exactTime(ms: EpochMs): string {
   return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/**
- * People's last active: "Active now" inside the 10 minutes a busy session takes to move it, then
- * "25 min ago", "3 h ago", "Yesterday", "4 days ago" and a date.
- */
+/** user-svc moves last active at most every 5 minutes, so anything inside 10 still means "now". */
+export const ACTIVE_NOW_MS = 10 * 60_000;
+
+/** People's last active: "Active now", then "25 min ago", "3 h ago", "Yesterday", "4 days ago" and a date. */
 export function lastActive(ms: EpochMs, now: EpochMs): string {
-  const minutes = Math.floor(Math.max(0, now - ms) / 60_000);
-  if (minutes < 10) return "Active now";
+  if (now - ms < ACTIVE_NOW_MS) return "Active now";
+  const minutes = Math.floor((now - ms) / 60_000);
   if (minutes < 60) return `${minutes} min ago`;
   const days = daysAgo(ms, now);
   if (days === 0) return `${Math.floor(minutes / 60)} h ago`;

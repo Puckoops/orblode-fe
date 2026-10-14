@@ -18,12 +18,12 @@ import {
   type OrgMember,
   type OrgRole,
 } from "@/lib/api/userSvc";
-import { canRemove, hasJoined, ORG_ROLES, orgRoleChoices, orgRoleLabel } from "@/lib/access/roles";
+import { canRemove, ORG_ROLES, orgRoleChoices, orgRoleLabel } from "@/lib/access/roles";
 import { useOrganisation, useOrgViewer } from "@/lib/organisation/store";
-import { exactTime, lastActive } from "@/lib/time";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 import { InviteMemberDialog } from "./InviteMemberDialog";
+import { LastActive } from "./LastActive";
 
 /**
  * Runs load, and again whenever key changes, someone joins (the notice bumps the organisation's
@@ -128,16 +128,6 @@ function PendingInvitations({ refreshKey, confirm }: { refreshKey: number; confi
         </TBody>
       </Table>
     </Band>
-  );
-}
-
-function LastActive({ at, now }: { at?: string; now: number }) {
-  const ms = at ? Date.parse(at) : NaN;
-  if (!Number.isFinite(ms)) return <span className="text-ink-4">—</span>;
-  return (
-    <time className="num-sm whitespace-nowrap" dateTime={at} title={exactTime(ms)}>
-      {lastActive(ms, now)}
-    </time>
   );
 }
 
@@ -261,7 +251,6 @@ export function PeopleSettings() {
                       </span>
                       {m.name && m.email && <span className="caption block text-ink-4">{m.email}</span>}
                       {!m.is_verified && <span className="caption block text-ink-4">Hasn’t confirmed their email yet</span>}
-                      {!self && !hasJoined(m) && <span className="caption block text-ink-4">Hasn’t joined yet</span>}
                     </Td>
                     <Td>
                       {choices.length > 1 ? (
@@ -290,7 +279,7 @@ export function PeopleSettings() {
                       </span>
                     </Td>
                     <Td>
-                      <LastActive at={m.last_login_time} now={now} />
+                      <LastActive member={m} now={now} />
                     </Td>
                     <Td className="text-right">
                       {canRemove(viewer, m, owners) && (
