@@ -1,6 +1,6 @@
 "use client";
 
-import { Briefcase01Icon, Building03Icon, Notification03Icon, UserCircleIcon, UserGroupIcon, UserMultiple02Icon } from "@hugeicons/core-free-icons";
+import { Briefcase01Icon, Building03Icon, KeyboardIcon, Notification03Icon, UserCircleIcon, UserGroupIcon, UserMultiple02Icon } from "@hugeicons/core-free-icons";
 import { Band, Icon, Page, PageHeader, Tabs, TabsContent, TabsList, TabsTrigger, type IconDefinition } from "@puckoops/camelot";
 import { useSearchParams } from "next/navigation";
 import { GeneralSettings } from "./GeneralSettings";
@@ -8,12 +8,14 @@ import { NotificationSettings } from "./NotificationSettings";
 import { OrganisationSettings } from "./OrganisationSettings";
 import { PeopleSettings } from "./PeopleSettings";
 import styles from "./settings.module.css";
+import { ShortcutSettings } from "./ShortcutSettings";
 import { TeamsSettings } from "./TeamsSettings";
 import { WorkspaceSettings } from "./WorkspaceSettings";
 
 const TABS = [
   { value: "general", label: "General", icon: UserCircleIcon },
   { value: "notifications", label: "Notifications", icon: Notification03Icon },
+  { value: "shortcuts", label: "Keyboard shortcuts", icon: KeyboardIcon },
   { value: "workspace", label: "Workspace", icon: Briefcase01Icon },
   { value: "people", label: "People", icon: UserMultiple02Icon },
   { value: "teams", label: "Teams", icon: UserGroupIcon },
@@ -21,8 +23,8 @@ const TABS = [
 ] as const satisfies readonly { value: string; label: string; icon: IconDefinition }[];
 type Tab = (typeof TABS)[number]["value"];
 
-/** Settings, with its sections in a side panel: General (the account, appearance, sign-out), Notifications, the
- * open Workspace, and the organisation's People, Teams and privileges. */
+/** Settings, with its sections in a side panel: General (the account, appearance, sign-out), Notifications, Keyboard
+ * shortcuts, the open Workspace, and the organisation's People, Teams and privileges. */
 export function SettingsScreen() {
   const params = useSearchParams();
   const asked = params.get("tab");
@@ -38,7 +40,7 @@ export function SettingsScreen() {
 
   return (
     <Page>
-      <PageHeader title="Settings" subtitle="Your account, your notifications, your workspace, your organisation's people and teams, and how Orblode looks on this device." />
+      <PageHeader title="Settings" subtitle="Your account, your notifications, your keyboard shortcuts, your workspace, your organisation's people and teams, and how Orblode looks on this device." />
       <Tabs value={tab} onValueChange={(v) => choose(v as Tab)} orientation="vertical" className={styles.tabs}>
         <TabsList aria-label="Settings" className={styles.nav}>
           {TABS.map((t) => (
@@ -59,6 +61,10 @@ export function SettingsScreen() {
           <Band first heading="Notifications" caption="Where each kind of notice reaches you. The same in every organisation you belong to.">
             <NotificationSettings />
           </Band>
+        </TabsContent>
+
+        <TabsContent value="shortcuts" className={styles.panel}>
+          <ShortcutSettings />
         </TabsContent>
 
         <TabsContent value="workspace" className={styles.panel}>
