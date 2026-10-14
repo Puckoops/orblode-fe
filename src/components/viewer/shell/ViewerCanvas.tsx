@@ -56,6 +56,7 @@ import {
 import { ApiError } from "@/lib/api/client";
 import { filesUrlsIn } from "@/lib/files";
 import { stripErrNamespace } from "@/lib/api/errors";
+import { surveyDenial } from "@/lib/viewer/surveyAccess";
 import {
   geometryPositions,
   geometryToRectangle,
@@ -138,6 +139,7 @@ import { useElevationRamp } from "@/components/viewer/shell/hooks/useElevationRa
 import { useCompareLayers } from "@/components/viewer/shell/hooks/useCompareLayers";
 import { useMeasurementHeatmap } from "@/components/viewer/shell/hooks/useMeasurementHeatmap";
 import { ProcessingBanner } from "@/components/viewer/shell/ProcessingBanner";
+import { SurveyDenied } from "@/components/viewer/shell/SurveyDenied";
 import { useProcessing } from "@/lib/processing/store";
 import { isStalled } from "@/lib/processing/summary";
 
@@ -209,6 +211,7 @@ export function ViewerCanvas() {
   const surveyId = useViewerStore((s) => s.surveyId);
   const manifest = useViewerStore((s) => s.manifest);
   const manifestError = useViewerStore((s) => s.manifestError);
+  const denial = useViewerStore((s) => s.surveyDenial);
   const measurements = useViewerStore((s) => s.measurements);
   const measurementVisibility = useViewerStore((s) => s.measurementVisibility);
   const layerControls = useViewerStore((s) => s.layerControls);
@@ -355,8 +358,11 @@ export function ViewerCanvas() {
       const m = await getManifest(surveyId);
       store.getState().setManifest(filesUrlsIn(m));
       store.getState().setManifestError(null);
+      store.getState().setSurveyDenial(null);
     } catch (err) {
-      if (err instanceof ApiError && err.status !== 401) {
+      const denial = surveyDenial(err);
+      if (denial) store.getState().setSurveyDenial(denial);
+      else if (err instanceof ApiError && err.status !== 401) {
         store.getState().setManifestError(err.message);
       }
     }
@@ -380,7 +386,14 @@ export function ViewerCanvas() {
       measurementsSigRef.current = sig;
       store.getState().setMeasurements(list);
     } catch (err) {
-      console.error("Failed to fetch measurements:", err);
+      const denial = surveyDenial(err);
+      if (!denial) {
+        console.error("Failed to fetch measurements:", err);
+        return;
+      }
+      store.getState().setSurveyDenial(denial);
+      measurementsSigRef.current = "";
+      store.getState().setMeasurements([]);
     }
   }, [surveyId, store]);
 
@@ -1264,7 +1277,7 @@ export function ViewerCanvas() {
     toast.success(`Exported ${features.length} measurement${features.length === 1 ? "" : "s"}`);
   }, [store, surveyId]);
 
-  useManifestLoad({ manifest, layersEmpty: layersEmpty && !processingStalled, loadManifest, refreshMeasurements, setProject });
+  useManifestLoad({ manifest, layersEmpty: layersEmpty && !processingStalled && !denial, loadManifest, refreshMeasurements, setProject });
   useMeasurementsPoll({
     measurementSearch,
     measurements,
@@ -1437,7 +1450,7 @@ export function ViewerCanvas() {
   // DetailPanel (calc/inspect) as an absolute overlay — MUST NOT resize the
   // canvas (D10). Row 2 is the StatusBar spanning cols 2–3.
   const isMeasure = activeModule === "measure";
-  const leftPanelVisible = treePanelOpen; // the list dock, all modules
+  const leftPanelVisible = treePanelOpen && !denial; // the list dock, all modules
 
   return (
     <InteractionProvider value={interactionActor}>
@@ -1484,8 +1497,8 @@ export function ViewerCanvas() {
                     style={{ width: "100%", height: "100%" }}
                   />
                 </div>
-                {(!viewerReady || !manifest) && !manifestError && <Loader variant="fill" label="Loading the survey" />}
-                <ProcessingBanner surveyId={surveyId} />
+                {(!viewerReady || !manifest) && !manifestError && !denial && <Loader variant="fill" label="Loading the survey" />}
+                {denial ? <SurveyDenied denial={denial} /> : <ProcessingBanner surveyId={surveyId} />}
 
                 {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}
                 {isMeasure && <FloatingToolbar />}
