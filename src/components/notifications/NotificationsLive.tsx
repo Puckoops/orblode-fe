@@ -52,7 +52,7 @@ function announce({ id, title, body, link, tone }: NoticeToast, push: (href: str
   let action: ReactNode = null;
   if (!id) {
     action = (
-      <TextLink as="button" type="button" onClick={() => inbox.setDrawerOpen(true)}>
+      <TextLink as="button" type="button" onClick={() => inbox.setInboxOpen(true)}>
         Show all
       </TextLink>
     );

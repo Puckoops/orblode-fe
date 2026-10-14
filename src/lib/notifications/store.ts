@@ -6,8 +6,8 @@ interface InboxState {
   items: AppNotification[];
   unread: number;
   loaded: boolean;
-  drawerOpen: boolean;
-  setDrawerOpen: (open: boolean) => void;
+  inboxOpen: boolean;
+  setInboxOpen: (open: boolean) => void;
   /** Replaces the list with the server's newest page; resolves to what it found that was new and unread. */
   refresh: () => Promise<AppNotification[]>;
   /** Adds a notice that arrived live. */
@@ -16,13 +16,13 @@ interface InboxState {
   markAllRead: () => Promise<void>;
 }
 
-/** The signed-in person's Orblode inbox, shared by the bell, its drawer, the live connection and its toasts. */
+/** The signed-in person's Orblode inbox, shared by the bell, its card, the live connection and its toasts. */
 export const useInbox = create<InboxState>((set, get) => ({
   items: [],
   unread: 0,
   loaded: false,
-  drawerOpen: false,
-  setDrawerOpen: (open) => set({ drawerOpen: open }),
+  inboxOpen: false,
+  setInboxOpen: (open) => set({ inboxOpen: open }),
 
   refresh: async () => {
     try {
