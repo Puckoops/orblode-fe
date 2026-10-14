@@ -26,6 +26,7 @@ import type { Cartesian3 } from "cesium";
 
 import type { EstimateResult, Manifest, Measurement } from "@/lib/api/orblodeSvc";
 import type { Project } from "@/lib/api/userSvc";
+import type { SurveyDenial } from "@/lib/viewer/surveyAccess";
 import type { LayerControl, DesignControl } from "@/components/viewer/LayerPanel";
 import type { DrawMode, DrawOptions } from "@/lib/viewer/draw";
 import type { LngLatHeight } from "@/lib/viewer/measure";
@@ -169,6 +170,8 @@ export interface ViewerShellData {
 
   manifest: Manifest | null;
   manifestError: string | null;
+  /** orblode-svc refused to show this survey: its manifest or measurements read answered 403. */
+  surveyDenial: SurveyDenial | null;
   project: Project | null;
 
   measurements: Measurement[];
@@ -284,6 +287,7 @@ export interface ViewerShellActions {
   // single mutation surface; the async/Cesium work stays in the hooks.
   setManifest: (manifest: Manifest | null) => void;
   setManifestError: (error: string | null) => void;
+  setSurveyDenial: (denial: SurveyDenial | null) => void;
   setProject: (project: Project | null) => void;
   setMeasurements: (measurements: Measurement[]) => void;
   setLayerControls: (layers: LayerControl[]) => void;
@@ -359,6 +363,7 @@ function defaultData(surveyId: string): ViewerShellData {
 
     manifest: null,
     manifestError: null,
+    surveyDenial: null,
     project: null,
 
     measurements: [],
@@ -587,6 +592,7 @@ export function createViewerStore(
 
     setManifest: (manifest) => set({ manifest }),
     setManifestError: (error) => set({ manifestError: error }),
+    setSurveyDenial: (denial) => set({ surveyDenial: denial }),
     setProject: (project) => set({ project }),
     setMeasurements: (measurements) => set({ measurements }),
     setLayerControls: (layers) => set({ layerControls: layers }),
