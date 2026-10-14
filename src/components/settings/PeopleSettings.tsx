@@ -20,6 +20,7 @@ import {
 } from "@/lib/api/userSvc";
 import { canRemove, hasJoined, ORG_ROLES, orgRoleChoices, orgRoleLabel } from "@/lib/access/roles";
 import { useOrganisation, useOrgViewer } from "@/lib/organisation/store";
+import { exactTime, lastActive } from "@/lib/time";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 import { InviteMemberDialog } from "./InviteMemberDialog";
@@ -130,6 +131,26 @@ function PendingInvitations({ refreshKey, confirm }: { refreshKey: number; confi
   );
 }
 
+function LastActive({ at, now }: { at?: string; now: number }) {
+  const ms = at ? Date.parse(at) : NaN;
+  if (!Number.isFinite(ms)) return <span className="text-ink-4">—</span>;
+  return (
+    <time className="num-sm whitespace-nowrap" dateTime={at} title={exactTime(ms)}>
+      {lastActive(ms, now)}
+    </time>
+  );
+}
+
+/** Re-renders every minute, so relative times stay true while the page is open. */
+function useNow() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const every = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(every);
+  }, []);
+  return now;
+}
+
 /** The organisation's people: their role, their teams, adding someone, changing a role and removing someone. */
 export function PeopleSettings() {
   const viewer = useOrgViewer();
@@ -140,6 +161,7 @@ export function PeopleSettings() {
   const [inviting, setInviting] = useState(false);
   const [invitationsKey, setInvitationsKey] = useState(0);
   const [changing, setChanging] = useState<string | null>(null);
+  const now = useNow();
 
   const load = useCallback(() => {
     listOrgMembers()
@@ -268,7 +290,7 @@ export function PeopleSettings() {
                       </span>
                     </Td>
                     <Td>
-                      <span className="num-sm">{m.last_login_time ? formatSurveyDate(m.last_login_time.slice(0, 10)) : "—"}</span>
+                      <LastActive at={m.last_login_time} now={now} />
                     </Td>
                     <Td className="text-right">
                       {canRemove(viewer, m, owners) && (

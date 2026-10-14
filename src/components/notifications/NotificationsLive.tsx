@@ -1,12 +1,14 @@
 "use client";
 
 import { TextLink, toast } from "@puckoops/camelot";
-import Link from "next/link";
-import { useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, type ReactNode } from "react";
 import { NOTIFICATIONS_STREAM, type AppNotification } from "@/lib/api/notifications";
+import { followNoticeLink } from "@/lib/notifications/follow";
 import { toastsFor, type NoticeToast } from "@/lib/notifications/inbox";
 import { useAuthUser } from "@/hooks/useAuth";
 import { useInbox } from "@/lib/notifications/store";
+import { markPointedOut } from "@/lib/organisation/pointedOut";
 import { useOrganisation } from "@/lib/organisation/store";
 import { useProcessing } from "@/lib/processing/store";
 import { syncPush } from "@/lib/push/client";
@@ -15,11 +17,16 @@ import { useSiteAlerts } from "@/lib/reports/alerts";
 /**
  * Some notices change what the rail counts: a survey notice which surveys have failed (and maybe
  * the one open in the viewer), a red reconciliation which sites reconcile red. Someone joining
- * changes the organisation's people.
+ * changes the organisation's people, and being added to another organisation the switcher's list;
+ * its notice has said so, so the next page load needn't again.
  */
 function follow(notice: AppNotification) {
   if (notice.type === "reconciliation_red") void useSiteAlerts.getState().refresh();
   if (notice.type === "member_joined") useOrganisation.getState().bumpMembers();
+  if (notice.type === "added_to_organisation") {
+    if (typeof notice.data?.client_id === "string") markPointedOut([notice.data.client_id]);
+    void useOrganisation.getState().loadMine();
+  }
   if (!notice.type.startsWith("survey_")) return;
   const processing = useProcessing.getState();
   void processing.refreshFailed();
@@ -40,7 +47,7 @@ const BURST_WINDOW_MS = 800;
 const STALE_AFTER_MS = 90_000;
 const WATCH_EVERY_MS = 30_000;
 
-function announce({ id, title, body, link, tone }: NoticeToast) {
+function announce({ id, title, body, link, tone }: NoticeToast, push: (href: string) => void) {
   const inbox = useInbox.getState();
   let action: ReactNode = null;
   if (!id) {
@@ -50,8 +57,12 @@ function announce({ id, title, body, link, tone }: NoticeToast) {
       </TextLink>
     );
   } else if (link) {
+    const open = () => {
+      void inbox.markRead([id]);
+      void followNoticeLink(link, push);
+    };
     action = (
-      <TextLink as={Link} href={link} onClick={() => void inbox.markRead([id])}>
+      <TextLink as="button" type="button" onClick={open}>
         Open
       </TextLink>
     );
@@ -78,6 +89,11 @@ function announce({ id, title, body, link, tone }: NoticeToast) {
  */
 export function NotificationsLive() {
   const userId = useAuthUser()?.id;
+  const router = useRouter();
+  const push = useRef(router.push);
+  useEffect(() => {
+    push.current = router.push;
+  }, [router]);
   const refresh = useInbox((s) => s.refresh);
   const receive = useInbox((s) => s.receive);
   const refreshFailed = useProcessing((s) => s.refreshFailed);
@@ -93,7 +109,7 @@ export function NotificationsLive() {
     let burst: ReturnType<typeof setTimeout> | undefined;
 
     const toastArrived = () => {
-      toastsFor(arrived).forEach(announce);
+      toastsFor(arrived).forEach((t) => announce(t, (href) => push.current(href)));
       arrived = [];
       burst = undefined;
     };
