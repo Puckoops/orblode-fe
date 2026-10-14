@@ -38,8 +38,8 @@ function parseRef(v: unknown): CompareRef | null {
   return null;
 }
 
-/** A line's cross-section settings. A cross-section measurement shows its chart unless turned off; other lines only once turned on. */
-export function crossSectionOf(kind: string, params: Record<string, unknown> | null | undefined): CrossSectionSettings {
+/** A line's cross-section settings. Every line shows its chart until it is turned off. */
+export function crossSectionOf(params: Record<string, unknown> | null | undefined): CrossSectionSettings {
   const raw = params?.cross_section;
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const compare: CompareRef[] = [];
@@ -49,7 +49,7 @@ export function crossSectionOf(kind: string, params: Record<string, unknown> | n
     compare.push(ref);
     if (compare.length === MAX_COMPARE) break;
   }
-  return { show: typeof r.show === "boolean" ? r.show : kind === "cross_section", compare };
+  return { show: typeof r.show === "boolean" ? r.show : true, compare };
 }
 
 export function refKey(ref: CompareRef): string {

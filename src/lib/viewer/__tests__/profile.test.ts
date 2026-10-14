@@ -25,11 +25,11 @@ import { PROFILE_SERIES } from "../sceneStyle.ts";
 const SURVEY = "6ac76c76e4b0a1b2c3d4e5f6";
 const DESIGN = "6ac8e697e4b0a1b2c3d4e5f6";
 
-test("a cross-section shows its chart by default; other lines only once turned on", () => {
-  assert.equal(crossSectionOf("cross_section", undefined).show, true);
-  assert.equal(crossSectionOf("cross_section", { cross_section: { show: false } }).show, false);
-  assert.equal(crossSectionOf("distance", {}).show, false);
-  assert.equal(crossSectionOf("slope", { cross_section: { show: true } }).show, true);
+test("every line shows its chart until it is turned off", () => {
+  assert.equal(crossSectionOf(undefined).show, true);
+  assert.equal(crossSectionOf({}).show, true);
+  assert.equal(crossSectionOf({ cross_section: { compare: [] } }).show, true);
+  assert.equal(crossSectionOf({ cross_section: { show: false } }).show, false);
 });
 
 test("stored comparisons are parsed, deduplicated and capped", () => {
@@ -43,7 +43,7 @@ test("stored comparisons are parsed, deduplicated and capped", () => {
     { type: "contour" },
     null,
   ];
-  const s = crossSectionOf("cross_section", { cross_section: { compare } });
+  const s = crossSectionOf({ cross_section: { compare } });
   assert.deepEqual(s.compare, [
     { type: "survey_terrain", survey_id: SURVEY, surface: "dtm", color: "#123456" },
     { type: "design", design_id: DESIGN, color: PROFILE_SERIES[0] },
@@ -51,7 +51,7 @@ test("stored comparisons are parsed, deduplicated and capped", () => {
   ]);
 
   const many = Array.from({ length: 12 }, (_, k) => ({ type: "reference_level", elevation_m: k }));
-  assert.equal(crossSectionOf("cross_section", { cross_section: { compare: many } }).compare.length, MAX_COMPARE);
+  assert.equal(crossSectionOf({ cross_section: { compare: many } }).compare.length, MAX_COMPARE);
 });
 
 test("each comparison takes the next unused colour", () => {
