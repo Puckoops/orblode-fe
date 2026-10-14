@@ -62,6 +62,17 @@ test("bridge: placing entry mirrors slope drawOpts", () => {
   h.detach();
 });
 
+test("bridge: a line template picks its calculation, also when switched mid-placing", () => {
+  const h = harness();
+  h.store.getState().setView({ calcType: "length" });
+  h.actor.send({ type: "TEMPLATE_PICKED", templateId: "section" });
+  assert.equal(s(h).view.calcType, "cross-section");
+  h.actor.send({ type: "TEMPLATE_PICKED", templateId: "slope" });
+  assert.equal(s(h).activeToolKey, "palette:slope");
+  assert.equal(s(h).view.calcType, "slope");
+  h.detach();
+});
+
 test("bridge REGRESSION: calcReady re-mirrors drawMode after a line→polygon close-out", () => {
   const h = harness();
   h.actor.send({ type: "TEMPLATE_PICKED", templateId: "line" });

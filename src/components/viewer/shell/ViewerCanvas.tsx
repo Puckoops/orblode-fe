@@ -117,6 +117,7 @@ import { TreePanel } from "@/components/viewer/shell/TreePanel";
 import { FloatingToolbar } from "@/components/viewer/shell/FloatingToolbar";
 import { SurveyCompare } from "@/components/viewer/shell/SurveyCompare";
 import { DetailPanel } from "@/components/viewer/shell/DetailPanel";
+import { CrossSectionDock } from "@/components/viewer/shell/CrossSectionDock";
 import { Loader } from "@/components/brand/Loader";
 import { StatusBar } from "@/components/viewer/shell/StatusBar";
 import { CameraJoystick } from "@/components/viewer/CameraJoystick";
@@ -1521,6 +1522,8 @@ export function ViewerCanvas() {
                     onToggleGrid={toggleGrid}
                   />
                 </div>
+
+                <CrossSectionDock />
 
                 {/* Zone 5 — draggable floating detail (expanded or compact), below the bell. */}
                 <DetailPanel />

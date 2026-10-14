@@ -30,6 +30,8 @@ export interface MeasureTemplate {
   probe?: boolean;
   /** Seed calc kind at commit; null defers to panel calcType → mode default. */
   defaultKind: string | null;
+  /** The calculation (lib/viewer/calc.ts CALC_TYPES id) the panel picks when this template is armed. */
+  calcType?: string;
   drawOpts?: { label?: string; slope?: boolean };
 }
 
@@ -39,9 +41,9 @@ export const TEMPLATES: MeasureTemplate[] = [
   { id: "probe", label: "Probe", group: "point", primitive: null, probe: true, defaultKind: null },
 
   // Line group
-  { id: "line", label: "Line", group: "line", primitive: "polyline", defaultKind: null, drawOpts: { label: "Line" } },
-  { id: "section", label: "Section", group: "line", primitive: "polyline", defaultKind: null, drawOpts: { label: "Section" } },
-  { id: "slope", label: "Slope", group: "line", primitive: "polyline", defaultKind: null, drawOpts: { label: "Slope", slope: true } },
+  { id: "line", label: "Line", group: "line", primitive: "polyline", defaultKind: null, calcType: "length", drawOpts: { label: "Line" } },
+  { id: "section", label: "Section", group: "line", primitive: "polyline", defaultKind: null, calcType: "cross-section", drawOpts: { label: "Section" } },
+  { id: "slope", label: "Slope", group: "line", primitive: "polyline", defaultKind: null, calcType: "slope", drawOpts: { label: "Slope", slope: true } },
 
   // Polygon group
   { id: "polygon", label: "Polygon", group: "polygon", primitive: "polygon", defaultKind: null, drawOpts: { label: "Polygon" } },

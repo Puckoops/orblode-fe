@@ -761,6 +761,47 @@ export function getMeasurementHeatmap(surveyId: string, measurementId: string): 
   return apiFetch<MeasurementHeatmap>(BASE, `/surveys/${surveyId}/measurements/${measurementId}/heatmap`);
 }
 
+/** A surface to draw a cross-section on: a survey's terrain (the route's
+ * survey when `survey_id` is left out, DSM unless `surface` says otherwise)
+ * or a design's surface. */
+export interface ProfileSurfaceRequest {
+  type: "survey_terrain" | "design";
+  survey_id?: string;
+  surface?: "dsm" | "dtm";
+  design_id?: string;
+}
+
+export interface ProfileRequest {
+  line: { type: "LineString"; coordinates: number[][] };
+  surfaces: ProfileSurfaceRequest[];
+  spacing_m?: number;
+}
+
+/** One requested surface: its height in metres at each station, null where
+ * the station is off it, or why it could not be read. */
+export interface ProfileSurface extends ProfileSurfaceRequest {
+  z?: (number | null)[];
+  error?: { class: string; message: string };
+}
+
+/** Stations along the line (chainage from the first vertex and their WGS 84
+ * position), each vertex's chainage, and the surfaces in request order. */
+export interface ProfileResponse {
+  length_m: number;
+  spacing_m: number;
+  vertices_m: number[];
+  distance_m: number[];
+  lon: number[];
+  lat: number[];
+  surfaces: ProfileSurface[];
+}
+
+/** POST /surveys/:id/profile: samples surfaces of the survey's project along a
+ * line, nothing stored. */
+export function getProfile(surveyId: string, body: ProfileRequest, signal?: AbortSignal): Promise<ProfileResponse> {
+  return apiFetch<ProfileResponse>(BASE, `/surveys/${surveyId}/profile`, { method: "POST", body, signal });
+}
+
 /** Synchronous instant estimate (POST /estimate). Resolves in tens of ms for a
  * panel-scale boundary. A method no worker runs answers 422 with the reason;
  * an unregistered surface, timeout or busy tier answers 409/429/503/504. */

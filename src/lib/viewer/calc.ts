@@ -39,7 +39,7 @@ export const CALC_TYPES: Record<"probe" | "polyline" | "polygon", CalcType[]> = 
     {
       id: "cross-section",
       label: "Cross-section",
-      hint: "A section line kept with the survey.",
+      hint: "The ground along the line, against other surveys and designs.",
       kind: "cross_section",
     },
     { id: "slope", label: "Slope / grade", hint: "Grade between the endpoints.", kind: "slope" },
