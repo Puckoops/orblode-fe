@@ -32,7 +32,7 @@ export function FolderView({
   const loading = sites === null && !loadError;
   const entries = folder ? folder.entries.filter((e) => nameMatches(e.name, query)) : [];
 
-  const crumbs: Crumb[] = [{ label: "Outputs", href: "/files" }];
+  const crumbs: Crumb[] = [{ label: "Files", href: "/files" }];
   if (folder) {
     crumbs.push({ label: folder.site.name, href: `/files#${siteAnchor(folder.site.id)}` });
     if (folder.survey) crumbs.push({ label: formatSurveyDate(folder.survey.survey_date), href: `/files#${surveyAnchor(folder.survey.id)}` });
@@ -91,7 +91,7 @@ export function FolderView({
             framed
             action={
               <Button asChild variant="ghost">
-                <Link href="/files">Back to Outputs</Link>
+                <Link href="/files">Back to Files</Link>
               </Button>
             }
           />

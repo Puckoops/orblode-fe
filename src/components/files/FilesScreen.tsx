@@ -165,7 +165,7 @@ export function FilesScreen() {
     <PeopleProvider value={people}>
       <Page>
         <PageHeader
-          title="Outputs"
+          title="Files"
           subtitle={
             loading
               ? "Loading uploaded source data…"
