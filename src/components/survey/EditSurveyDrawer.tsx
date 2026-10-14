@@ -39,10 +39,12 @@ export function EditSurveyDrawer({
   surveyId,
   onClose,
   onChanged,
+  initialTab = "details",
 }: {
   surveyId: string | null;
   onClose: () => void;
   onChanged?: (surveyId: string) => void;
+  initialTab?: Tab;
 }) {
   // Each opening is a fresh session; the last one stays mounted while the drawer animates shut.
   const [prevId, setPrevId] = useState(surveyId);
@@ -54,7 +56,14 @@ export function EditSurveyDrawer({
 
   if (session.surveyId === null) return null;
   return (
-    <EditSurveySession key={session.key} surveyId={session.surveyId} open={surveyId !== null} onClose={onClose} onChanged={onChanged} />
+    <EditSurveySession
+      key={session.key}
+      surveyId={session.surveyId}
+      open={surveyId !== null}
+      onClose={onClose}
+      onChanged={onChanged}
+      initialTab={initialTab}
+    />
   );
 }
 
@@ -63,16 +72,18 @@ function EditSurveySession({
   open,
   onClose,
   onChanged,
+  initialTab,
 }: {
   surveyId: string;
   open: boolean;
   onClose: () => void;
   onChanged?: (surveyId: string) => void;
+  initialTab: Tab;
 }) {
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [form, setForm] = useState<SurveyDetails | null>(null);
-  const [tab, setTab] = useState<Tab>("details");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);

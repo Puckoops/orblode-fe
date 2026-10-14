@@ -2,15 +2,15 @@
 
 import { Alert, Button } from "@puckoops/camelot";
 import { useEffect, useState } from "react";
-import { failureLines, failureTitle } from "@/lib/processing/summary";
+import { failureLines, failureTitle, notRetryableLines } from "@/lib/processing/summary";
 import { useProcessing } from "@/lib/processing/store";
 import { toast } from "@/lib/toast";
 
 const POLL_MS = 30_000;
 
 /**
- * Over the canvas when a processor failed on this survey: the reason, and Retry for runs that kept
- * their request. While a run is still going it checks every 30s; survey notices refresh it too.
+ * Over the canvas when a processor failed on this survey: the reason, and Retry for runs that can run again
+ * as they were. While a run is still going it checks every 30s; survey notices refresh it too.
  */
 export function ProcessingBanner({ surveyId }: { surveyId: string }) {
   const current = useProcessing((s) => (s.current?.survey_id === surveyId ? s.current : null));
@@ -58,13 +58,15 @@ export function ProcessingBanner({ surveyId }: { surveyId: string }) {
         }
       >
         {failureLines(current).map((line, i) => (
-          <span key={current.failures[i].workflow_id} className="block">
+          <span key={current.failures[i].workflow_id} className="block wrap-anywhere">
             {line}
           </span>
         ))}
-        {retryable.length < current.failures.length && (
-          <span className="block">{retryable.length === 0 ? "Upload the file again to process it." : "The others need their files uploaded again."}</span>
-        )}
+        {notRetryableLines(current).map((line) => (
+          <span key={line} className="block">
+            {line}
+          </span>
+        ))}
         {running && <span className="block">Other processors are still running.</span>}
       </Alert>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Cancel01Icon, Delete02Icon, File01Icon, FileScanIcon, FileSyncIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Delete02Icon, File01Icon, FileScanIcon, FileSyncIcon, PencilEdit02Icon, RedoIcon, UndoIcon } from "@hugeicons/core-free-icons";
 import {
   Alert,
   Button,
@@ -21,8 +21,9 @@ import { StateChip } from "@/components/common/StateChip";
 import type { SurveyFiles } from "@/components/survey/useSurveyFiles";
 import type { SourceAsset, Survey, UpdateSurveyAssetRequest } from "@/lib/api/orblodeSvc";
 import { stripErrNamespace } from "@/lib/api/errors";
-import { NEEDS_CRS, NEEDS_REPROCESSING, PENDING_UPLOAD, READING_FILE, UPLOAD_ROW, crsSourceState, type StateStyle } from "@/lib/status";
-import { assetName, assetRole } from "@/lib/survey/edit";
+import { failureLines, failureTitle } from "@/lib/processing/summary";
+import { NEEDS_CRS, NEEDS_REPROCESSING, PENDING_UPLOAD, PROCESSING_FAILED, READING_FILE, UPLOAD_ROW, crsSourceState, type StateStyle } from "@/lib/status";
+import { assetName, assetRole, canReprocess } from "@/lib/survey/edit";
 import { assetFolders } from "@/lib/survey/folders";
 import { toast } from "@/lib/toast";
 import { CRS_OPTIONS, VDATUM_OPTIONS, withCurrent } from "@/lib/upload/options";
@@ -98,6 +99,11 @@ export function SurveyFilesTab({
 
   const groups = assetFolders(files.assets);
   const plan = files.plan;
+  const processing = files.processing;
+  const notDue = (list: SourceAsset[]) => list.filter((a) => canReprocess(a) && !files.isDue(a));
+  const failedToInclude = notDue(files.assets.filter((a) => files.failures.has(a.id)));
+  const toInclude = notDue(files.assets);
+  const chosen = files.assets.filter(files.isChosen);
 
   return (
     <div className="flex flex-col gap-6">
@@ -113,6 +119,31 @@ export function SurveyFilesTab({
           if (file && target) void files.replace(target, file);
         }}
       />
+
+      {processing && processing.failures.length > 0 && (
+        <Alert
+          tone="critical"
+          title={failureTitle(processing)}
+          action={
+            editable && failedToInclude.length > 0 ? (
+              <Button variant="ghost" size="sm" disabled={files.busy} onClick={() => files.choose(failedToInclude, true)}>
+                Include failed files
+              </Button>
+            ) : undefined
+          }
+        >
+          {failureLines(processing).map((line, i) => (
+            <span key={processing.failures[i].workflow_id} className="block wrap-anywhere">
+              {line}
+            </span>
+          ))}
+          {editable && (
+            <span className="mt-1 block">
+              Fix the file&apos;s role or CRS, or replace it, then reprocess. If nothing needed fixing, include it in reprocessing as it is.
+            </span>
+          )}
+        </Alert>
+      )}
 
       {groups.length === 0 ? (
         <p className="caption text-ink-4">This survey has no source files yet.</p>
@@ -144,9 +175,24 @@ export function SurveyFilesTab({
 
       {editable && plan && (
         <section className="flex flex-col gap-2">
-          <p className="caps px-1 text-ink-4">Reprocessing</p>
+          <div className="flex items-center gap-2 px-1">
+            <p className="caps mr-auto text-ink-4">Reprocessing</p>
+            {chosen.length > 0 && (
+              <Button variant="quiet" size="sm" disabled={files.busy} onClick={() => files.choose(chosen, false)}>
+                Clear
+              </Button>
+            )}
+            {toInclude.length > 0 && (
+              <Button variant="quiet" size="sm" disabled={files.busy} onClick={() => files.choose(toInclude, true)}>
+                Include every file
+              </Button>
+            )}
+          </div>
           {plan.dispatches.length === 0 ? (
-            <p className="caption px-1 text-ink-4">Nothing needs reprocessing. Replaced, edited and added files are listed here until their layers are rebuilt.</p>
+            <p className="caption px-1 text-ink-4">
+              Nothing to reprocess. Replaced, edited and added files are listed here until their layers are rebuilt, and so is any file you include to run
+              again as it is.
+            </p>
           ) : (
             <>
               <ul className="flex flex-col gap-1.5 rounded-md border border-hairline bg-surface px-4 py-3">
@@ -221,6 +267,8 @@ function AssetRow({
   const pending = asset.status === "pending_upload";
   const isDesign = role === "design";
   const dueForProcessing = !pending && !isDesign && files.isDue(asset);
+  const chosen = files.isChosen(asset);
+  const failed = files.failures.get(asset.id) ?? [];
   const busy = files.busy;
   const crs = effectiveCrs(asset);
   const meta = [formatBytes(asset.size_bytes), crs, asset.vertical_datum || asset.declared_vertical_datum].filter(Boolean).join(" · ");
@@ -253,9 +301,23 @@ function AssetRow({
           <StateChip state={PENDING_UPLOAD} />
         ) : dueForProcessing ? (
           <StateChip state={NEEDS_REPROCESSING} />
+        ) : failed.length > 0 ? (
+          <StateChip state={PROCESSING_FAILED} />
         ) : null}
         {editable && !replacement && (
           <div className="flex shrink-0 items-center gap-1">
+            {canReprocess(asset) && (chosen || !dueForProcessing) && (
+              <Tooltip content={chosen ? "Leave out of reprocessing" : "Include in reprocessing"}>
+                <IconButton
+                  icon={chosen ? UndoIcon : RedoIcon}
+                  aria-label={chosen ? `Leave ${name} out of reprocessing` : `Include ${name} in reprocessing`}
+                  variant="bare"
+                  size="sm"
+                  disabled={busy || editing}
+                  onClick={() => files.choose([asset], !chosen)}
+                />
+              </Tooltip>
+            )}
             {!isDesign && !pending && (
               <>
                 <Tooltip content="Detect again">
@@ -293,8 +355,13 @@ function AssetRow({
       {replacement?.status === "uploading" && (
         <Progress value={Math.round(replacement.progress * 100)} size="thin" aria-label={`${replacement.file.name} upload`} className="mt-2" />
       )}
-      {!replacement && (crsChip || notes.length > 0) && (
+      {!replacement && (crsChip || notes.length > 0 || failed.length > 0) && (
         <div className="mt-2 flex flex-col items-start gap-1 pl-7">
+          {failed.map((line) => (
+            <p key={line} className="caption text-ink-2 wrap-anywhere">
+              {line}
+            </p>
+          ))}
           {crsChip && <StateChip state={crsChip} />}
           {notes.map((n) => (
             <p key={n} className="caption text-ink-3">

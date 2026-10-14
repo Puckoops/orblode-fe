@@ -311,7 +311,25 @@ export function generateSurvey(
   });
 }
 
-/** A processor whose newest run on a survey failed; a later run of it, such as a retry, clears it. */
+/** A file a partial run couldn't read; the run stored the others. */
+export interface ProcessingFileFailure {
+  /** Absent when the file isn't one of the survey's source files. */
+  asset_id?: string;
+  source: string;
+  name: string;
+  reason: string;
+}
+
+/** A source file a run read, as the survey has it now. */
+export interface ProcessingInput {
+  asset_id: string;
+  name: string;
+  source: string;
+  /** Edited, replaced or removed after the run. */
+  changed?: boolean;
+}
+
+/** A processor whose newest run on a survey failed; a later run of it, or of the files it read, clears it. */
 export interface ProcessingFailure {
   workflow_id: string;
   processor_type: string;
@@ -319,8 +337,14 @@ export interface ProcessingFailure {
   label: string;
   reason: string;
   completed_at: EpochMs;
-  /** False for runs dispatched before requests were kept: those need the file uploaded again. */
+  /** False for runs dispatched before requests were kept, for partial runs, and once `inputs_changed`. */
   retryable: boolean;
+  /** The run stored every file it read except those in `files`. */
+  partial?: boolean;
+  files?: ProcessingFileFailure[];
+  inputs?: ProcessingInput[];
+  /** A file the run read changed since, so a retry would repeat the old file or settings. */
+  inputs_changed?: boolean;
 }
 
 export interface SurveyProcessing {
