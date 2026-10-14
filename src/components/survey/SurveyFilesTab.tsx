@@ -23,6 +23,7 @@ import type { SourceAsset, Survey, UpdateSurveyAssetRequest } from "@/lib/api/or
 import { stripErrNamespace } from "@/lib/api/errors";
 import { NEEDS_CRS, NEEDS_REPROCESSING, PENDING_UPLOAD, READING_FILE, UPLOAD_ROW, crsSourceState, type StateStyle } from "@/lib/status";
 import { assetName, assetRole } from "@/lib/survey/edit";
+import { assetFolders } from "@/lib/survey/folders";
 import { toast } from "@/lib/toast";
 import { CRS_OPTIONS, VDATUM_OPTIONS, withCurrent } from "@/lib/upload/options";
 import {
@@ -38,29 +39,12 @@ import {
 } from "@/lib/upload/planner";
 import { crsSourceLabel, detectionNote, effectiveCrs, isInspecting } from "@/lib/upload/review";
 
-const ROLE_ORDER: FileRole[] = ["dsm", "dtm", "ortho", "pointcloud", "contours", "vector", "site_model", "design"];
-
 function formatBytes(n?: number): string | null {
   if (!n || n <= 0) return null;
   if (n >= 1e9) return `${(n / 1e9).toFixed(2)} GB`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(0)} KB`;
   return `${n} B`;
-}
-
-function groupByRole(assets: SourceAsset[]): { key: string; label: string; assets: SourceAsset[] }[] {
-  const groups = new Map<string, SourceAsset[]>();
-  for (const a of assets) {
-    const key = assetRole(a) ?? "other";
-    groups.set(key, [...(groups.get(key) ?? []), a]);
-  }
-  const rank = (key: string) => {
-    const i = ROLE_ORDER.indexOf(key as FileRole);
-    return i < 0 ? ROLE_ORDER.length : i;
-  };
-  return [...groups.entries()]
-    .sort(([a], [b]) => rank(a) - rank(b))
-    .map(([key, list]) => ({ key, label: ROLE_LABELS[key as FileRole] ?? "Other", assets: list }));
 }
 
 export function SurveyFilesTab({
@@ -112,7 +96,7 @@ export function SurveyFilesTab({
     });
   };
 
-  const groups = groupByRole(files.assets);
+  const groups = assetFolders(files.assets);
   const plan = files.plan;
 
   return (

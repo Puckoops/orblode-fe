@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareNewestFirst, daysAgo, exactTime, formatTimestamp, isEpochMs, lastActive } from "../time.ts";
+import { compareNewestFirst, dayDate, daysAgo, exactTime, formatTimestamp, isEpochMs, lastActive } from "../time.ts";
 
 test("formatTimestamp renders epoch milliseconds as a UTC minute stamp", () => {
   assert.equal(formatTimestamp(Date.UTC(2026, 9, 6, 14, 5, 59, 999)), "2026-10-06 14:05");
@@ -47,4 +47,9 @@ test("daysAgo counts midnights, not 24-hour spans", () => {
 
 test("exactTime spells the local day and minute", () => {
   assert.equal(exactTime(new Date(2026, 9, 14, 15, 42).getTime()), "Wed 14 Oct 2026, 15:42");
+});
+
+test("dayDate spells the local day with its year", () => {
+  assert.equal(dayDate(new Date(2026, 9, 14, 23, 59).getTime()), "14 Oct 2026");
+  assert.equal(dayDate(new Date(2025, 0, 2, 0, 1).getTime()), "2 Jan 2025");
 });

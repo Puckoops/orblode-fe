@@ -1,98 +1,51 @@
 "use client";
 
-import {
-  CubeIcon,
-  Download01Icon,
-  File01Icon,
-  FileZipIcon,
-  Image01Icon,
-  Link04Icon,
-  MapsIcon,
-  MountainIcon,
-  RefreshIcon,
-  Upload01Icon,
-} from "@hugeicons/core-free-icons";
-import { Alert, Badge, Band, Button, EmptyState, Icon, IconButton, Page, PageHeader, SearchInput, TextLink, toast, type IconDefinition } from "@puckoops/camelot";
+import { ArrowDown01Icon, BlueprintIcon, File01Icon, Folder01Icon, RefreshIcon, Upload01Icon } from "@hugeicons/core-free-icons";
+import { Alert, Band, Button, EmptyState, Icon, IconButton, Page, PageHeader, SearchInput, TextLink } from "@puckoops/camelot";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Loader } from "@/components/brand/Loader";
-import { StateChip } from "@/components/common/StateChip";
-import type { Project } from "@/lib/api/userSvc";
-import { listDesigns, listSurveyAssets, listSurveys, type DesignRecord, type SourceAsset, type Survey } from "@/lib/api/orblodeSvc";
-import { canonicalUrl, downloadUrl } from "@/lib/files";
-import { PENDING_UPLOAD } from "@/lib/status";
+import { listDesigns, listSurveyAssets, listSurveys, type DesignRecord, type SourceAsset } from "@/lib/api/orblodeSvc";
+import { listOrgMembers } from "@/lib/api/userSvc";
+import { assetName } from "@/lib/survey/edit";
+import { assetFolders, totalBytes } from "@/lib/survey/folders";
 import { formatSurveyDate } from "@/lib/utils";
 import { useCurrentWorkspace, useWorkspaces } from "@/lib/workspaces/store";
+import { Files, Folders, ViewToggle, fileCount } from "./FileParts";
+import { FolderView } from "./FolderView";
+import { useCollapsed } from "./collapsed";
+import { PeopleProvider, peopleById } from "./people";
+import {
+  FOLDER_ICONS,
+  assetEntry,
+  designEntry,
+  designsFolderHref,
+  nameMatches,
+  openFolderFrom,
+  siteAnchor,
+  surveyAnchor,
+  surveyFolderHref,
+  type FileEntry,
+  type SiteGroup,
+  type SurveyGroup,
+} from "./tree";
+import { useViewMode, type ViewMode } from "./viewMode";
 
-// Every uploaded source object in the current workspace, grouped by site → survey, plus each site's
-// registered designs.
+// Every uploaded source object in the current workspace: site → survey → one folder per asset type, plus
+// each site's registered designs in a folder of their own.
 // Downloads go through /files/<key>?download=1, which orblode-svc answers with a short-lived signed link.
-
-function ext(name: string): string {
-  const i = name.lastIndexOf(".");
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
-}
-
-function fileIcon(filename: string): IconDefinition {
-  switch (ext(filename)) {
-    case "jpg":
-    case "jpeg":
-    case "png":
-      return Image01Icon;
-    case "tif":
-    case "tiff":
-      return MountainIcon;
-    case "las":
-    case "laz":
-      return CubeIcon;
-    case "dxf":
-    case "shp":
-    case "geojson":
-    case "json":
-    case "xml":
-      return MapsIcon;
-    case "zip":
-      return FileZipIcon;
-    default:
-      return File01Icon;
-  }
-}
-
-function formatBytes(n?: number): string | null {
-  if (!n || n <= 0) return null;
-  if (n >= 1e9) return `${(n / 1e9).toFixed(2)} GB`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(0)} KB`;
-  return `${n} B`;
-}
-
-async function copyUrl(url: string) {
-  try {
-    await navigator.clipboard.writeText(url);
-    toast.success("File URL copied");
-  } catch {
-    toast.error("Could not copy URL");
-  }
-}
-
-interface SurveyGroup {
-  survey: Survey;
-  assets: SourceAsset[];
-}
-
-interface SiteGroup {
-  project: Project;
-  surveys: SurveyGroup[];
-  designs: DesignRecord[];
-}
 
 export function FilesScreen() {
   const workspaceSites = useWorkspaces((s) => s.sites);
   const workspace = useCurrentWorkspace();
+  const open = openFolderFrom(useSearchParams());
   const [sites, setSites] = useState<SiteGroup[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [query, setQuery] = useState("");
+  const [view, setView] = useViewMode();
+  const [people, setPeople] = useState(() => peopleById([]));
 
   // Another workspace's sites start a fresh load; the refresh button resets in its click handler. Either
   // way the effect only fetches.
@@ -142,16 +95,33 @@ export function FilesScreen() {
     };
   }, [refreshTick, workspaceSites]);
 
+  useEffect(() => {
+    let cancelled = false;
+    listOrgMembers()
+      .then((members) => {
+        if (!cancelled) setPeople(peopleById(members));
+      })
+      // Without the people list each file still names its uploader by the email its record kept.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshTick]);
+
+  const refresh = () => {
+    setSites(null);
+    setLoadError(null);
+    setRefreshTick((t) => t + 1);
+  };
+
   const q = query.trim().toLowerCase();
   const visible = useMemo(() => {
     if (!sites) return null;
     return sites
       .map((s) => ({
         ...s,
-        surveys: s.surveys
-          .map((sg) => ({ ...sg, assets: q ? sg.assets.filter((a) => (a.filename || a.url).toLowerCase().includes(q)) : sg.assets }))
-          .filter((sg) => sg.assets.length > 0),
-        designs: q ? s.designs.filter((d) => d.name.toLowerCase().includes(q)) : s.designs,
+        surveys: s.surveys.map((sg) => ({ ...sg, assets: sg.assets.filter((a) => nameMatches(assetName(a), q)) })).filter((sg) => sg.assets.length > 0),
+        designs: s.designs.filter((d) => nameMatches(d.name, q)),
       }))
       .filter((s) => s.surveys.length > 0 || s.designs.length > 0);
   }, [sites, q]);
@@ -169,164 +139,240 @@ export function FilesScreen() {
 
   const loading = sites === null && !loadError;
 
-  return (
-    <Page>
-      <PageHeader
-        title="Files"
-        subtitle={
-          loading
-            ? "Loading uploaded source data…"
-            : `${totals.files} uploaded file${totals.files === 1 ? "" : "s"}${
-                totals.designs ? ` · ${totals.designs} design${totals.designs === 1 ? "" : "s"}` : ""
-              } across ${workspace ? `the sites in ${workspace.name}` : "your sites"}`
-        }
-        actions={
-          <IconButton
-            icon={RefreshIcon}
-            aria-label="Refresh"
-            disabled={loading}
-            onClick={() => {
-              setSites(null);
-              setLoadError(null);
-              setRefreshTick((t) => t + 1);
-            }}
-          />
-        }
-      />
-
-      <div className="flex max-w-3xl flex-col gap-8">
-        <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search files by name…" aria-label="Search files by name" />
-
-        {loadError ? (
-          <Alert tone="critical" title="Files couldn't load">
-            {loadError}
-          </Alert>
-        ) : visible === null ? (
-          <Loader label="Loading files" />
-        ) : visible.length === 0 ? (
-          q ? (
-            <EmptyState icon={File01Icon} title="No files match your search." framed />
-          ) : (
-            <EmptyState
-              icon={File01Icon}
-              title="Nothing has been uploaded yet."
-              framed
-              action={
-                <Button asChild variant="ghost">
-                  <Link href="/upload">
-                    <Icon icon={Upload01Icon} size={16} />
-                    Upload data
-                  </Link>
-                </Button>
-              }
-            />
-          )
-        ) : (
-          visible.map((site) => <SiteSection key={site.project.id} site={site} />)
-        )}
+  const toolbar = (
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <SearchInput
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={open ? "Search this folder…" : "Search files by name…"}
+          aria-label={open ? "Search this folder" : "Search files by name"}
+        />
       </div>
-    </Page>
+      <ViewToggle value={view} onChange={setView} />
+    </div>
+  );
+
+  if (open) {
+    return (
+      <PeopleProvider value={people}>
+        <FolderView open={open} sites={sites} loadError={loadError} query={q} toolbar={toolbar} view={view} onRefresh={refresh} />
+      </PeopleProvider>
+    );
+  }
+
+  return (
+    <PeopleProvider value={people}>
+      <Page>
+        <PageHeader
+          title="Outputs"
+          subtitle={
+            loading
+              ? "Loading uploaded source data…"
+              : `${totals.files} uploaded file${totals.files === 1 ? "" : "s"}${
+                  totals.designs ? ` · ${totals.designs} design${totals.designs === 1 ? "" : "s"}` : ""
+                } across ${workspace ? `the sites in ${workspace.name}` : "your sites"}`
+          }
+          actions={<IconButton icon={RefreshIcon} aria-label="Refresh" disabled={loading} onClick={refresh} />}
+        />
+
+        <div className="flex max-w-3xl flex-col gap-8">
+          {toolbar}
+
+          {loadError ? (
+            <Alert tone="critical" title="Files couldn't load">
+              {loadError}
+            </Alert>
+          ) : visible === null ? (
+            <Loader label="Loading files" />
+          ) : visible.length === 0 ? (
+            q ? (
+              <EmptyState icon={File01Icon} title="No files match your search." framed />
+            ) : (
+              <EmptyState
+                icon={File01Icon}
+                title="Nothing has been uploaded yet."
+                framed
+                action={
+                  <Button asChild variant="ghost">
+                    <Link href="/upload">
+                      <Icon icon={Upload01Icon} size={16} />
+                      Upload data
+                    </Link>
+                  </Button>
+                }
+              />
+            )
+          ) : q ? (
+            <SearchResults sites={visible} view={view} />
+          ) : (
+            visible.map((site) => <SiteSection key={site.project.id} site={site} view={view} />)
+          )}
+        </div>
+      </Page>
+    </PeopleProvider>
   );
 }
 
-function SiteSection({ site }: { site: SiteGroup }) {
-  return (
-    <Band heading={site.project.name} first>
-      <div className="flex flex-col gap-4">
-        {site.surveys.map((sg) => (
-          <div key={sg.survey.id}>
-            <div className="mb-1.5 flex items-baseline gap-2 px-1">
-              <span className="num text-ink-2">{formatSurveyDate(sg.survey.survey_date)}</span>
-              <span className="caption text-ink-4">
-                {sg.survey.survey_type || "survey"} · {sg.assets.length} file{sg.assets.length === 1 ? "" : "s"}
-              </span>
-              <TextLink as={Link} href={`/viewer/${sg.survey.id}`} arrow="forward" className="caption ml-auto">
-                Open in viewer
-              </TextLink>
-            </div>
-            <ul className="overflow-hidden rounded-md border border-hairline bg-surface">
-              {sg.assets.map((a, i) => (
-                <FileRow
-                  key={a.id}
-                  name={a.filename || a.url.split("/").pop() || a.id}
-                  tag={a.role || a.kind}
-                  pending={a.status === "pending_upload"}
-                  sizeBytes={a.size_bytes}
-                  crs={a.crs}
-                  url={a.url}
-                  last={i === sg.assets.length - 1}
-                />
-              ))}
-            </ul>
-          </div>
-        ))}
+const surveyCardKey = (surveyId: string) => `survey:${surveyId}`;
+const designsCardKey = (siteId: string) => `designs:${siteId}`;
 
+function SiteSection({ site, view }: { site: SiteGroup; view: ViewMode }) {
+  const [collapsed, setCollapsed] = useCollapsed();
+  const keys = [...site.surveys.map((sg) => surveyCardKey(sg.survey.id)), ...(site.designs.length > 0 ? [designsCardKey(site.project.id)] : [])];
+  const allCollapsed = keys.every((k) => collapsed.has(k));
+  const toggle = (key: string) => setCollapsed([key], !collapsed.has(key));
+
+  return (
+    <Band
+      id={siteAnchor(site.project.id)}
+      heading={site.project.name}
+      first
+      className="scroll-mt-32"
+      actions={
+        keys.length > 1 && (
+          <Button variant="quiet" size="sm" onClick={() => setCollapsed(keys, !allCollapsed)}>
+            {allCollapsed ? "Expand all" : "Collapse all"}
+          </Button>
+        )
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {site.surveys.map((sg) => {
+          const key = surveyCardKey(sg.survey.id);
+          return <SurveyCard key={sg.survey.id} group={sg} view={view} collapsed={collapsed.has(key)} onToggle={() => toggle(key)} />;
+        })}
         {site.designs.length > 0 && (
-          <div>
-            <div className="mb-1.5 flex items-baseline gap-2 px-1">
-              <span className="small font-medium text-ink-2">Designs</span>
-              <span className="caption text-ink-4">
-                · {site.designs.length} file{site.designs.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <ul className="overflow-hidden rounded-md border border-hairline bg-surface">
-              {site.designs.map((d, i) => (
-                <FileRow key={d.id} name={d.name} tag={d.format} pending={false} crs={d.source_crs} url={d.file_url} last={i === site.designs.length - 1} />
-              ))}
-            </ul>
-          </div>
+          <FolderCard
+            title="Site designs"
+            caption="Registered for the whole site"
+            collapsed={collapsed.has(designsCardKey(site.project.id))}
+            onToggle={() => toggle(designsCardKey(site.project.id))}
+          >
+            <Folders
+              view={view}
+              folders={[{ key: "designs", href: designsFolderHref(site.project.id), label: "Designs", type: BlueprintIcon, count: site.designs.length, bytes: 0 }]}
+            />
+          </FolderCard>
         )}
       </div>
     </Band>
   );
 }
 
-function FileRow({
-  name,
-  tag,
-  pending,
-  sizeBytes,
-  crs,
-  url,
-  last,
+function SurveyCard({ group, view, collapsed, onToggle }: { group: SurveyGroup; view: ViewMode; collapsed: boolean; onToggle: () => void }) {
+  const { survey, assets } = group;
+  const folders = assetFolders(assets);
+  return (
+    <FolderCard
+      id={surveyAnchor(survey.id)}
+      title={<span className="num">{formatSurveyDate(survey.survey_date)}</span>}
+      caption={`${survey.survey_type || "survey"} · ${folders.length} folder${folders.length === 1 ? "" : "s"} · ${fileCount(assets.length)}`}
+      collapsed={collapsed}
+      onToggle={onToggle}
+      action={
+        <TextLink as={Link} href={`/viewer/${survey.id}`} arrow="forward" className="caption">
+          Open in viewer
+        </TextLink>
+      }
+    >
+      <Folders
+        view={view}
+        folders={folders.map((f) => ({
+          key: f.key,
+          href: surveyFolderHref(survey.id, f.key),
+          label: f.label,
+          type: FOLDER_ICONS[f.key],
+          count: f.assets.length,
+          bytes: totalBytes(f.assets),
+        }))}
+      />
+    </FolderCard>
+  );
+}
+
+function FolderCard({
+  id,
+  title,
+  caption,
+  action,
+  collapsed,
+  onToggle,
+  children,
 }: {
-  name: string;
-  tag?: string;
-  pending: boolean;
-  sizeBytes?: number;
-  crs?: string;
-  url?: string;
-  last: boolean;
+  id?: string;
+  title: ReactNode;
+  caption: ReactNode;
+  action?: ReactNode;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
 }) {
-  const href = downloadUrl(url);
-  const share = canonicalUrl(url);
-  const size = formatBytes(sizeBytes);
+  const bodyId = useId();
+  return (
+    <section id={id} className="scroll-mt-32 overflow-hidden rounded-md border border-hairline bg-surface">
+      <header className={`flex items-center gap-2 py-1.5 pr-4 pl-1.5 ${collapsed ? "" : "border-b border-hairline"}`}>
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-controls={bodyId}
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2"
+        >
+          <Icon icon={ArrowDown01Icon} size={16} className={`shrink-0 text-ink-4 transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="small font-medium whitespace-nowrap text-ink-1">{title}</span>
+            <span className="caption min-w-0 truncate text-ink-4">{caption}</span>
+          </span>
+        </button>
+        {action && <span className="shrink-0">{action}</span>}
+      </header>
+      <div id={bodyId} hidden={collapsed}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+interface Match {
+  key: string;
+  href: string;
+  path: string;
+  entries: FileEntry[];
+}
+
+/** Matching files listed under the folder that holds them, so a search needs no clicking through. */
+function SearchResults({ sites, view }: { sites: SiteGroup[]; view: ViewMode }) {
+  const matches: Match[] = sites.flatMap((site) => [
+    ...site.surveys.flatMap((sg) =>
+      assetFolders(sg.assets).map((f) => ({
+        key: `${sg.survey.id}/${f.key}`,
+        href: surveyFolderHref(sg.survey.id, f.key),
+        path: [site.project.name, formatSurveyDate(sg.survey.survey_date), f.label].join(" / "),
+        entries: f.assets.map(assetEntry),
+      })),
+    ),
+    ...(site.designs.length > 0
+      ? [{ key: `${site.project.id}/designs`, href: designsFolderHref(site.project.id), path: `${site.project.name} / Designs`, entries: site.designs.map(designEntry) }]
+      : []),
+  ]);
 
   return (
-    <li className={`flex items-center gap-3 px-4 py-3 hover:bg-surface-2 ${last ? "" : "border-b border-hairline"}`}>
-      <Icon icon={fileIcon(name)} size={16} className="shrink-0 text-ink-4" />
-      <div className="min-w-0 flex-1">
-        <p className="small truncate text-ink-1">{name}</p>
-        <p className="num-sm truncate text-ink-4">{[size, crs].filter(Boolean).join(" · ") || "—"}</p>
-      </div>
-      {tag && <Badge variant="tag">{tag.replace(/_/g, " ")}</Badge>}
-      {pending ? (
-        <StateChip state={PENDING_UPLOAD} />
-      ) : (
-        <div className="flex shrink-0 items-center gap-1">
-          {share && <IconButton icon={Link04Icon} aria-label="Copy file URL" variant="bare" size="sm" onClick={() => copyUrl(share)} />}
-          {href ? (
-            <Button asChild variant="quiet" size="sm">
-              <a href={href} download={name} title={`Download ${name}`}>
-                <Icon icon={Download01Icon} size={16} />
-                <span className="visually-hidden">Download {name}</span>
-              </a>
-            </Button>
-          ) : (
-            <IconButton icon={Download01Icon} aria-label="No downloadable object for this entry" variant="bare" size="sm" disabled />
-          )}
-        </div>
-      )}
-    </li>
+    <div className="flex flex-col gap-6">
+      {matches.map((m) => (
+        <section key={m.key}>
+          <div className="mb-1.5 flex items-center gap-2 px-1">
+            <Icon icon={Folder01Icon} size={14} className="shrink-0 text-ink-4" />
+            <TextLink as={Link} href={m.href} className="small min-w-0 truncate">
+              {m.path}
+            </TextLink>
+            <span className="caption shrink-0 text-ink-4">
+              {m.entries.length} match{m.entries.length === 1 ? "" : "es"}
+            </span>
+          </div>
+          <Files entries={m.entries} view={view} />
+        </section>
+      ))}
+    </div>
   );
 }
