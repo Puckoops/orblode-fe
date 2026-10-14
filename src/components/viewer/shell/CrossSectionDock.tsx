@@ -34,7 +34,7 @@ import { ProfileChart, type ChartSeries, type Pin } from "@/components/viewer/sh
 const HEIGHT_KEY = "orblode.crossSectionHeight";
 const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 200;
-const DETAIL_PANEL_CLEARANCE = 320 + 24;
+export const DETAIL_PANEL_CLEARANCE = 320 + 24;
 
 const PIN_MODES: { value: PinMode; label: string }[] = [
   { value: "elevation", label: "Elevation" },

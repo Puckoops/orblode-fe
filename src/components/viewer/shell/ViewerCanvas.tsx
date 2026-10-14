@@ -97,8 +97,10 @@ import {
   bboxToRectangle,
   isThinSurfaceMesh,
   manifestLayersEmpty,
+  visibleTerrain,
   type LayerHandle,
 } from "@/components/viewer/shell/sceneHelpers";
+import type { ElevationRampId } from "@/lib/viewer/elevationRamp";
 import {
   useViewerStore,
   useViewerStoreApi,
@@ -118,6 +120,7 @@ import { FloatingToolbar } from "@/components/viewer/shell/FloatingToolbar";
 import { SurveyCompare } from "@/components/viewer/shell/SurveyCompare";
 import { DetailPanel } from "@/components/viewer/shell/DetailPanel";
 import { CrossSectionDock } from "@/components/viewer/shell/CrossSectionDock";
+import { ElevationLegend } from "@/components/viewer/shell/ElevationLegend";
 import { Loader } from "@/components/brand/Loader";
 import { StatusBar } from "@/components/viewer/shell/StatusBar";
 import { CameraJoystick } from "@/components/viewer/CameraJoystick";
@@ -131,6 +134,7 @@ import {
 import { useDrawInteraction } from "@/components/viewer/shell/hooks/useDrawInteraction";
 import { useScenePicking } from "@/components/viewer/shell/hooks/useScenePicking";
 import { useLayerLifecycle } from "@/components/viewer/shell/hooks/useLayerLifecycle";
+import { useElevationRamp } from "@/components/viewer/shell/hooks/useElevationRamp";
 import { useCompareLayers } from "@/components/viewer/shell/hooks/useCompareLayers";
 import { useMeasurementHeatmap } from "@/components/viewer/shell/hooks/useMeasurementHeatmap";
 import { ProcessingBanner } from "@/components/viewer/shell/ProcessingBanner";
@@ -229,6 +233,16 @@ export function ViewerCanvas() {
   const terrainExaggeration = useViewerStore((s) => s.view.terrainExaggeration);
   const sunLightingEnabled = useViewerStore((s) => s.view.sunLightingEnabled);
   const sunHour = useViewerStore((s) => s.view.sunHour);
+  const shading = useViewerStore((s) => s.view.shading);
+  const elevationColors = useViewerStore((s) => s.view.elevationColors);
+  const elevationRamp = useViewerStore((s) => s.view.elevationRamp);
+  const elevationRange = useViewerStore((s) => s.view.elevationRange);
+  const elevationOpacity = useViewerStore((s) => s.view.elevationOpacity);
+  const elevationBands = useViewerStore((s) => s.view.elevationBands);
+  const elevationView = useMemo(
+    () => ({ elevationColors, elevationRamp, elevationRange, elevationOpacity, elevationBands, shading }),
+    [elevationColors, elevationRamp, elevationRange, elevationOpacity, elevationBands, shading]
+  );
   // Stable store actions passed straight to the relocated hooks.
   const setProject = useViewerStore((s) => s.setProject);
   const setSearchingMeasurements = useViewerStore((s) => s.setSearchingMeasurements);
@@ -705,49 +719,25 @@ export function ViewerCanvas() {
     [store, viewerRef]
   );
 
-  const applyLensVisibility = useCallback(
-    (ramp: string | null, show: boolean) => {
-      const next = layerControlsRef.current.map((l) => {
-        if (l.lensRamp !== ramp) return l;
-        const handle = handlesRef.current.get(l.key);
-        if (handle?.type === "imagery") handle.layer.show = show;
-        visibleRef.current.set(l.key, show);
-        return { ...l, visible: show };
-      });
-      const viewer = viewerRef.current;
-      if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender();
-      layerControlsRef.current = next;
-      store.getState().setLayerControls(next);
-    },
-    [store, viewerRef]
-  );
-
+  // Colours need a survey surface under them: turning them on shows the DSM
+  // (or the first surface) when none is visible.
   const handleColorMapChange = useCallback(
-    (value: string) => {
-      store.getState().setView({ colorMap: value });
-      const selected = value.toLowerCase();
-      const next = layerControlsRef.current.map((l) => {
-        if (!l.lensRamp || !["viridis", "terrain", "plasma", "grayscale"].includes(l.lensRamp)) return l;
-        const show = value !== "None" && l.lensRamp === selected;
-        const handle = handlesRef.current.get(l.key);
-        if (handle?.type === "imagery") handle.layer.show = show;
-        visibleRef.current.set(l.key, show);
-        return { ...l, visible: show };
-      });
-      const viewer = viewerRef.current;
-      if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender();
-      layerControlsRef.current = next;
-      store.getState().setLayerControls(next);
+    (ramp: ElevationRampId | null) => {
+      store.getState().setView(ramp ? { elevationColors: true, elevationRamp: ramp } : { elevationColors: false });
+      const layers = layerControlsRef.current;
+      if (!ramp || visibleTerrain(layers)) return;
+      const surfaces = layers.filter((l) => l.category === "terrain");
+      const pick = surfaces.find((l) => l.label.toLowerCase() === "dsm") ?? surfaces[0];
+      if (pick) handleToggle(pick.key);
     },
-    [store, viewerRef]
+    [store, handleToggle]
   );
 
   const handleShadingChange = useCallback(
-    (value: string) => {
+    (value: ViewSettings["shading"]) => {
       store.getState().setView({ shading: value });
-      applyLensVisibility("hillshade", value === "Hillshade");
     },
-    [store, applyLensVisibility]
+    [store]
   );
 
   const handleContourIntervalChange = useCallback(
@@ -1343,6 +1333,7 @@ export function ViewerCanvas() {
     setLayerControls,
     setDesignControls,
   });
+  useElevationRamp(viewerRef, viewerReady, visibleTerrain(layerControls), elevationView);
   // Survey compare (swipe): split imagery for two epochs + the divider position.
   // Owns its own compare layers; reads handlesRef only to hide the normal ortho.
   useCompareLayers({
@@ -1524,6 +1515,8 @@ export function ViewerCanvas() {
                 </div>
 
                 <CrossSectionDock />
+
+                <ElevationLegend />
 
                 {/* Zone 5 — draggable floating detail (expanded or compact), below the bell. */}
                 <DetailPanel />

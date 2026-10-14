@@ -32,7 +32,6 @@ import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
 import {
-  ELEVATION_RAMPS,
   contourVectorRole,
   manifestLayersEmpty,
 } from "@/components/viewer/shell/sceneHelpers";
@@ -156,23 +155,9 @@ function SurveyTree({ projectId, surveyId, surveysKey }: { projectId: string; su
   const designControls = useViewerStore((s) => s.designControls);
   const project = useViewerStore((s) => s.project);
   const view = useViewerStore((s) => s.view);
+  const setView = useViewerStore((s) => s.setView);
   const viewMode = useViewerStore((s) => s.viewMode);
   const actions = useViewerActions();
-
-  const availableColorMaps = useMemo(() => {
-    const ramps = new Set<string>();
-    for (const l of layerControls) {
-      if (l.lensRamp && (ELEVATION_RAMPS as readonly string[]).includes(l.lensRamp)) {
-        ramps.add(l.lensRamp.charAt(0).toUpperCase() + l.lensRamp.slice(1));
-      }
-    }
-    return Array.from(ramps);
-  }, [layerControls]);
-
-  const hasHillshade = useMemo(
-    () => layerControls.some((l) => l.lensRamp === "hillshade"),
-    [layerControls]
-  );
 
   const availableContourIntervals = useMemo(() => {
     const seen = new Set<number>();
@@ -212,10 +197,7 @@ function SurveyTree({ projectId, surveyId, surveysKey }: { projectId: string; su
         terrainExaggeration={view.terrainExaggeration}
         exaggerationDisabled={viewMode === "2d"}
         baseMap={view.baseMap}
-        colorMap={view.colorMap}
-        shading={view.shading}
-        availableColorMaps={availableColorMaps}
-        hasHillshade={hasHillshade}
+        elevation={view}
         contourIntervalM={contourIntervalM}
         availableContourIntervals={availableContourIntervals}
         digitalTwinEnabled={view.digitalTwinEnabled}
@@ -230,6 +212,7 @@ function SurveyTree({ projectId, surveyId, surveysKey }: { projectId: string; su
         onSetBaseMap={actions.setBaseMap}
         onColorMapChange={actions.handleColorMapChange}
         onShadingChange={actions.handleShadingChange}
+        onElevationChange={setView}
         onContourIntervalChange={actions.handleContourIntervalChange}
         onToggleDigitalTwin={actions.handleToggleDigitalTwin}
         onSunLightingChange={actions.handleSunLightingChange}
