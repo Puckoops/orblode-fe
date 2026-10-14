@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { CALC_TYPES } from "../../calc.ts";
 import {
   TEMPLATES,
   templateById,
@@ -48,4 +49,14 @@ test("templateById round-trips and returns undefined for unknown ids", () => {
   for (const t of TEMPLATES) assert.equal(templateById(t.id), t);
   // @ts-expect-error — exercising the not-found path with a non-TemplateId
   assert.equal(templateById("nope"), undefined);
+});
+
+test("line templates pick their own calculation, one the line panel offers", () => {
+  assert.equal(templateById("line")?.calcType, "length");
+  assert.equal(templateById("section")?.calcType, "cross-section");
+  assert.equal(templateById("slope")?.calcType, "slope");
+  for (const t of TEMPLATES) {
+    if (!t.calcType) continue;
+    assert.ok(CALC_TYPES[t.primitive === "polygon" ? "polygon" : "polyline"].some((c) => c.id === t.calcType), `${t.id}: ${t.calcType}`);
+  }
 });

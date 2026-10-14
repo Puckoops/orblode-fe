@@ -46,6 +46,7 @@ import { geometryLocalStats } from "@/lib/viewer/measure";
 import { CalcConfig } from "@/components/viewer/CalcConfig";
 import { ComparisonCard } from "@/components/viewer/shell/ComparisonCard";
 import { PileLinkField } from "@/components/viewer/shell/PileLinkField";
+import { CrossSectionCard } from "@/components/viewer/shell/CrossSectionCard";
 import { temporalComparePair } from "@/lib/viewer/compare";
 import {
   CalcParamsError,
@@ -799,6 +800,8 @@ export function FeatureInspector({
                   />
                 </div>
               )}
+
+              {!demo && geomType === "LineString" && <CrossSectionCard measurement={measurement as Measurement} />}
 
               {onLinkPile && !demo && measurement.kind === "stockpile" && !isDraft && measurement.geometry && (
                 <PileLinkField surveyId={surveyId} measurement={measurement} onLink={onLinkPile} />

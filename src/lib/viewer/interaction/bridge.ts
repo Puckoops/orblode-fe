@@ -48,6 +48,7 @@ export function attachStoreBridge(
     if (entered) {
       if (top === "placing") {
         const template = ctx.template;
+        if (template?.calcType) store.getState().setView({ calcType: template.calcType });
         store.setState({
           drawMode: ctx.primitive,
           activeToolKey: template ? toolKeyFor(template.id) : null,
@@ -116,6 +117,7 @@ export function attachStoreBridge(
     if (top === "placing" && ctx.template) {
       const key = toolKeyFor(ctx.template.id);
       if (store.getState().activeToolKey !== key) {
+        if (ctx.template.calcType) store.getState().setView({ calcType: ctx.template.calcType });
         store.setState({
           activeToolKey: key,
           drawMode: ctx.primitive,
