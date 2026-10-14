@@ -6,6 +6,7 @@ import {
   ArrowRight01Icon,
   Building03Icon,
   CubeIcon,
+  DashedLine01Icon,
   DistributionIcon,
   Image01Icon,
   MapsIcon,
@@ -51,6 +52,8 @@ export interface LayerControl {
   intervalM?: number;
   /** Manifest vector role (contours, overlay, …). */
   vectorRole?: string;
+  /** Feature count (vector layers only). */
+  featureCount?: number;
 }
 
 /** A CAD/vector design overlay (DXF, LandXML, …) from the manifest. */
@@ -445,11 +448,14 @@ function GroupRow({
   icon,
   label,
   group,
+  showAll = false,
   onToggle,
 }: {
   icon: IconDefinition;
   label: string;
   group: LayerControl[];
+  /** Turning on shows every member instead of just the first. */
+  showAll?: boolean;
   onToggle: (key: string) => void;
 }) {
   const anyVisible = group.some((l) => l.visible);
@@ -460,6 +466,8 @@ function GroupRow({
     if (anyVisible) {
       // Hide every visible member.
       group.filter((l) => l.visible).forEach((l) => onToggle(l.key));
+    } else if (showAll) {
+      group.forEach((l) => onToggle(l.key));
     } else {
       // Show the first member (terrain exclusivity is handled upstream).
       const first = group[0];
@@ -520,6 +528,7 @@ export function LayerPanel({
   const lenses = byPrefix("lens-");
   const vectors = byPrefix("vector-");
   const contourVectors = vectors.filter((l) => contourRole(l.vectorRole));
+  const otherVectors = vectors.filter((l) => !contourRole(l.vectorRole));
   const pointClouds = byPrefix("pointcloud-");
   const siteModels = byPrefix("sitemodel-");
 
@@ -531,7 +540,7 @@ export function LayerPanel({
         </Alert>
       )}
 
-      {(ortho.length > 0 || terrain.length > 0 || lenses.length > 0 || designs.length > 0) && (
+      {(ortho.length > 0 || terrain.length > 0 || lenses.length > 0 || otherVectors.length > 0 || designs.length > 0) && (
         <Section title="Map layers" defaultOpen>
           {ortho.map((l) => (
             <ControlRow key={l.key} icon={Image01Icon} label={l.label} active={l.visible} loading={l.loading} error={l.error} onToggle={() => onToggle(l.key)} />
@@ -551,6 +560,18 @@ export function LayerPanel({
           {lenses.map((l) => (
             <ControlRow key={l.key} icon={lensIcon(l.label)} label={l.label} active={l.visible} loading={l.loading} error={l.error} onToggle={() => onToggle(l.key)} />
           ))}
+          {otherVectors.map((l) => (
+            <ControlRow
+              key={l.key}
+              icon={DashedLine01Icon}
+              label={l.label}
+              count={l.featureCount != null ? l.featureCount.toLocaleString() : undefined}
+              active={l.visible}
+              loading={l.loading}
+              error={l.error}
+              onToggle={() => onToggle(l.key)}
+            />
+          ))}
           {designs.map((d) => (
             <ControlRow
               key={d.key}
@@ -562,6 +583,12 @@ export function LayerPanel({
               onDisabledClick={() => toast.info("This design isn't renderable yet — raw CAD is tiled server-side first")}
             />
           ))}
+          {designs.length === 0 && (
+            <div className="flex h-9 items-center gap-2.5 px-2">
+              <Icon icon={PenTool02Icon} size={16} className="shrink-0 text-ink-4" />
+              <span className="small min-w-0 flex-1 truncate text-ink-4">No designs in this project</span>
+            </div>
+          )}
         </Section>
       )}
 
@@ -569,7 +596,7 @@ export function LayerPanel({
         {terrain.length > 0 && <GroupRow icon={MountainIcon} label="Terrain" group={terrain} onToggle={onToggle} />}
         {contourVectors.length > 0 && <GroupRow icon={RippleIcon} label="Contour lines" group={contourVectors} onToggle={onToggle} />}
         {siteModels.length > 0 && <GroupRow icon={CubeIcon} label="3D model" group={siteModels} onToggle={onToggle} />}
-        {pointClouds.length > 0 && <GroupRow icon={DistributionIcon} label="Point cloud" group={pointClouds} onToggle={onToggle} />}
+        {pointClouds.length > 0 && <GroupRow icon={DistributionIcon} label="Point cloud" group={pointClouds} showAll onToggle={onToggle} />}
         {showDigitalTwin && (
           <ControlRow
             icon={Building03Icon}

@@ -161,8 +161,8 @@ export interface ViewerShellData {
   draft: { points: Cartesian3[]; hover: Cartesian3 | null };
 
   selection: Selection | null;
-  /** Transient fly-to intent set by `selectMeasurement({fly})`; the
-   * ViewerCanvas framing hook (1.3c) consumes it via `clearPendingFly`. Kept
+  /** Transient fly-to intent set by `selectMeasurement({fly})`; ViewerCanvas
+   * frames the measurement and consumes it via `clearPendingFly`. Kept
    * as a plain id (not a Cesium handle) so it honors §3.2 containment. */
   pendingFlyToId: string | null;
 
@@ -257,6 +257,8 @@ export interface ViewerShellActions {
   setLayerVisible: (key: string, visible: boolean) => void;
   setLayerOpacity: (key: string, opacity: number) => void;
   setMeasurementVisible: (id: string, visible: boolean) => void;
+  /** Flip one measurement's canvas visibility; a missing entry counts as hidden. */
+  toggleMeasurementVisible: (id: string) => void;
   /** Bulk set — used by folder-level eye toggles (all items in a group). */
   setMeasurementsVisible: (ids: string[], visible: boolean) => void;
   /** Store/replace the instant estimate for a measurement+kind. */
@@ -464,7 +466,7 @@ export function createViewerStore(
         selection: { kind: "measurement", measurementIds: [id] },
         detailPanel: "inspect",
         detailPanelCollapsed: false,
-            pendingFlyToId: opts?.fly === false ? null : id,
+        pendingFlyToId: opts?.fly === false ? null : id,
       }),
 
     selectFeature: (props) =>
@@ -472,13 +474,13 @@ export function createViewerStore(
         selection: { kind: "feature", measurementIds: [], feature: props },
         detailPanel: "inspect",
         detailPanelCollapsed: false,
-            pendingFlyToId: null,
+        pendingFlyToId: null,
       }),
 
     clearSelection: () =>
       set({
         selection: null,
-            pendingFlyToId: null,
+        pendingFlyToId: null,
         detailPanel: get().detailPanel === "inspect" ? null : get().detailPanel,
       }),
 
@@ -531,6 +533,9 @@ export function createViewerStore(
           [id]: visible,
         },
       }),
+
+    toggleMeasurementVisible: (id) =>
+      get().setMeasurementVisible(id, !isMeasurementVisibleOnCanvas({ id }, get().measurementVisibility)),
 
     setMeasurementsVisible: (ids, visible) => {
       if (ids.length === 0) return;

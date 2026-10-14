@@ -85,6 +85,12 @@ export function lensLabel(key: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+/** survey_boundary -> "Survey boundary" */
+export function vectorRoleLabel(role: string): string {
+  const name = (role || "vector").replace(/_/g, " ");
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 export function contourVectorRole(role: string): boolean {
   return role === "contours" || role.startsWith("contours_");
 }

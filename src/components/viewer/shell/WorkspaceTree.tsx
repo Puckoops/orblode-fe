@@ -11,10 +11,10 @@
 // read-only folder-string tree and every folder affordance hides.
 //
 // Row/status behaviors are ported from MeasurementPanel: status dots,
-// result-suffixed labels, hover compute/delete actions, demo badges, sort +
-// filter + collapse-all toolbar, and the server-debounced search box. (The
-// quick-draw polygon/polyline buttons were removed — the floating canvas
-// toolbar owns drawing.)
+// result-suffixed labels, hover compute/delete actions, sort + filter +
+// collapse-all toolbar, and the server-debounced search box. (The quick-draw
+// polygon/polyline buttons were removed — the floating canvas toolbar owns
+// drawing.)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -33,7 +33,7 @@ import {
   RefreshIcon,
   RulerIcon,
 } from "@hugeicons/core-free-icons";
-import { Badge, Chip, EmptyState, Glyph, Icon, IconButton, Input, ProgressCircle, SearchInput, Tooltip, type IconDefinition } from "@puckoops/camelot";
+import { Chip, EmptyState, Glyph, Icon, IconButton, Input, ProgressCircle, SearchInput, Tooltip, type IconDefinition } from "@puckoops/camelot";
 import { Collapsible } from "radix-ui";
 import { toast } from "@/lib/toast";
 
@@ -53,6 +53,7 @@ import {
   deleteFolder,
   updateFolder,
   updateFolderItems,
+  type Measurement,
 } from "@/lib/api/orblodeSvc";
 import {
   isMeasurementVisibleOnCanvas,
@@ -63,18 +64,16 @@ import { useInteractionActor } from "@/components/viewer/shell/interactionContex
 import { useSelector } from "@xstate/react";
 import { isComputeStuck, isVolumeKind, metricsOf, resultForKind } from "@/lib/viewer/calc";
 import { useComputeClock } from "@/components/viewer/shell/hooks/useComputeClock";
-import type { PanelMeasurement } from "@/lib/viewer/sampleData";
 import { measurementState } from "@/lib/status";
 import { compareNewestFirst } from "@/lib/time";
 
 /** Single-line row label, e.g. "SP-01 · 14,820 m³" (ported from
  * MeasurementPanel). total_* keys are what the stockpile compute emits; the
  * bare keys cover client-side plan stats and future per-pile results. */
-function measurementLabel(m: PanelMeasurement): string {
-  if (m.demo) return m.name;
+function measurementLabel(m: Measurement): string {
   // The CURRENT kind's stored doc (per-kind results map; legacy fallback) —
   // the label always matches what the inspector shows for this type.
-  const r = metricsOf(m.demo ? m.result : resultForKind(m));
+  const r = metricsOf(resultForKind(m));
   const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   if (r) {
     const volume =
@@ -205,21 +204,21 @@ function MeasurementRow({
   onDelete,
   onToggleVisible,
 }: {
-  m: PanelMeasurement;
+  m: Measurement;
   busy: boolean;
   visible: boolean;
   /** Has been `computing` past the stuck threshold (ORB-39). */
   stuck: boolean;
   dnd: DndHandlers;
-  onSelect: (m: PanelMeasurement) => void;
+  onSelect: (m: Measurement) => void;
   onCompute: (id: string) => void;
   onForceCompute: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleVisible: (id: string, visible: boolean) => void;
 }) {
   const canCompute = isVolumeKind(m.kind) && (m.status === "draft" || m.status === "failed");
-  const showDot = !m.demo && m.status !== "completed";
-  const draggable = dnd.ready && !m.demo;
+  const showDot = m.status !== "completed";
+  const draggable = dnd.ready;
   return (
     <div
       data-m-id={m.id}
@@ -240,35 +239,26 @@ function MeasurementRow({
       >
         {measurementLabel(m)}
       </button>
-      {m.draft && !m.demo && (
+      {m.draft && (
         <Chip tone="amber" glyph="circle-dashed" title="Draft — save it from the inspector to keep it" className="shrink-0">
           Draft
         </Chip>
       )}
-      {m.demo && (
-        <Badge variant="tag" title="Sample data — not from this survey" className="shrink-0">
-          Demo
-        </Badge>
-      )}
-      {!m.demo && (
-        <RowAction
-          icon={visible ? EyeIcon : EyeOffIcon}
-          label={visible ? "Hide on viewer" : "Show on viewer"}
-          onClick={() => onToggleVisible(m.id, !visible)}
-          className={visible ? "text-ink-1" : undefined}
-        />
-      )}
-      {!m.demo && (
-        <div className="hidden shrink-0 items-center gap-0.5 group-focus-within:flex group-hover:flex">
-          {canCompute && <RowAction icon={PlayIcon} label="Compute" busy={busy} onClick={() => onCompute(m.id)} />}
-          {/* ORB-39: a compute stuck past the threshold gets a force re-run here
-              too — the ordinary Play button above is hidden for `computing`. */}
-          {stuck && (
-            <RowAction icon={RefreshIcon} label="This compute looks stuck — force a re-run" busy={busy} onClick={() => onForceCompute(m.id)} />
-          )}
-          <RowAction icon={Delete02Icon} label="Delete" disabled={busy} onClick={() => onDelete(m.id)} />
-        </div>
-      )}
+      <RowAction
+        icon={visible ? EyeIcon : EyeOffIcon}
+        label={visible ? "Hide on viewer" : "Show on viewer"}
+        onClick={() => onToggleVisible(m.id, !visible)}
+        className={visible ? "text-ink-1" : undefined}
+      />
+      <div className="hidden shrink-0 items-center gap-0.5 group-focus-within:flex group-hover:flex">
+        {canCompute && <RowAction icon={PlayIcon} label="Compute" busy={busy} onClick={() => onCompute(m.id)} />}
+        {/* ORB-39: a compute stuck past the threshold gets a force re-run here
+            too — the ordinary Play button above is hidden for `computing`. */}
+        {stuck && (
+          <RowAction icon={RefreshIcon} label="This compute looks stuck — force a re-run" busy={busy} onClick={() => onForceCompute(m.id)} />
+        )}
+        <RowAction icon={Delete02Icon} label="Delete" disabled={busy} onClick={() => onDelete(m.id)} />
+      </div>
     </div>
   );
 }
@@ -331,7 +321,7 @@ function TreeNode({
 }: {
   node: WorkspaceTreeNode;
   level: number;
-  byId: Map<string, PanelMeasurement>;
+  byId: Map<string, Measurement>;
   sortRecent: boolean;
   busyIds: Set<string>;
   collapsed: Set<string>;
@@ -341,7 +331,7 @@ function TreeNode({
   folderOps: FolderOps;
   dnd: DndHandlers;
   onToggle: (id: string) => void;
-  onSelect: (m: PanelMeasurement) => void;
+  onSelect: (m: Measurement) => void;
   onCompute: (id: string) => void;
   onForceCompute: (id: string) => void;
   onDelete: (id: string) => void;
@@ -361,17 +351,13 @@ function TreeNode({
   // toggle switches to most-recently-updated first (ported behavior).
   const items = node.itemIds
     .map((id) => byId.get(id))
-    .filter((m): m is PanelMeasurement => Boolean(m))
+    .filter((m): m is Measurement => Boolean(m))
     .sort((a, b) =>
       sortRecent ? compareNewestFirst(a.updated_at, b.updated_at) : a.name.localeCompare(b.name)
     );
 
-  // Folder eye covers every non-demo measurement in the subtree.
-  const subtreeIds = collectSubtreeItemIds(node);
-  const toggleableIds = subtreeIds.filter((id) => {
-    const m = byId.get(id);
-    return m && !m.demo;
-  });
+  // Folder eye covers every loaded measurement in the subtree.
+  const toggleableIds = collectSubtreeItemIds(node).filter((id) => byId.has(id));
   const anyVisible = toggleableIds.some(
     (id) => byId.get(id) != null && isMeasurementVisibleOnCanvas(byId.get(id)!, visibility)
   );
@@ -487,7 +473,7 @@ function TreeNode({
               m={m}
               busy={busyIds.has(m.id)}
               visible={isMeasurementVisibleOnCanvas(m, visibility)}
-              stuck={!m.demo && isVolumeKind(m.kind) && isComputeStuck(m, now)}
+              stuck={isVolumeKind(m.kind) && isComputeStuck(m, now)}
               dnd={dnd}
               onSelect={onSelect}
               onCompute={onCompute}
@@ -575,7 +561,7 @@ export function WorkspaceTree() {
   }, [source, projectId, surveyId]);
 
   const byId = useMemo(
-    () => new Map<string, PanelMeasurement>(measurements.map((m) => [m.id, m])),
+    () => new Map<string, Measurement>(measurements.map((m) => [m.id, m])),
     [measurements]
   );
 
@@ -651,8 +637,8 @@ export function WorkspaceTree() {
     },
     renameCancel: () => setRenamingId(null),
     remove: (node) => {
-      // deleteFolder is a HARD delete that cascades to child folders and
-      // membership rows (orblodeSvc deleteFolder). Measurements survive and fall
+      // deleteFolder cascades to child folders and membership rows (orblodeSvc
+      // deleteFolder). Measurements survive and fall
       // back to Ungrouped — the copy says all three things explicitly, because
       // "are you sure?" would hide the cascade (ORB-37).
       const subfolders = countDescendantFolders(node);
@@ -661,7 +647,7 @@ export function WorkspaceTree() {
         title: `Delete the folder ${node.name}?`,
         description: (
           <>
-            This permanently deletes the folder
+            This deletes the folder
             {subfolders > 0 ? (
               <>
                 {" "}

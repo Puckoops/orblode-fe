@@ -14,7 +14,6 @@ import { ArrowRight02Icon, CalendarCheckIn01Icon } from "@hugeicons/core-free-ic
 import { Icon } from "@puckoops/camelot";
 
 import type { Measurement } from "@/lib/api/orblodeSvc";
-import type { PanelMeasurement } from "@/lib/viewer/sampleData";
 import { metricsOf, resultForKind } from "@/lib/viewer/calc";
 import { formatSurveyDate } from "@/lib/utils";
 import { useCompareSurveys } from "@/components/viewer/shell/hooks/useCompareSurveys";
@@ -37,7 +36,7 @@ export function ComparisonCard({
   projectId,
   pair,
 }: {
-  measurement: Measurement | PanelMeasurement;
+  measurement: Measurement;
   projectId: string | null;
   /** The ordered before/after survey ids (from temporalComparePair). */
   pair: { aId: string; bId: string };

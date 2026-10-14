@@ -6,7 +6,8 @@ import type { ConfirmRequest } from "@/components/common/confirm";
 // inspector's Delete row, the workspace tree's hover trash icon, and the scene
 // right-click menu. They are the same destructive action, so they get the same
 // wording — the dialog is the only thing standing between a stray click and a
-// permanent delete, and inconsistent copy is what trains people to dismiss it.
+// delete nobody can undo from the app, and inconsistent copy is what trains
+// people to dismiss it.
 
 /** Confirmation request for deleting (or discarding) one measurement. */
 export function measurementDeleteRequest(
@@ -24,7 +25,7 @@ export function measurementDeleteRequest(
       </>
     ) : (
       <>
-        {name} and its computed results will be permanently deleted. This cannot be undone.
+        {name} and its computed results will be removed from this survey. This cannot be undone.
       </>
     ),
     confirmLabel: isDraft ? "Discard draft" : "Delete",

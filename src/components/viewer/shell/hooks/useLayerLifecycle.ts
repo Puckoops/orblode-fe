@@ -59,7 +59,6 @@ import {
 import { computeTilesetFootprint } from "@/lib/viewer/footprint";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import { configureCesiumScene, makeBaseImageryProvider } from "@/lib/viewer/cesiumScene";
-import { SAMPLE_DESIGNS } from "@/lib/viewer/sampleData";
 import { pickScenePosition } from "@/lib/viewer/measure";
 import type { ViewMode } from "@/lib/viewer/cameraControls";
 import {
@@ -72,6 +71,7 @@ import {
   lensLabel,
   pickTilesetUrl,
   pickXyzTemplate,
+  vectorRoleLabel,
   type LayerHandle,
 } from "@/components/viewer/shell/sceneHelpers";
 
@@ -481,13 +481,14 @@ export function useLayerLifecycle(deps: {
       handles.set(key, { type: "geojson-lazy", url: l.geojson_url });
       controls.push({
         key,
-        label: `${l.role || "vector"} (${l.feature_count})`,
+        label: vectorRoleLabel(l.role),
         category: "vector",
         visible: false,
         opacity: 1,
         supportsOpacity: false,
         intervalM: l.interval_m,
         vectorRole: l.role,
+        featureCount: l.feature_count,
       });
     });
 
@@ -508,10 +509,6 @@ export function useLayerLifecycle(deps: {
         renderable,
       });
     });
-    // Backend serves no designs yet — show the design fixtures so the DESIGNS
-    // section is demonstrable. Drop this fallback once asset-svc populates
-    // manifest.layers.designs.
-    if (designs.length === 0) designs.push(...SAMPLE_DESIGNS.map((d) => ({ ...d })));
 
     visibleRef.current = new Map([
       ...controls.map((c) => [c.key, c.visible] as const),

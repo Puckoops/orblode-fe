@@ -14,6 +14,7 @@ import {
   isVolumeKind,
   kindForCalcType,
   methodFromParams,
+  planStatsNote,
   volumeParams,
   metricsOf,
   provenanceOf,
@@ -275,4 +276,10 @@ test("volumeParams names the material, and clears it with an empty id", () => {
   assert.equal(volumeParams(DEFAULT_METHOD_STATE).material_id, "");
   assert.equal(methodFromParams(withMaterial)?.materialId, "m1");
   assert.equal(methodFromParams({ ...withMaterial, material_id: "" })?.materialId, null);
+});
+
+test("planStatsNote says a saved slope has no grade, and only volumes offer compute", () => {
+  assert.match(planStatsNote("slope"), /grade shows only while drawing/);
+  assert.match(planStatsNote("stockpile"), /run compute/);
+  assert.doesNotMatch(planStatsNote("area"), /compute/);
 });

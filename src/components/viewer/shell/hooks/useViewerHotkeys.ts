@@ -119,7 +119,7 @@ export function useViewerHotkeys(
           break;
         case "selection.visible":
           if (!selId) return;
-          s.setMeasurementVisible(selId, !(s.measurementVisibility[selId] ?? true));
+          s.toggleMeasurementVisible(selId);
           break;
         case "camera.north":
           actions.resetNorth();

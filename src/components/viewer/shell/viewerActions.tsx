@@ -16,7 +16,7 @@
 // only the *effects* became hooks).
 
 import { createContext, useContext } from "react";
-import type { PanelMeasurement } from "@/lib/viewer/sampleData";
+import type { Measurement } from "@/lib/api/orblodeSvc";
 import type { ElevationRampId } from "@/lib/viewer/elevationRamp";
 import type { ViewSettings } from "@/lib/viewer/state/store";
 
@@ -36,7 +36,7 @@ export interface ViewerActions {
   redrawGeometry: () => void;
 
   // Measurement CRUD + framing.
-  selectMeasurementRow: (m: PanelMeasurement) => void;
+  selectMeasurementRow: (m: Measurement) => void;
   /** `override` is a partial params object (e.g. {volume_method, from, to})
    * deep-merged + persisted by the backend before dispatch (§6.1).
    * `opts.force` bypasses asset-svc's compute-in-flight 409 — the recovery path
