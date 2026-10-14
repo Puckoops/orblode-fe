@@ -17,6 +17,8 @@
 
 import { createContext, useContext } from "react";
 import type { PanelMeasurement } from "@/lib/viewer/sampleData";
+import type { ElevationRampId } from "@/lib/viewer/elevationRamp";
+import type { ViewSettings } from "@/lib/viewer/state/store";
 
 export interface ViewerActions {
   // Draw / probe lifecycle. Probe/point still ride startProbe (legacy) until the
@@ -70,8 +72,9 @@ export interface ViewerActions {
   handleToggleDesign: (key: string) => void;
   setTerrainExaggeration: (value: number) => void;
   setBaseMap: (value: string) => void;
-  handleColorMapChange: (value: string) => void;
-  handleShadingChange: (value: string) => void;
+  /** A ramp turns the elevation colours on with it; null turns them off. */
+  handleColorMapChange: (ramp: ElevationRampId | null) => void;
+  handleShadingChange: (value: ViewSettings["shading"]) => void;
   handleContourIntervalChange: (intervalM: number) => void;
   handleToggleDigitalTwin: () => void;
   handleSunLightingChange: (enabled: boolean, hour: number) => void;

@@ -13,7 +13,8 @@ import { toast } from "@/lib/toast";
 
 import type { interactionMachine } from "@/lib/viewer/interaction/machine";
 import type { TemplateId } from "@/lib/viewer/interaction/templates";
-import type { ViewerShellState } from "@/lib/viewer/state/store";
+import type { ViewerShellState, ViewSettings } from "@/lib/viewer/state/store";
+import { rampLabel, type ElevationRampId } from "@/lib/viewer/elevationRamp";
 import type { LayerControl } from "@/components/viewer/LayerPanel";
 
 export type InteractionActor = ActorRefFrom<typeof interactionMachine>;
@@ -23,8 +24,8 @@ export interface HotkeyActions {
   startProbe: (toolKey?: string) => void;
   cancelDraw: () => void;
   editGeometry: () => void;
-  handleColorMapChange: (value: string) => void;
-  handleShadingChange: (value: string) => void;
+  handleColorMapChange: (ramp: ElevationRampId | null) => void;
+  handleShadingChange: (value: ViewSettings["shading"]) => void;
   handleContourIntervalChange: (intervalM: number) => void;
   handleSunLightingChange: (enabled: boolean, hour: number) => void;
   /** FR-03 / FR-06 — camera bearing reset and the 2D/3D toggle. */
@@ -32,19 +33,8 @@ export interface HotkeyActions {
   toggleViewMode: () => void;
 }
 
-const RAMP_NAMES = ["viridis", "terrain", "plasma", "grayscale"];
 const isContourRole = (role?: string | null) =>
   !!role && (role === "contours" || role.startsWith("contours_"));
-
-/** First available elevation ramp, capitalized the way the Select stores it. */
-export function firstRamp(layers: LayerControl[]): string | null {
-  for (const l of layers) {
-    if (l.lensRamp && RAMP_NAMES.includes(l.lensRamp)) {
-      return l.lensRamp.charAt(0).toUpperCase() + l.lensRamp.slice(1);
-    }
-  }
-  return null;
-}
 
 export function contourIntervals(layers: LayerControl[]): number[] {
   const seen = new Set<number>();
@@ -107,14 +97,13 @@ export function toggleElevationRamp(
   actions: HotkeyActions
 ): boolean {
   const s = store.getState();
-  const ramp = firstRamp(s.layerControls);
-  if (!ramp) {
-    toast.info("No elevation ramp in this survey");
+  if (!s.layerControls.some((l) => l.category === "terrain" && l.stats)) {
+    toast.info("No elevation data in this survey");
     return false;
   }
-  const on = s.view.colorMap !== "None";
-  actions.handleColorMapChange(on ? "None" : ramp);
-  toast.info(on ? "Elevation ramp off" : `Lens: ${ramp} ramp`);
+  const on = s.view.elevationColors;
+  actions.handleColorMapChange(on ? null : s.view.elevationRamp);
+  toast.info(on ? "Elevation ramp off" : `Lens: ${rampLabel(s.view.elevationRamp)} ramp`);
   return true;
 }
 
@@ -123,8 +112,8 @@ export function toggleHillshade(
   actions: HotkeyActions
 ): boolean {
   const s = store.getState();
-  if (!s.layerControls.some((l) => l.lensRamp === "hillshade")) {
-    toast.info("No hillshade layer in this survey");
+  if (!s.layerControls.some((l) => l.category === "terrain")) {
+    toast.info("No terrain in this survey");
     return false;
   }
   const on = s.view.shading === "Hillshade";
@@ -167,7 +156,7 @@ export function allLensesOff(
   actions: HotkeyActions
 ): void {
   const s = store.getState();
-  if (s.view.colorMap !== "None") actions.handleColorMapChange("None");
+  if (s.view.elevationColors) actions.handleColorMapChange(null);
   if (s.view.shading !== "None") actions.handleShadingChange("None");
   if ((s.view.contourIntervalM ?? 0) !== 0) actions.handleContourIntervalChange(0);
   if (s.view.sunLightingEnabled) actions.handleSunLightingChange(false, s.view.sunHour ?? 12);

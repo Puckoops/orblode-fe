@@ -43,6 +43,43 @@ export const HEATMAP_RAMP = {
   fill: "rgb(33, 102, 172)",
 } as const;
 
+/** Elevation colour maps tinting the survey terrain, as stops from the lowest (0) to the highest (1) height in range. */
+export const ELEVATION_RAMP_STOPS = {
+  classic: [
+    [0, "#1E3A8A"],
+    [0.25, "#06B6D4"],
+    [0.5, "#22C55E"],
+    [0.75, "#EAB308"],
+    [1, "#DC2626"],
+  ],
+  viridis: [
+    [0, "#440154"],
+    [0.25, "#3B528B"],
+    [0.5, "#21918C"],
+    [0.75, "#5EC962"],
+    [1, "#FDE725"],
+  ],
+  terrain: [
+    [0, "#333399"],
+    [0.15, "#0099FF"],
+    [0.25, "#00CC66"],
+    [0.5, "#FFFF99"],
+    [0.75, "#805C54"],
+    [1, "#FFFFFF"],
+  ],
+  plasma: [
+    [0, "#0D0887"],
+    [0.25, "#7E03A8"],
+    [0.5, "#CC4778"],
+    [0.75, "#F89540"],
+    [1, "#F0F921"],
+  ],
+  grayscale: [
+    [0, "#000000"],
+    [1, "#FFFFFF"],
+  ],
+} as const satisfies Record<string, readonly (readonly [number, string])[]>;
+
 /** A design file's outline overlay. */
 export const DESIGN_OVERLAY = "#A78BFA";
 

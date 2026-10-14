@@ -70,11 +70,13 @@ import {
   designIsGeoJson,
   isThinSurfaceMesh,
   lensLabel,
-  parseLensRamp,
   pickTilesetUrl,
   pickXyzTemplate,
   type LayerHandle,
 } from "@/components/viewer/shell/sceneHelpers";
+
+// Not 0: the elevation material recovers true heights by undoing the exaggeration, and 0 erases them.
+const FLAT_EXAGGERATION = 0.001;
 
 export function useLayerLifecycle(deps: {
   viewerReady: boolean;
@@ -265,8 +267,7 @@ export function useLayerLifecycle(deps: {
       );
       entries.forEach(([k, v]) => {
         const template = v.includes("{z}") ? v : v.replace(/\/+$/, "") + "/{z}/{x}/{y}.png";
-        const ramp = parseLensRamp(k);
-        addImagery(`lens-${i}-${k}`, lensLabel(k), "lens", l, template, false, { lensRamp: ramp });
+        addImagery(`lens-${i}-${k}`, lensLabel(k), "lens", l, template, false);
       });
     });
 
@@ -290,6 +291,7 @@ export function useLayerLifecycle(deps: {
         opacity: 1,
         supportsOpacity: true,
         stats: l.stats,
+        bbox: l.bbox,
       });
     });
 
@@ -607,7 +609,7 @@ export function useLayerLifecycle(deps: {
     if (viewMode === "2d") {
       const ground = pickScenePosition(viewer, new Cartesian2(scene.canvas.clientWidth / 2, scene.canvas.clientHeight / 2));
       scene.verticalExaggerationRelativeHeight = ground ? Cartographic.fromCartesian(ground).height : 0;
-      scene.verticalExaggeration = 0;
+      scene.verticalExaggeration = FLAT_EXAGGERATION;
     } else {
       scene.verticalExaggeration = terrainExaggeration;
       scene.verticalExaggerationRelativeHeight = 0;

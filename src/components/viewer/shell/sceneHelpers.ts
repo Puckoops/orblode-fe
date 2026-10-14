@@ -15,6 +15,7 @@ import {
 } from "cesium";
 import type { Manifest, Measurement } from "@/lib/api/orblodeSvc";
 import type { DrawMode } from "@/lib/viewer/draw";
+import type { LayerControl } from "@/components/viewer/LayerPanel";
 import {
   DESIGN_OVERLAY,
   DRAFT_LABEL_BACKGROUND,
@@ -84,19 +85,14 @@ export function lensLabel(key: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-/** lens_elevation_viridis_tiles -> viridis; lens_hillshade_tiles -> hillshade */
-export function parseLensRamp(outputKey: string): string | undefined {
-  const m = outputKey.match(/^lens_elevation_(\w+)_tiles$/);
-  if (m) return m[1];
-  if (outputKey === "lens_hillshade_tiles") return "hillshade";
-  return undefined;
-}
-
 export function contourVectorRole(role: string): boolean {
   return role === "contours" || role.startsWith("contours_");
 }
 
-export const ELEVATION_RAMPS = ["viridis", "terrain", "plasma", "grayscale"] as const;
+/** The survey surface (DSM or DTM) the globe is showing, if any. */
+export function visibleTerrain(layers: LayerControl[]): LayerControl | null {
+  return layers.find((l) => l.category === "terrain" && l.visible) ?? null;
+}
 
 export function bboxToRectangle(bbox?: number[]): Rectangle | undefined {
   if (!bbox || bbox.length !== 4) return undefined;

@@ -16,10 +16,21 @@ import {
   SparklesIcon,
   Sun03Icon,
 } from "@hugeicons/core-free-icons";
-import { Alert, Field, Glyph, Icon, IconButton, Input, ProgressCircle, Select, Slider, Sparkbars, Switch, Tooltip, type IconDefinition } from "@puckoops/camelot";
+import { Alert, Button, Field, Glyph, Icon, IconButton, Input, ProgressCircle, Select, Slider, Switch, Tooltip, type IconDefinition } from "@puckoops/camelot";
 import { Collapsible } from "radix-ui";
 import { toast } from "@/lib/toast";
 import type { TerrainStats } from "@/lib/api/orblodeSvc";
+import type { ViewSettings } from "@/lib/viewer/state/store";
+import {
+  AUTO_RANGE_CLIP,
+  ELEVATION_RAMPS,
+  autoRange,
+  cssColorAt,
+  histogramBars,
+  isElevationRampId,
+  type ElevationRampId,
+  type ElevationRange,
+} from "@/lib/viewer/elevationRamp";
 
 export type LayerCategory = "terrain" | "ortho" | "pointcloud" | "lens" | "vector";
 
@@ -34,8 +45,8 @@ export interface LayerControl {
   error?: string | null; // last load failure for this layer
   /** Real elevation stats from the manifest (terrain layers only). */
   stats?: TerrainStats;
-  /** Baked lens ramp key (elevation colormaps, hillshade, slope, …). */
-  lensRamp?: string;
+  /** [west, south, east, north] in degrees (terrain layers only). */
+  bbox?: number[];
   /** Contour spacing in meters (vector layers only). */
   intervalM?: number;
   /** Manifest vector role (contours, overlay, …). */
@@ -56,7 +67,18 @@ export const BASE_MAPS = [
   { id: "streets", label: "Streets" },
 ] as const;
 
-interface LayerPanelProps {
+export type ElevationSettings = Pick<
+  ViewSettings,
+  "elevationColors" | "elevationRamp" | "elevationRange" | "elevationOpacity" | "elevationBands" | "shading"
+>;
+
+export interface ElevationHandlers {
+  onColorMapChange: (ramp: ElevationRampId | null) => void;
+  onShadingChange: (value: ViewSettings["shading"]) => void;
+  onElevationChange: (patch: Partial<Pick<ViewSettings, "elevationRange" | "elevationOpacity" | "elevationBands">>) => void;
+}
+
+interface LayerPanelProps extends ElevationHandlers {
   layers: LayerControl[];
   designs: DesignControl[];
   processing: boolean;
@@ -65,10 +87,7 @@ interface LayerPanelProps {
   /** 2D draws the site flat, so there is no relief to exaggerate. */
   exaggerationDisabled?: boolean;
   baseMap: string;
-  colorMap: string;
-  shading: string;
-  availableColorMaps: string[];
-  hasHillshade: boolean;
+  elevation: ElevationSettings;
   contourIntervalM: number | null;
   availableContourIntervals: number[];
   digitalTwinEnabled?: boolean;
@@ -81,8 +100,6 @@ interface LayerPanelProps {
   onToggleDesign: (key: string) => void;
   onTerrainExaggeration: (value: number) => void;
   onSetBaseMap: (value: string) => void;
-  onColorMapChange: (value: string) => void;
-  onShadingChange: (value: string) => void;
   onContourIntervalChange: (intervalM: number) => void;
   onToggleDigitalTwin?: () => void;
   onSunLightingChange?: (enabled: boolean, hour: number) => void;
@@ -195,36 +212,55 @@ function SunPositionRow({ enabled, hour, onChange }: { enabled: boolean; hour: n
   );
 }
 
-/** Elevation-distribution histogram. Renders the surface's real per-bucket
- * counts when the manifest carries stats; otherwise falls back to a
- * deterministic presentational stand-in. */
-function Histogram({ buckets }: { buckets?: number[] }) {
-  const bars = React.useMemo(() => {
-    if (buckets && buckets.length > 0) {
-      // Compress to ~26 display bars and normalize against the tallest.
-      const display = 26;
-      const grouped =
-        buckets.length <= display
-          ? buckets
-          : Array.from({ length: display }, (_, i) => {
-              const lo = Math.floor((i * buckets.length) / display);
-              const hi = Math.floor(((i + 1) * buckets.length) / display);
-              let sum = 0;
-              for (let j = lo; j < hi; j++) sum += buckets[j];
-              return sum;
-            });
-      const max = Math.max(...grouped, 1);
-      return grouped.map((v) => (v > 0 ? Math.max(0.04, v / max) : 0.02));
-    }
-    return Array.from({ length: 26 }, (_, i) => {
-      const v = Math.sin(i * 0.7) * 0.5 + Math.cos(i * 1.9) * 0.25 + 0.6;
-      return Math.max(0.25, Math.min(1, v));
-    });
-  }, [buckets]);
-  return <Sparkbars values={bars} highlight={bars.length} height={56} label="Elevation distribution" />;
+const HISTOGRAM_BARS = 32;
+
+/** The surface's height distribution, each bar in the colour it takes on the map while the colours are on. */
+function ElevationHistogram({ stats, ramp, range, bands }: { stats: TerrainStats; ramp: ElevationRampId | null; range: ElevationRange; bands: boolean }) {
+  const bars = React.useMemo(() => histogramBars(stats, HISTOGRAM_BARS), [stats]);
+  if (bars.length === 0) return null;
+  const tallest = Math.max(1, ...bars.map((b) => b.count));
+  return (
+    <div role="img" aria-label="Elevation distribution" className="flex h-14 items-end gap-0.5">
+      {bars.map((b, i) => (
+        <span
+          key={i}
+          className="min-w-0 flex-1 rounded-[2px]"
+          style={{
+            height: `${b.count > 0 ? Math.max(4, (b.count / tallest) * 100) : 2}%`,
+            background: ramp ? cssColorAt(ramp, b.height, range, bands) : "var(--n-04)",
+            opacity: ramp && (b.height < range.min || b.height > range.max) ? 0.35 : 1,
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
-const SHADING = ["None", "Hillshade"];
+/** A height typed in metres, committed on blur or Enter; a rejected value snaps back. */
+function HeightInput({ label, value, onCommit }: { label: string; value: number; onCommit: (value: number) => boolean }) {
+  const [revision, setRevision] = useState(0);
+  return (
+    <Input
+      key={`${value}:${revision}`}
+      aria-label={label}
+      defaultValue={value.toFixed(1)}
+      inputMode="decimal"
+      suffix="m"
+      className="num"
+      onBlur={(e) => {
+        const text = e.currentTarget.value.trim();
+        const next = Number(text);
+        if (!text || !Number.isFinite(next) || !onCommit(next)) setRevision((r) => r + 1);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+    />
+  );
+}
+
+const SHADING: ViewSettings["shading"][] = ["None", "Hillshade"];
+const NO_COLORS = "none";
 
 function formatIntervalLabel(m: number): string {
   return Number.isInteger(m) ? `${m}m` : `${m}m`;
@@ -240,47 +276,29 @@ function formatElevationM(value: number): string {
   return `${Math.round(value)} m`;
 }
 
-/** Inline expandable settings for a DSM/DTM terrain layer. Opacity is wired to
- * the real tileset; colormap/shading switch baked lens overlays when present. */
+/** Inline expandable settings for a DSM/DTM terrain layer: its opacity, and the
+ * elevation colours and shading drawn on whichever surface is showing. */
 function TerrainSettings({
   opacity,
   onOpacity,
   stats,
-  colorMap,
-  shading,
-  availableColorMaps,
-  hasHillshade,
+  elevation,
   onColorMapChange,
   onShadingChange,
+  onElevationChange,
 }: {
   opacity: number;
   onOpacity: (opacity: number) => void;
   stats?: TerrainStats;
-  colorMap: string;
-  shading: string;
-  availableColorMaps: string[];
-  hasHillshade: boolean;
-  onColorMapChange: (value: string) => void;
-  onShadingChange: (value: string) => void;
-}) {
-  const [range, setRange] = useState(() => ({
-    min: stats ? String(Math.round(stats.min_elevation)) : "0",
-    max: stats ? String(Math.round(stats.max_elevation)) : "100",
-  }));
-
-  // Re-sync the range inputs when a new stats object arrives (survey switch).
-  // Done as a render-phase adjustment rather than an effect: no extra commit,
-  // no set-state-in-effect, and the fresh range renders on the first paint.
-  // (React's documented "adjust state on prop change" pattern — the previous
-  // value is tracked in state, not a ref, so it stays render-safe.)
-  const [prevStats, setPrevStats] = useState(stats);
-  if (stats && stats !== prevStats) {
-    setPrevStats(stats);
-    setRange({
-      min: String(Math.round(stats.min_elevation)),
-      max: String(Math.round(stats.max_elevation)),
-    });
-  }
+  elevation: ElevationSettings;
+} & ElevationHandlers) {
+  const colors = elevation.elevationColors && !!stats;
+  const auto = elevation.elevationRange === null;
+  const range = stats ? (elevation.elevationRange ?? autoRange(stats)) : null;
+  const bottom = stats && range ? Math.min(stats.histogram_min ?? stats.min_elevation, range.min) : 0;
+  const top = stats && range ? Math.max(stats.histogram_max ?? stats.max_elevation, range.max) : 0;
+  const step = top - bottom > 50 ? 0.5 : 0.1;
+  const setRange = (next: ElevationRange) => onElevationChange({ elevationRange: next });
 
   return (
     <div className="mx-2 mb-2 flex flex-col gap-4 rounded-md border border-hairline bg-surface-2 p-3">
@@ -294,57 +312,93 @@ function TerrainSettings({
         onValueChange={([v]) => onOpacity(v / 100)}
       />
 
-      <div>
-        <p className="caps mb-1.5 text-ink-4">Histogram</p>
-        <Histogram buckets={stats?.histogram} />
-        {stats && (
-          <div className="num-sm mt-1 flex justify-between text-ink-4">
-            <span>{formatElevationM(stats.histogram_min ?? stats.min_elevation)}</span>
-            <span>{formatElevationM(stats.histogram_max ?? stats.max_elevation)}</span>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <p className="caps mb-1.5 text-ink-4">Range</p>
-        <div className="flex items-center gap-2">
-          <Input
-            aria-label="Range minimum"
-            value={range.min}
-            onChange={(e) => setRange((r) => ({ ...r, min: e.target.value }))}
-            inputMode="numeric"
-            readOnly={!!stats}
-            className="num"
-          />
-          <span className="h-px w-2 shrink-0 bg-hairline-strong" />
-          <Input
-            aria-label="Range maximum"
-            value={range.max}
-            onChange={(e) => setRange((r) => ({ ...r, max: e.target.value }))}
-            inputMode="numeric"
-            readOnly={!!stats}
-            className="num"
-          />
-        </div>
-        {stats && (
-          <p className="num-sm mt-1 text-ink-4">
-            Mean {formatElevationM(stats.mean)} · σ {stats.std_dev.toFixed(1)} m
-          </p>
-        )}
-      </div>
-
       <Field label="Color map">
         <Select
-          value={colorMap}
-          onValueChange={onColorMapChange}
-          disabled={availableColorMaps.length === 0}
-          placeholder={availableColorMaps.length ? undefined : "None available"}
-          options={[{ value: "None", label: "None" }, ...availableColorMaps.map((c) => ({ value: c, label: c }))]}
+          value={colors ? elevation.elevationRamp : NO_COLORS}
+          onValueChange={(v) => onColorMapChange(isElevationRampId(v) ? v : null)}
+          disabled={!stats}
+          options={[{ value: NO_COLORS, label: "None" }, ...ELEVATION_RAMPS.map((r) => ({ value: r.id, label: r.label }))]}
         />
       </Field>
 
+      {stats && range ? (
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <p className="caps text-ink-4">Range</p>
+            <Button size="sm" variant="quiet" disabled={auto} onClick={() => onElevationChange({ elevationRange: null })}>
+              Auto
+            </Button>
+          </div>
+          <ElevationHistogram stats={stats} ramp={colors ? elevation.elevationRamp : null} range={range} bands={elevation.elevationBands} />
+          <Slider
+            aria-label="Color range"
+            thumbLabels={["Range minimum", "Range maximum"]}
+            value={[range.min, range.max]}
+            min={bottom}
+            max={top}
+            step={step}
+            minStepsBetweenThumbs={1}
+            showValue={false}
+            onValueChange={([min, max]) => setRange({ min, max })}
+            className="mt-1"
+          />
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+            <HeightInput
+              label="Range minimum"
+              value={range.min}
+              onCommit={(min) => {
+                if (min >= range.max) return false;
+                setRange({ min, max: range.max });
+                return true;
+              }}
+            />
+            <span className="h-px w-2 shrink-0 bg-hairline-strong" />
+            <HeightInput
+              label="Range maximum"
+              value={range.max}
+              onCommit={(max) => {
+                if (max <= range.min) return false;
+                setRange({ min: range.min, max });
+                return true;
+              }}
+            />
+          </div>
+          <p className="num-sm mt-1 text-ink-4">
+            {auto ? `Auto: ${AUTO_RANGE_CLIP * 100}–${100 - AUTO_RANGE_CLIP * 100}% of the surface` : "Set by hand"} · Mean {formatElevationM(stats.mean)} · σ{" "}
+            {stats.std_dev.toFixed(1)} m
+          </p>
+        </div>
+      ) : (
+        <p className="small text-ink-4">This surface has no elevation statistics, so it can&apos;t be colored by height.</p>
+      )}
+
+      {colors && (
+        <>
+          <Slider
+            label="Color opacity"
+            value={[Math.round(elevation.elevationOpacity * 100)]}
+            min={0}
+            max={100}
+            step={1}
+            format={(v) => `${Math.round(v)}%`}
+            onValueChange={([v]) => onElevationChange({ elevationOpacity: v / 100 })}
+          />
+          <Switch
+            label="Bands"
+            labelPosition="start"
+            size="sm"
+            checked={elevation.elevationBands}
+            onCheckedChange={(v) => onElevationChange({ elevationBands: v })}
+          />
+        </>
+      )}
+
       <Field label="Shading">
-        <Select value={shading} onValueChange={onShadingChange} disabled={!hasHillshade} options={SHADING.map((v) => ({ value: v, label: v }))} />
+        <Select
+          value={elevation.shading}
+          onValueChange={(v) => onShadingChange(v === "Hillshade" ? "Hillshade" : "None")}
+          options={SHADING.map((v) => ({ value: v, label: v }))}
+        />
       </Field>
     </div>
   );
@@ -355,23 +409,14 @@ function TerrainLayerRow({
   control,
   onToggle,
   onOpacity,
-  colorMap,
-  shading,
-  availableColorMaps,
-  hasHillshade,
-  onColorMapChange,
-  onShadingChange,
+  elevation,
+  ...handlers
 }: {
   control: LayerControl;
   onToggle: () => void;
   onOpacity: (opacity: number) => void;
-  colorMap: string;
-  shading: string;
-  availableColorMaps: string[];
-  hasHillshade: boolean;
-  onColorMapChange: (value: string) => void;
-  onShadingChange: (value: string) => void;
-}) {
+  elevation: ElevationSettings;
+} & ElevationHandlers) {
   const [open, setOpen] = useState(false);
   return (
     <div>
@@ -390,19 +435,7 @@ function TerrainLayerRow({
         />
         <Switch size="sm" aria-label={control.label} checked={control.visible} onCheckedChange={onToggle} />
       </div>
-      {open && (
-        <TerrainSettings
-          opacity={control.opacity}
-          onOpacity={onOpacity}
-          stats={control.stats}
-          colorMap={colorMap}
-          shading={shading}
-          availableColorMaps={availableColorMaps}
-          hasHillshade={hasHillshade}
-          onColorMapChange={onColorMapChange}
-          onShadingChange={onShadingChange}
-        />
-      )}
+      {open && <TerrainSettings opacity={control.opacity} onOpacity={onOpacity} stats={control.stats} elevation={elevation} {...handlers} />}
     </div>
   );
 }
@@ -461,10 +494,7 @@ export function LayerPanel({
   terrainExaggeration,
   exaggerationDisabled = false,
   baseMap,
-  colorMap,
-  shading,
-  availableColorMaps,
-  hasHillshade,
+  elevation,
   contourIntervalM,
   availableContourIntervals,
   digitalTwinEnabled = false,
@@ -479,6 +509,7 @@ export function LayerPanel({
   onSetBaseMap,
   onColorMapChange,
   onShadingChange,
+  onElevationChange,
   onContourIntervalChange,
   onToggleDigitalTwin,
   onSunLightingChange,
@@ -486,9 +517,7 @@ export function LayerPanel({
   const byPrefix = (prefix: string) => layers.filter((l) => l.key.startsWith(prefix));
   const ortho = byPrefix("ortho-");
   const terrain = byPrefix("terrain-");
-  const lenses = byPrefix("lens-").filter(
-    (l) => !l.lensRamp || !["viridis", "terrain", "plasma", "grayscale", "hillshade"].includes(l.lensRamp)
-  );
+  const lenses = byPrefix("lens-");
   const vectors = byPrefix("vector-");
   const contourVectors = vectors.filter((l) => contourRole(l.vectorRole));
   const pointClouds = byPrefix("pointcloud-");
@@ -513,12 +542,10 @@ export function LayerPanel({
               control={l}
               onToggle={() => onToggle(l.key)}
               onOpacity={(o) => onOpacity(l.key, o)}
-              colorMap={colorMap}
-              shading={shading}
-              availableColorMaps={availableColorMaps}
-              hasHillshade={hasHillshade}
+              elevation={elevation}
               onColorMapChange={onColorMapChange}
               onShadingChange={onShadingChange}
+              onElevationChange={onElevationChange}
             />
           ))}
           {lenses.map((l) => (

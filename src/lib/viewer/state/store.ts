@@ -30,6 +30,7 @@ import type { LayerControl, DesignControl } from "@/components/viewer/LayerPanel
 import type { DrawMode, DrawOptions } from "@/lib/viewer/draw";
 import type { LngLatHeight } from "@/lib/viewer/measure";
 import type { ViewMode } from "@/lib/viewer/cameraControls";
+import { DEFAULT_ELEVATION_RAMP, type ElevationRampId, type ElevationRange } from "../elevationRamp.ts";
 
 /** Key for the ephemeral `estimates` map — one instant estimate per
  * (measurement, kind), mirroring the per-kind results map. */
@@ -74,8 +75,13 @@ export interface HeatmapState {
 
 export interface ViewSettings {
   baseMap: "satellite" | "streets" | "dark";
-  colorMap: string;
-  shading: string;
+  elevationColors: boolean;
+  elevationRamp: ElevationRampId;
+  /** null follows the visible surface's automatic range. */
+  elevationRange: ElevationRange | null;
+  elevationOpacity: number;
+  elevationBands: boolean;
+  shading: "None" | "Hillshade";
   contourIntervalM: number | null;
   terrainExaggeration: number;
   digitalTwinEnabled: boolean;
@@ -377,7 +383,11 @@ function defaultData(surveyId: string): ViewerShellData {
 
     view: {
       baseMap: "satellite",
-      colorMap: "None",
+      elevationColors: false,
+      elevationRamp: DEFAULT_ELEVATION_RAMP,
+      elevationRange: null,
+      elevationOpacity: 0.75,
+      elevationBands: false,
       shading: "None",
       contourIntervalM: null,
       terrainExaggeration: 1,
