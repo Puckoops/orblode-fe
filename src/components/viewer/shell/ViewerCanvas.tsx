@@ -52,6 +52,7 @@ import {
   listMeasurements,
   updateMeasurement,
   type ComputeMeasurementBody,
+  type GeoJsonGeometry,
 } from "@/lib/api/orblodeSvc";
 import { ApiError } from "@/lib/api/client";
 import { filesUrlsIn } from "@/lib/files";
@@ -88,6 +89,7 @@ import {
 import { applySceneBackground } from "@/lib/viewer/cesiumScene";
 import { applyViewMode, resetToNorth } from "@/lib/viewer/camera";
 import { TOP_DOWN_PITCH_DEG } from "@/lib/viewer/cameraControls";
+import { framingSpots, groundUnder, raiseOverGround } from "@/lib/viewer/framing";
 import { buildPointCloudStyle } from "@/lib/viewer/pointcloud";
 import { USE_WORLD_TERRAIN } from "@/lib/viewer/cesiumIon";
 import {
@@ -438,12 +440,27 @@ export function ViewerCanvas() {
   );
 
   const flyToRectangle = useCallback(
-    (rect: Rectangle) => {
+    (rect: Rectangle, ground?: number) => {
       const viewer = viewerRef.current;
       if (!viewer || viewer.isDestroyed()) return;
-      viewer.camera.flyTo({ destination: rect, duration: 2.0 });
+      const destination = ground ? raiseOverGround(viewer.camera.getRectangleCameraCoordinates(rect), ground) : rect;
+      viewer.camera.flyTo({ destination, duration: 2.0 });
     },
     [viewerRef]
+  );
+
+  const frameSeqRef = useRef(0);
+  const frameGeometry = useCallback(
+    (geometry: GeoJsonGeometry) => {
+      const viewer = viewerRef.current;
+      const rect = geometryToRectangle(geometry);
+      if (!viewer || viewer.isDestroyed() || !rect) return;
+      const seq = ++frameSeqRef.current;
+      void groundUnder(viewer, framingSpots(rect, geometryPositions(geometry))).then((ground) => {
+        if (seq === frameSeqRef.current) flyToRectangle(rect, ground);
+      });
+    },
+    [viewerRef, flyToRectangle]
   );
 
   /** Reset to the survey's first framing (bbox → tileset bounds → default center). */
@@ -1223,12 +1240,9 @@ export function ViewerCanvas() {
       const s = store.getState();
       s.selectMeasurement(m.id, { fly: false });
       if (!m.demo) s.setMeasurementVisible(m.id, true);
-      if (!m.demo && m.geometry) {
-        const rect = geometryToRectangle(m.geometry);
-        if (rect) flyToRectangle(rect);
-      }
+      if (!m.demo && m.geometry) frameGeometry(m.geometry);
     },
-    [store, flyToRectangle]
+    [store, frameGeometry]
   );
 
   const exportMeasurements = useCallback(() => {
