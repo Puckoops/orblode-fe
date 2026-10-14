@@ -59,6 +59,8 @@ import {
   type ViewMode,
 } from "@/lib/viewer/cameraControls";
 import { useCameraOrientation } from "@/components/viewer/shell/hooks/useCameraOrientation";
+import { useMacKeys, useShortcuts } from "@/lib/viewer/shortcutPrefs";
+import { comboLabel } from "@/lib/viewer/shortcuts";
 
 /** Geometry of the concentric control, in px. Named rather than inlined so the
  * zones stay in a provable relationship, which the invariants below assert: the
@@ -236,6 +238,9 @@ export function CameraJoystick({
   onToggleGrid,
 }: CameraJoystickProps) {
   const [active, setActive] = useState(false);
+  const viewModeCombo = useShortcuts().bindings["camera.dimension"];
+  const mac = useMacKeys();
+  const viewModeKey = viewModeCombo ? ` (${comboLabel(viewModeCombo, mac)})` : "";
   const [knob, setKnob] = useState({ x: 0, y: 0 });
 
   const baseRef = useRef<HTMLDivElement>(null);
@@ -447,7 +452,7 @@ export function CameraJoystick({
           type="button"
           onClick={onToggleViewMode}
           aria-label={viewMode === "2d" ? "Show the site in 3D" : "Show the site flat, in 2D"}
-          title={viewMode === "2d" ? "3D site (O)" : "2D flat site (O)"}
+          title={`${viewMode === "2d" ? "3D site" : "2D flat site"}${viewModeKey}`}
           className="caps flex size-6 items-center justify-center rounded-full border border-hairline bg-surface/90 tracking-normal text-ink-3 backdrop-blur-xl hover:bg-surface-2 hover:text-ink-1 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
         >
           {viewMode === "2d" ? "3D" : "2D"}
