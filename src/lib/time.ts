@@ -47,6 +47,12 @@ export function weekdayTime(ms: EpochMs): string {
   return `${WEEKDAYS[new Date(ms).getDay()]} ${clockTime(ms)}`;
 }
 
+/** "14 Oct 2026" in the viewer's time. */
+export function dayDate(ms: EpochMs): string {
+  const d = new Date(ms);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 /** "Tue 14 Oct 2026, 15:42" in the viewer's time, for a tooltip under a relative time. */
 export function exactTime(ms: EpochMs): string {
   const d = new Date(ms);
