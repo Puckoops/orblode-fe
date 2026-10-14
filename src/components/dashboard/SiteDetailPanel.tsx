@@ -12,7 +12,7 @@ import { getProject, type Project } from "@/lib/api/userSvc";
 import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
 import { failedInProject, failureTitle } from "@/lib/processing/summary";
-import { lifecycleState, PROCESSING_FAILED, surveyState } from "@/lib/status";
+import { lifecycleState, PROCESSING_FAILED } from "@/lib/status";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 
@@ -171,7 +171,6 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
                     </span>
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="num-sm text-ink-4">{survey.working_crs}</span>
-                      <StateChip state={surveyState(survey.status)} />
                       {failedIds.has(survey.id) && <StateChip state={PROCESSING_FAILED} />}
                     </span>
                     {typeof survey.metadata?.sensor === "string" && <span className="caption mt-1 block text-ink-4">{survey.metadata.sensor}</span>}
