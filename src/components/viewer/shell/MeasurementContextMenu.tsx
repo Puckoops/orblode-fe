@@ -11,6 +11,7 @@ import { Menu, MenuItem } from "@puckoops/camelot";
 
 import { useViewerStore } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
+import { useMayMeasure } from "@/components/viewer/shell/hooks/useMayMeasure";
 import { useConfirm } from "@/components/common/confirm";
 import { measurementDeleteRequest } from "@/components/viewer/deleteConfirm";
 
@@ -22,6 +23,7 @@ export function MeasurementContextMenu() {
   const closeContextMenu = useViewerStore((s) => s.closeContextMenu);
   const selectMeasurement = useViewerStore((s) => s.selectMeasurement);
   const actions = useViewerActions();
+  const mayMeasure = useMayMeasure();
   // ORB-37. The dialog is owned here but rendered as a SIBLING of the menu:
   // `run()` closes the menu synchronously, so a dialog nested inside the menu
   // markup would unmount before it could be answered.
@@ -32,7 +34,7 @@ export function MeasurementContextMenu() {
   const measurement = contextMenu ? (measurements.find((m) => m.id === contextMenu.measurementId) ?? null) : null;
 
   let menu: React.ReactNode = null;
-  if (contextMenu && measurement) {
+  if (contextMenu && measurement && mayMeasure) {
     const geomType = measurement.geometry?.type;
     const editable = geomType === "Polygon" || geomType === "LineString";
     const pinnable = measurement.kind === "stockpile" && !measurement.draft && !!measurement.geometry;

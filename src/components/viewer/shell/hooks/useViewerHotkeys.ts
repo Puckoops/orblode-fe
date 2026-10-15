@@ -35,6 +35,9 @@ import {
 
 export type { HotkeyActions } from "./toolLaunch";
 
+/** Keys that start a shape, which saves a measurement; probing a point saves nothing. */
+const DRAWING = new Set(["tool.line", "tool.area", "tool.section", "tool.grade"]);
+
 export function useViewerHotkeys(
   actor: InteractionActor,
   store: StoreApi<ViewerShellState>,
@@ -42,7 +45,9 @@ export function useViewerHotkeys(
   /** Toggle the shortcut cheat-sheet overlay (owned by ViewerCanvas). */
   onToggleSheet: () => void,
   /** Toggle the command palette (owned by ViewerCanvas). */
-  onTogglePalette: () => void
+  onTogglePalette: () => void,
+  /** False for someone who may only view: the drawing and editing keys do nothing. */
+  mayDraw = true
 ): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -59,6 +64,8 @@ export function useViewerHotkeys(
 
       const s = store.getState();
       const selId = s.selection?.kind === "measurement" ? s.selection.measurementIds[0] : null;
+
+      if (!mayDraw && ((command && DRAWING.has(command)) || e.key === "Enter")) return;
 
       if (e.key === "Enter" && !e.metaKey && !e.ctrlKey && !e.altKey) {
         // Idle + a selected measurement → straight into the edit plane. The
@@ -142,5 +149,5 @@ export function useViewerHotkeys(
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [actor, store, actions, onToggleSheet, onTogglePalette]);
+  }, [actor, store, actions, onToggleSheet, onTogglePalette, mayDraw]);
 }

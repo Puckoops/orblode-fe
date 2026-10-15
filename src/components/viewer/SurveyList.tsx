@@ -8,6 +8,7 @@ import { Alert, Badge, IconButton, Select } from "@puckoops/camelot";
 import { Loader } from "@/components/brand/Loader";
 import { StateChip } from "@/components/common/StateChip";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
+import { ApiError } from "@/lib/api/client";
 import { listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
 import { PROCESSING } from "@/lib/status";
@@ -31,6 +32,7 @@ export function SurveyList({
   const running = useProcessing((s) => s.running);
   const [surveys, setSurveys] = useState<Survey[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [denied, setDenied] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
 
@@ -43,6 +45,7 @@ export function SurveyList({
     setLoadedProjectId(projectId);
     setSurveys(null);
     setError(null);
+    setDenied(false);
   }
 
   useEffect(() => {
@@ -56,7 +59,10 @@ export function SurveyList({
         setSurveys(list);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load surveys");
+        if (cancelled) return;
+        // Someone the survey alone was shared with may not list the site's surveys.
+        if (err instanceof ApiError && err.status === 403) setDenied(true);
+        else setError(err instanceof Error ? err.message : "Failed to load surveys");
       });
     return () => {
       cancelled = true;
@@ -73,6 +79,7 @@ export function SurveyList({
     return map;
   }, [surveys]);
 
+  if (denied) return null;
   if (error) {
     return (
       <Alert tone="critical" title="Surveys couldn't load" className="m-3">

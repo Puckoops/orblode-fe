@@ -19,7 +19,7 @@ export function SurveyDenied({ denial }: { denial: SurveyDenial }) {
         description={
           unpublished
             ? "It opens here once it's published. Until then, the site's published surveys are on its page."
-            : "Ask whoever sent you the link to add you to its site."
+            : "Ask whoever sent you the link to share the survey with you."
         }
         action={
           <Button asChild variant="ghost" size="sm">

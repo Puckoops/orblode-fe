@@ -1,0 +1,30 @@
+.card {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, calc(100vw - 24px));
+  max-height: min(620px, var(--radix-popover-content-available-height, 620px));
+  border: var(--border-w) solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+  outline: none;
+  transform-origin: var(--radix-popover-content-transform-origin);
+  animation: card-in var(--dur-3) var(--ease-out);
+}
+
+.card[data-state="closed"] { animation: card-out var(--dur-2) var(--ease-in-out) forwards; }
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+
+@keyframes card-out {
+  to { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card[data-state="closed"] { animation: none; }
+}

@@ -85,6 +85,7 @@ import { MeasurementContextMenu } from "@/components/viewer/shell/MeasurementCon
 import { ShortcutSheet } from "@/components/viewer/shell/ShortcutSheet";
 import { CommandPalette } from "@/components/viewer/shell/CommandPalette";
 import { useViewerHotkeys } from "@/components/viewer/shell/hooks/useViewerHotkeys";
+import { useMayMeasure } from "@/components/viewer/shell/hooks/useMayMeasure";
 import { isExportable, type ExportFormat } from "@/lib/viewer/measurementExport";
 import { downloadMeasurements } from "@/lib/viewer/downloadMeasurements";
 import { applySceneBackground } from "@/lib/viewer/cesiumScene";
@@ -122,6 +123,7 @@ import { TreePanel } from "@/components/viewer/shell/TreePanel";
 import { FloatingToolbar } from "@/components/viewer/shell/FloatingToolbar";
 import { SurveyCompare } from "@/components/viewer/shell/SurveyCompare";
 import { DetailPanel } from "@/components/viewer/shell/DetailPanel";
+import { ShareButton } from "@/components/viewer/shell/ShareButton";
 import { CrossSectionDock } from "@/components/viewer/shell/CrossSectionDock";
 import { ElevationLegend } from "@/components/viewer/shell/ElevationLegend";
 import { Loader } from "@/components/brand/Loader";
@@ -1479,7 +1481,8 @@ export function ViewerCanvas() {
     setPaletteOpen(false);
     setSheetOpen(true);
   }, []);
-  useViewerHotkeys(interactionActor, store, actions, toggleSheet, togglePalette);
+  const mayMeasure = useMayMeasure();
+  useViewerHotkeys(interactionActor, store, actions, toggleSheet, togglePalette, mayMeasure);
 
   // PIVOT grid (2026-07-16): col 1 ModuleRail 48px (spans both rows); col 2 the
   // LEFT dock — the module's LIST on every module (measurements tree on
@@ -1539,7 +1542,7 @@ export function ViewerCanvas() {
                 {denial ? <SurveyDenied denial={denial} /> : <ProcessingBanner surveyId={surveyId} />}
 
                 {/* Zone 3 — FLOATING toolbar, over the canvas top-center on the measure module. */}
-                {isMeasure && <FloatingToolbar />}
+                {isMeasure && mayMeasure && <FloatingToolbar />}
 
                 {/* Compare swipe — floating control that overlays two epochs' orthos
                     split by a draggable divider (before | after) over this project. */}
@@ -1572,6 +1575,7 @@ export function ViewerCanvas() {
                 {/* Zone 5 — draggable floating detail (expanded or compact), below the bell. */}
                 <DetailPanel />
 
+                {!denial && <ShareButton />}
                 <NotificationsBell placement="canvas" />
 
                 {/* Right-click context menu on a measurement (Edit / Redraw / Delete). */}
@@ -1588,6 +1592,7 @@ export function ViewerCanvas() {
                   store={store}
                   actions={actions}
                   onShowSheet={showSheetFromPalette}
+                  mayDraw={mayMeasure}
                 />
               </div>
 

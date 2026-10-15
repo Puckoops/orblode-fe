@@ -12,6 +12,7 @@ import {
   Notification03Icon,
   RulerIcon,
   Settings02Icon,
+  Share08Icon,
   Tick02Icon,
   TickDouble02Icon,
   UserCheck01Icon,
@@ -53,6 +54,7 @@ const TYPE_ICONS: Record<string, IconDefinition> = {
   site_summary: Calendar03Icon,
   member_joined: UserCheck01Icon,
   added_to_organisation: Building03Icon,
+  survey_shared: Share08Icon,
 };
 
 const TONE_MARKS: Partial<Record<NoticeTone, GlyphShape>> = { red: "cross", teal: "check", amber: "triangle" };

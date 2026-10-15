@@ -12,6 +12,7 @@
 import { useEffect } from "react";
 import { getProject, type Project } from "@/lib/api/userSvc";
 import type { Manifest } from "@/lib/api/orblodeSvc";
+import { useSitePermissions } from "@/lib/access/sitePermissions";
 import { useWorkspaces } from "@/lib/workspaces/store";
 
 export function useManifestLoad(deps: {
@@ -33,6 +34,7 @@ export function useManifestLoad(deps: {
     const projectId = manifest?.survey.project_id;
     if (!projectId) return;
 
+    void useSitePermissions.getState().load(projectId);
     let cancelled = false;
     getProject(projectId)
       .then((p) => {

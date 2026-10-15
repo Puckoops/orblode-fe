@@ -32,3 +32,9 @@ test("groupTypes puts someone joining under People", () => {
 test("groupTypes puts a type it doesn't know under Other", () => {
   assert.deepEqual(groupTypes([type("weekly_digest"), type("design_failed")]).map((g) => g.label), ["Designs", "Other"]);
 });
+
+test("groupTypes puts a survey shared with someone under People", () => {
+  assert.deepEqual(groupTypes([type("survey_shared"), type("member_joined")]).map((g) => [g.label, g.types.map((t) => t.type)]), [
+    ["People", ["member_joined", "survey_shared"]],
+  ]);
+});

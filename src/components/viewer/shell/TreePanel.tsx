@@ -31,6 +31,8 @@ import { Loader } from "@/components/brand/Loader";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
+import { useMayMeasure } from "@/components/viewer/shell/hooks/useMayMeasure";
+import { useMay } from "@/lib/access/sitePermissions";
 import {
   contourVectorRole,
   manifestLayersEmpty,
@@ -59,6 +61,8 @@ export function TreePanel() {
   const surveyId = useViewerStore((s) => s.surveyId);
   const setTreePanelOpen = useViewerStore((s) => s.setTreePanelOpen);
   const actions = useViewerActions();
+  const mayMeasure = useMayMeasure();
+  const mayUpload = useMay(manifest?.survey.project_id, "can_upload");
   const [editing, setEditing] = useState(false);
   const [surveysKey, setSurveysKey] = useState(0);
 
@@ -77,7 +81,7 @@ export function TreePanel() {
             </p>
           )}
         </div>
-        {manifest && (
+        {manifest && mayUpload && (
           <Tooltip content="Edit survey">
             <IconButton icon={PencilEdit02Icon} aria-label="Edit survey" variant="bare" size="sm" onClick={() => setEditing(true)} />
           </Tooltip>
@@ -90,22 +94,24 @@ export function TreePanel() {
             </MenuItem>
           ))}
         </Menu>
-        <Menu align="end" minWidth={248} trigger={<IconButton icon={MoreHorizontalIcon} aria-label="Stockpile actions" variant="bare" size="sm" />}>
-          <MenuItem icon={PlayIcon} onSelect={() => void actions.computeAllStockpiles()}>
-            Compute all stockpiles
-          </MenuItem>
-          <MenuItem icon={Copy01Icon} onSelect={() => void actions.copyStockpilesForward()}>
-            Copy stockpiles from previous survey
-          </MenuItem>
-          {manifest && (
-            <>
-              <MenuSeparator />
-              <MenuItem icon={ChartLineData01Icon} asChild>
-                <Link href={`/reports?site=${encodeURIComponent(manifest.survey.project_id)}`}>Stockpile reports</Link>
-              </MenuItem>
-            </>
-          )}
-        </Menu>
+        {mayMeasure && (
+          <Menu align="end" minWidth={248} trigger={<IconButton icon={MoreHorizontalIcon} aria-label="Stockpile actions" variant="bare" size="sm" />}>
+            <MenuItem icon={PlayIcon} onSelect={() => void actions.computeAllStockpiles()}>
+              Compute all stockpiles
+            </MenuItem>
+            <MenuItem icon={Copy01Icon} onSelect={() => void actions.copyStockpilesForward()}>
+              Copy stockpiles from previous survey
+            </MenuItem>
+            {manifest && (
+              <>
+                <MenuSeparator />
+                <MenuItem icon={ChartLineData01Icon} asChild>
+                  <Link href={`/reports?site=${encodeURIComponent(manifest.survey.project_id)}`}>Stockpile reports</Link>
+                </MenuItem>
+              </>
+            )}
+          </Menu>
+        )}
         <Tooltip content="Collapse panel">
           <IconButton icon={ArrowLeft01Icon} aria-label="Collapse panel" variant="bare" size="sm" onClick={() => setTreePanelOpen(false)} />
         </Tooltip>
