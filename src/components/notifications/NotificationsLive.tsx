@@ -30,9 +30,13 @@ function follow(notice: AppNotification) {
   if (!notice.type.startsWith("survey_")) return;
   const processing = useProcessing.getState();
   void processing.refreshFailed();
+  void processing.refreshRunning();
   const surveyId = notice.data?.survey_id;
   if (typeof surveyId === "string" && processing.current?.survey_id === surveyId) void processing.loadCurrent(surveyId);
 }
+
+/** Only the uploader hears that a survey finished processing, so everyone else checks this often while any is processing. */
+const RUNNING_POLL_MS = 20_000;
 
 /** After the stream gives up (it answered an error, not a dropped connection), try again this much later. */
 const RECONNECT_MS = 30_000;
@@ -82,10 +86,11 @@ function announce({ id, title, body, link, tone }: NoticeToast, push: (href: str
 }
 
 /**
- * Keeps the inbox and the rail's counts (failed surveys, red sites) current while Orblode is open:
- * loads them, then listens for new notices and toasts each as it arrives. Nothing is replayed over
- * the stream, so every reconnect reloads them all and toasts what came in while it was down. It
- * also renews this browser's push subscription for whoever turned push on here. Renders nothing.
+ * Keeps the inbox, the rail's counts (failed surveys, red sites) and the surveys still processing
+ * current while Orblode is open: loads them, then listens for new notices and toasts each as it
+ * arrives. Nothing is replayed over the stream, so every reconnect reloads them all and toasts what
+ * came in while it was down. It also renews this browser's push subscription for whoever turned
+ * push on here. Renders nothing.
  */
 export function NotificationsLive() {
   const userId = useAuthUser()?.id;
@@ -97,6 +102,8 @@ export function NotificationsLive() {
   const refresh = useInbox((s) => s.refresh);
   const receive = useInbox((s) => s.receive);
   const refreshFailed = useProcessing((s) => s.refreshFailed);
+  const refreshRunning = useProcessing((s) => s.refreshRunning);
+  const anyRunning = useProcessing((s) => s.running.length > 0);
   const refreshAlerts = useSiteAlerts((s) => s.refresh);
 
   useEffect(() => {
@@ -131,6 +138,7 @@ export function NotificationsLive() {
           // Nothing is replayed, so whatever arrived while the stream was down is only in a reload.
           void refresh().then(queue);
           void refreshFailed();
+          void refreshRunning();
           void refreshAlerts();
           useOrganisation.getState().bumpMembers();
         }
@@ -169,6 +177,7 @@ export function NotificationsLive() {
 
     void refresh();
     void refreshFailed();
+    void refreshRunning();
     void refreshAlerts();
     connect();
     return () => {
@@ -182,7 +191,15 @@ export function NotificationsLive() {
       window.removeEventListener("pageshow", wake);
       source?.close();
     };
-  }, [refresh, receive, refreshFailed, refreshAlerts]);
+  }, [refresh, receive, refreshFailed, refreshRunning, refreshAlerts]);
+
+  useEffect(() => {
+    if (!anyRunning) return;
+    const timer = setInterval(() => {
+      if (!document.hidden) void refreshRunning();
+    }, RUNNING_POLL_MS);
+    return () => clearInterval(timer);
+  }, [anyRunning, refreshRunning]);
 
   useEffect(() => {
     if (userId) void syncPush(userId).catch(() => undefined);

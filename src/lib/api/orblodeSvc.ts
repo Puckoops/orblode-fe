@@ -398,6 +398,19 @@ export async function listProcessingFailures(projectId?: string): Promise<Survey
   return (await apiFetch<{ surveys: SurveyProcessing[] }>(BASE, `/processing/failures${query}`)).surveys ?? [];
 }
 
+export interface RunningSurvey {
+  survey_id: string;
+  project_id: string;
+  /** Runs still going. */
+  open: number;
+}
+
+/** Every survey of the client (one site's with projectId) still processing, most recently dispatched first. */
+export async function listRunningSurveys(projectId?: string): Promise<RunningSurvey[]> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return (await apiFetch<{ surveys: RunningSurvey[] | null }>(BASE, `/processing/running${query}`)).surveys ?? [];
+}
+
 /** Runs a failed processor again with the request it was first made with. */
 export function retryProcessing(surveyId: string, workflowId: string): Promise<{ workflow_id: string; status: string }> {
   return apiFetch<{ workflow_id: string; status: string }>(

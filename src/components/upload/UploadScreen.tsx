@@ -1026,7 +1026,7 @@ function DoneSummary({
       <p className="small text-ink-3 mb-5">
         {dataType === "design"
           ? "The design files are stored and attached to the project."
-          : "Processors are running; layers appear in the viewer as each one completes."}
+          : "Processors are running. The survey opens in the viewer once they finish."}
       </p>
 
       {result.workflows.length > 0 && (

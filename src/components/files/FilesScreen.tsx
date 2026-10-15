@@ -7,8 +7,10 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Loader } from "@/components/brand/Loader";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
+import { ProcessingChip } from "@/components/viewer/ProcessingChip";
 import { listDesigns, listSurveyAssets, listSurveys, type DesignRecord, type SourceAsset } from "@/lib/api/orblodeSvc";
 import { listOrgMembers } from "@/lib/api/userSvc";
+import { useSurveyProcessing } from "@/lib/processing/store";
 import { assetName } from "@/lib/survey/edit";
 import { assetFolders, totalBytes } from "@/lib/survey/folders";
 import { formatSurveyDate } from "@/lib/utils";
@@ -301,6 +303,7 @@ function SurveyCard({
   onEdit: () => void;
 }) {
   const { survey, assets } = group;
+  const processing = useSurveyProcessing(survey.id);
   const folders = assetFolders(assets);
   const date = formatSurveyDate(survey.survey_date);
   return (
@@ -315,9 +318,13 @@ function SurveyCard({
           <Tooltip content="Edit survey">
             <IconButton icon={PencilEdit02Icon} aria-label={`Edit survey of ${date}`} variant="bare" size="sm" onClick={onEdit} />
           </Tooltip>
-          <TextLink as={Link} href={`/viewer/${survey.id}`} arrow="forward" className="caption">
-            Open in viewer
-          </TextLink>
+          {processing ? (
+            <ProcessingChip />
+          ) : (
+            <TextLink as={Link} href={`/viewer/${survey.id}`} arrow="forward" className="caption">
+              Open in viewer
+            </TextLink>
+          )}
         </span>
       }
     >

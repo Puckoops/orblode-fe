@@ -5,6 +5,8 @@ import { Alert, Breadcrumbs, Button, EmptyState, IconButton, Page, PageHeader, t
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Loader } from "@/components/brand/Loader";
+import { ProcessingChip } from "@/components/viewer/ProcessingChip";
+import { useSurveyProcessing } from "@/lib/processing/store";
 import { formatSurveyDate } from "@/lib/utils";
 import { Files, FolderGlyph, fileCount, formatBytes } from "./FileParts";
 import { nameMatches, resolveFolder, siteAnchor, surveyAnchor, type OpenFolder, type SiteGroup } from "./tree";
@@ -32,6 +34,7 @@ export function FolderView({
 }) {
   const folder = sites ? resolveFolder(sites, open) : null;
   const survey = folder?.survey;
+  const processing = useSurveyProcessing(survey?.id);
   const loading = sites === null && !loadError;
   const entries = folder ? folder.entries.filter((e) => nameMatches(e.name, query)) : [];
 
@@ -72,9 +75,13 @@ export function FolderView({
                 <Button variant="ghost" iconStart={PencilEdit02Icon} onClick={() => onEditSurvey(survey.id)}>
                   Edit survey
                 </Button>
-                <Button asChild variant="ghost">
-                  <Link href={`/viewer/${survey.id}`}>Open in viewer</Link>
-                </Button>
+                {processing ? (
+                  <ProcessingChip />
+                ) : (
+                  <Button asChild variant="ghost">
+                    <Link href={`/viewer/${survey.id}`}>Open in viewer</Link>
+                  </Button>
+                )}
               </>
             )}
             <IconButton icon={RefreshIcon} aria-label="Refresh" disabled={loading} onClick={onRefresh} />

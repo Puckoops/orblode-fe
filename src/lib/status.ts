@@ -120,3 +120,6 @@ export function varianceState(status: string | null | undefined): StateStyle {
 
 /** A survey whose newest run of some processor failed, beside its own status. */
 export const PROCESSING_FAILED: StateStyle = { label: "Processing failed", tone: "red", glyph: "triangle" };
+
+/** A survey with runs still going; it opens in the viewer once they end. */
+export const PROCESSING: StateStyle = { label: "Processing", tone: "blue", glyph: "circle-half" };

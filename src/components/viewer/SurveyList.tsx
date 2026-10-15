@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import { PencilEdit02Icon } from "@hugeicons/core-free-icons";
 import { Alert, Badge, IconButton, Select } from "@puckoops/camelot";
 import { Loader } from "@/components/brand/Loader";
+import { StateChip } from "@/components/common/StateChip";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { listSurveys, type Survey } from "@/lib/api/orblodeSvc";
+import { useProcessing } from "@/lib/processing/store";
+import { PROCESSING } from "@/lib/status";
 import { formatSurveyDate } from "@/lib/utils";
 
 /** Sibling surveys for the same project: a current-survey selector plus a
@@ -25,6 +28,7 @@ export function SurveyList({
   onSurveyChanged?: (surveyId: string) => void;
 }) {
   const router = useRouter();
+  const running = useProcessing((s) => s.running);
   const [surveys, setSurveys] = useState<Survey[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -86,6 +90,7 @@ export function SurveyList({
   }
 
   const label = (s: Survey) => `Survey V${versionOf.get(s.id)} · ${formatSurveyDate(s.survey_date)}`;
+  const processing = (id: string) => id !== currentSurveyId && running.some((r) => r.survey_id === id);
 
   return (
     <div className="flex flex-col px-3 pt-3">
@@ -96,7 +101,7 @@ export function SurveyList({
           if (id !== currentSurveyId) router.push(`/viewer/${id}`);
         }}
         placeholder="Select survey"
-        options={surveys.map((s) => ({ value: s.id, label: label(s) }))}
+        options={surveys.map((s) => ({ value: s.id, label: processing(s.id) ? `${label(s)} · processing` : label(s), disabled: processing(s.id) }))}
       />
 
       <p className="caps px-1 pt-4 pb-1.5 text-ink-4">All surveys</p>
@@ -104,24 +109,36 @@ export function SurveyList({
       <ul className="flex flex-col gap-1">
         {surveys.map((s) => {
           const active = s.id === currentSurveyId;
+          const body = (
+            <>
+              <span className="flex items-center justify-between gap-2">
+                <span className="num truncate font-medium text-ink-1">{formatSurveyDate(s.survey_date)}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {processing(s.id) && <StateChip state={PROCESSING} />}
+                  <Badge variant="tag">V{versionOf.get(s.id)}</Badge>
+                </span>
+              </span>
+              <span className="caption pr-8 text-ink-4">{s.survey_type}</span>
+            </>
+          );
           return (
             <li key={s.id} className="relative">
-              <Link
-                href={`/viewer/${s.id}`}
-                aria-current={active ? "page" : undefined}
-                onClick={(e) => active && e.preventDefault()}
-                className={`flex flex-col gap-1.5 rounded-md border px-3 py-2.5 ${
-                  active ? "border-hairline-strong bg-emphasis-quiet" : "border-transparent hover:border-hairline hover:bg-surface-2"
-                }`}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="num truncate font-medium text-ink-1">{formatSurveyDate(s.survey_date)}</span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    <Badge variant="tag">V{versionOf.get(s.id)}</Badge>
-                  </span>
-                </span>
-                <span className="caption pr-8 text-ink-4">{s.survey_type}</span>
-              </Link>
+              {processing(s.id) ? (
+                <div aria-disabled="true" title="Opens once processing finishes" className="flex cursor-not-allowed flex-col gap-1.5 rounded-md border border-transparent px-3 py-2.5 opacity-70">
+                  {body}
+                </div>
+              ) : (
+                <Link
+                  href={`/viewer/${s.id}`}
+                  aria-current={active ? "page" : undefined}
+                  onClick={(e) => active && e.preventDefault()}
+                  className={`flex flex-col gap-1.5 rounded-md border px-3 py-2.5 ${
+                    active ? "border-hairline-strong bg-emphasis-quiet" : "border-transparent hover:border-hairline hover:bg-surface-2"
+                  }`}
+                >
+                  {body}
+                </Link>
+              )}
               <IconButton
                 icon={PencilEdit02Icon}
                 aria-label={`Edit survey of ${formatSurveyDate(s.survey_date)}`}
