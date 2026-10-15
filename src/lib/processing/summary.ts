@@ -1,8 +1,31 @@
-import type { SurveyProcessing } from "../api/orblodeSvc.ts";
+import type { ProcessingRun, ProcessingStage, SurveyProcessing } from "../api/orblodeSvc.ts";
 
 /** Nothing is running and something failed: the survey is not still processing, it stopped. */
 export function isStalled(processing: SurveyProcessing | null | undefined): boolean {
   return !!processing && processing.open === 0 && processing.failures.length > 0;
+}
+
+const stageNames: Record<ProcessingStage, string> = {
+  queued: "Waiting for a worker",
+  starting: "Starting",
+  downloading: "Downloading",
+  preparing: "Preparing",
+  converting: "Converting",
+  tiling: "Tiling",
+  uploading: "Uploading",
+  finishing: "Finishing",
+  retrying: "Retrying",
+  completed: "Saving results",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
+/** "Tiling 45% · 2 of 3": the run's stage, how far through it, and which of its files or passes. */
+export function runStatus(run: ProcessingRun): string {
+  const stage = run.stage ? (stageNames[run.stage] ?? run.stage) : "Waiting to start";
+  const percent = run.percent === undefined ? "" : ` ${run.percent}%`;
+  const item = run.items && run.items > 1 ? ` · ${run.item} of ${run.items}` : "";
+  return `${stage}${percent}${item}`;
 }
 
 export function failedInProject(failed: SurveyProcessing[], projectId: string): SurveyProcessing[] {

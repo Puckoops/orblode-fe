@@ -347,11 +347,44 @@ export interface ProcessingFailure {
   inputs_changed?: boolean;
 }
 
+export type ProcessingStage =
+  | "queued"
+  | "starting"
+  | "downloading"
+  | "preparing"
+  | "converting"
+  | "tiling"
+  | "uploading"
+  | "finishing"
+  | "retrying"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+/** A run still going, and where its worker last said it had got to. */
+export interface ProcessingRun {
+  workflow_id: string;
+  processor_type: string;
+  /** "Terrain (DSM)", "Orthophoto", … */
+  label: string;
+  /** Absent while the workers have said nothing about the run. */
+  stage?: ProcessingStage;
+  /** How far through the stage, when the stage can be measured. */
+  percent?: number;
+  /** Which of the run's files or passes it is on, when it works through several. */
+  item?: number;
+  items?: number;
+  dispatched_at: EpochMs;
+  updated_at?: EpochMs;
+}
+
 export interface SurveyProcessing {
   survey_id: string;
   project_id: string;
   /** Runs still going. */
   open: number;
+  /** The open runs; only the survey's own processing lists them. */
+  running?: ProcessingRun[];
   failures: ProcessingFailure[];
 }
 
