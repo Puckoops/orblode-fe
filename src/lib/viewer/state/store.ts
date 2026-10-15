@@ -563,7 +563,22 @@ export function createViewerStore(
     setCompareB: (id) => set({ compareB: id }),
     setSplitPosition: (pos) => set({ splitPosition: pos }),
     setHeatmap: (heatmap) => set({ heatmap }),
-    setViewMode: (mode) => set({ viewMode: mode }),
+    setViewMode: (mode) => {
+      const current = get().viewMode;
+      // A flat site reads as a plan, so the grid comes on with 2D. That default
+      // is for the session: it does not overwrite a saved choice, and leaving
+      // 2D puts the saved choice back. Turning the grid off while already flat
+      // stays off.
+      if (mode === "2d" && current !== "2d") {
+        set({ viewMode: mode, gridVisible: true });
+        return;
+      }
+      if (mode !== "2d" && current === "2d") {
+        set({ viewMode: mode, gridVisible: readGridPref() });
+        return;
+      }
+      set({ viewMode: mode });
+    },
     setObliquePitch: (pitchDeg) => set({ obliquePitch: pitchDeg }),
 
     setView: (patch) => set({ view: { ...get().view, ...patch } }),
@@ -620,6 +635,10 @@ export function createViewerStore(
   }));
 
   if (seed) store.setState(seed);
+  // Opening straight onto the flat site gets the same grid default as switching into it.
+  if (store.getState().viewMode === "2d" && seed?.gridVisible === undefined) {
+    store.setState({ gridVisible: true });
+  }
   return store;
 }
 
