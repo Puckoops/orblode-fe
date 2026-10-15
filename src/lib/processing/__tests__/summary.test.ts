@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { ProcessingFailure, SurveyProcessing } from "../../api/orblodeSvc.ts";
-import { failedInProject, failureLines, failureTitle, failuresByAsset, isStalled, notRetryableLines } from "../summary.ts";
+import type { ProcessingFailure, ProcessingRun, SurveyProcessing } from "../../api/orblodeSvc.ts";
+import { failedInProject, failureLines, failureTitle, failuresByAsset, isStalled, notRetryableLines, runStatus } from "../summary.ts";
 
 const failure = (label: string, reason: string): ProcessingFailure => ({
   workflow_id: label,
@@ -87,4 +87,24 @@ test("notRetryableLines says why each failure can't be retried as it was", () =>
     "Vectors: fix or replace the files it couldn't read, then reprocess them in Edit survey → Files.",
     "Orthophoto: upload its file again to process it.",
   ]);
+});
+
+const running = (over: Partial<ProcessingRun> = {}): ProcessingRun => ({
+  workflow_id: "w1",
+  processor_type: "terrain-quantized-mesh",
+  label: "Terrain (DSM)",
+  dispatched_at: 1,
+  ...over,
+});
+
+test("runStatus reads the stage, its percent and which of several files", () => {
+  assert.equal(runStatus(running({ stage: "tiling", percent: 45 })), "Tiling 45%");
+  assert.equal(runStatus(running({ stage: "converting", item: 2, items: 3 })), "Converting · 2 of 3");
+  assert.equal(runStatus(running({ stage: "uploading", percent: 0, item: 1, items: 1 })), "Uploading 0%");
+  assert.equal(runStatus(running({ stage: "queued" })), "Waiting for a worker");
+  assert.equal(runStatus(running()), "Waiting to start");
+});
+
+test("runStatus shows a stage it doesn't know as the worker named it", () => {
+  assert.equal(runStatus(running({ stage: "meshing" as ProcessingRun["stage"] })), "meshing");
 });
