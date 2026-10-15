@@ -629,6 +629,8 @@ export interface Measurement {
   /** The stockpile's pile across surveys; `manual` when linked by hand, which matching never changes. */
   pile_id?: string;
   pile_link?: "auto" | "manual";
+  /** The pile is in every survey of the site, and new surveys get it when their terrain arrives. */
+  pinned?: boolean;
   created_at: EpochMs;
   updated_at: EpochMs;
   computed_at?: EpochMs;
@@ -928,6 +930,36 @@ export function linkPile(surveyId: string, measurementId: string, pileId: string
   });
 }
 
+export interface PinnedCopy {
+  survey_id: string;
+  survey_date: string;
+  measurement_id: string;
+}
+
+export interface PinSkip {
+  survey_id: string;
+  survey_date: string;
+  reason: string;
+}
+
+/** `created` are the copies put into surveys that lacked the pile; `skipped` surveys already had another stockpile
+ * there; `computing` copies are being computed in the background. */
+export interface PinPileResult {
+  measurement: Measurement;
+  pinned: boolean;
+  created: PinnedCopy[];
+  skipped: PinSkip[];
+  computing: number;
+}
+
+/** Pins a saved stockpile's pile to every survey of its site, or unpins it; unpinning keeps the copies. */
+export function pinPile(surveyId: string, measurementId: string, pinned: boolean): Promise<PinPileResult> {
+  return apiFetch<PinPileResult>(BASE, `/surveys/${surveyId}/measurements/${measurementId}/pin`, {
+    method: "PUT",
+    body: { pinned },
+  });
+}
+
 export function copyStockpilesForward(surveyId: string): Promise<Measurement[]> {
   return apiFetch<Measurement[]>(BASE, `/surveys/${surveyId}/stockpiles/copy-forward`, { method: "POST" });
 }
@@ -955,6 +987,7 @@ export interface InventoryPile {
   name: string;
   pile_id: string;
   pile_link?: "auto" | "manual";
+  pinned?: boolean;
   material_id?: string;
   material_name?: string;
   state: PileState;

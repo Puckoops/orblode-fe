@@ -11,6 +11,8 @@ import {
   FileTextIcon,
   FloppyDiskIcon,
   PencilIcon,
+  PinIcon,
+  PinOffIcon,
   PlayIcon,
   RefreshIcon,
   SplineIcon,
@@ -113,6 +115,7 @@ interface FeatureInspectorProps {
   /** Link a stockpile by hand to a pile of the previous survey; "" for a new pile. */
   onLinkPile?: (id: string, pileId: string) => Promise<void>;
   onExport?: (id: string, format: ExportFormat) => void;
+  onPin?: (id: string, pinned: boolean) => Promise<void>;
   onCompute?: (
     id: string,
     override?: Record<string, unknown>,
@@ -459,6 +462,7 @@ export function FeatureInspector({
   onDelete,
   onLinkPile,
   onExport,
+  onPin,
   onCompute,
   onEditGeometry,
   onCommitGeometry,
@@ -480,6 +484,7 @@ export function FeatureInspector({
   const [calcCfg, setCalcCfg] = React.useState<CalcMethodState | null>(() => seedCalcCfg(measurement));
   const [editBase, setEditBase] = React.useState(false);
   const [showReceipt, setShowReceipt] = React.useState(false);
+  const [pinning, setPinning] = React.useState(false);
   // STYLE tab local state — seeded from params.style, PATCHed (debounced).
   const [style, setStyle] = React.useState<MeasurementStyle>(() => styleOf(measurement?.params));
   const styleTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -513,6 +518,7 @@ export function FeatureInspector({
 
   const isDraft = measurement.draft === true;
   const isVolume = isVolumeKind(measurement.kind);
+  const pinnable = measurement.kind === "stockpile" && !isDraft && !!measurement.geometry;
   // A temporal compare (params.from/to name two different surveys) gets the
   // A→B comparison card in the Properties tab.
   const comparePair = temporalComparePair(measurement.params);
@@ -707,6 +713,11 @@ export function FeatureInspector({
                   </Chip>
                 )}
                 <StatusChip status={chipStatus} />
+                {pinnable && measurement.pinned && (
+                  <Chip tone="blue" glyph="diamond">
+                    Pinned
+                  </Chip>
+                )}
                 {material?.name && <Badge variant="tag">{material.name}</Badge>}
                 {measurement.folder && <Badge variant="tag">{measurement.folder}</Badge>}
               </div>
@@ -800,6 +811,13 @@ export function FeatureInspector({
                 <PileLinkField surveyId={surveyId} measurement={measurement} onLink={onLinkPile} />
               )}
 
+              {pinnable && measurement.pinned && (
+                <p className="caption text-ink-4">
+                  Pinned: this pile is in every survey of the site, and new surveys get it once their terrain is in. Each survey keeps its
+                  own outline.
+                </p>
+              )}
+
               {/* Action rows (design): Receipt · Run · Save (drafts) · Delete. */}
               <div className="mt-auto flex flex-col gap-2">
                 {receipt && (
@@ -849,6 +867,17 @@ export function FeatureInspector({
                 {canEditGeometry && !isEditingThis && <ActionRow icon={SplineIcon} label="Edit shape" onClick={() => onEditGeometry!()} />}
                 {isEditingThis && onCommitGeometry && <ActionRow primary icon={Tick02Icon} label="Done editing" onClick={() => onCommitGeometry()} />}
                 {canCompute && onCompute && <ActionRow icon={PlayIcon} label={runLabel} onClick={() => runCompute()} loading={busy} />}
+                {pinnable && onPin && (
+                  <ActionRow
+                    icon={measurement.pinned ? PinOffIcon : PinIcon}
+                    label={measurement.pinned ? "Unpin from every survey" : "Pin to every survey"}
+                    loading={pinning}
+                    onClick={() => {
+                      setPinning(true);
+                      void onPin(measurement.id, !measurement.pinned).finally(() => setPinning(false));
+                    }}
+                  />
+                )}
                 {/* Stuck-compute recovery (ORB-39) — the only route back for a
                     row whose worker died: every other Run affordance is hidden
                     while status is `computing`. */}
