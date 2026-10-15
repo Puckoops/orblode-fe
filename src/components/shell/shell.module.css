@@ -45,6 +45,13 @@
 
 .fullHeight { height: 100vh; overflow: hidden; }
 
+/* Give the main column a specified height so the viewer's h-full panels can scroll. */
+.fullHeight :global(.Shell_main) {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* The workspace dropdown under the brand: a mark, the workspace over its organisation, a chevron.
    Wherever the rail shows icons only, the mark stands alone. */
 .workspaceRow { flex: none; padding: var(--space-3) var(--space-3) 0; }
@@ -100,6 +107,7 @@ button.workspaceTrigger:hover,
 @media (max-width: 860px) {
   .workspaceRow { padding: 0 var(--space-2); }
 }
+
 .topEnd { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 
 /* Camelot hides SidebarItem's badge whenever the rail shows icons only: always when collapsed, and

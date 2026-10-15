@@ -64,7 +64,7 @@ export function TreePanel() {
   const surveyTitle = manifest ? `Survey ${manifest.survey.survey_date}` : "Survey viewer";
 
   return (
-    <aside className="flex h-full min-h-0 flex-col overflow-hidden border-r border-hairline bg-surface">
+    <aside className="absolute inset-0 flex min-h-0 flex-col overflow-hidden border-r border-hairline bg-surface">
       {/* Header: survey title + working CRS · vertical datum, Export, and the collapse chevron. */}
       <div className="flex shrink-0 items-start gap-1 px-3 pt-4 pb-2">
         <div className="min-w-0 flex-1">
@@ -105,7 +105,7 @@ export function TreePanel() {
         </Tooltip>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {manifestError ? (
           <Alert tone="critical" title="The survey couldn't load" className="m-3">
             {manifestError}

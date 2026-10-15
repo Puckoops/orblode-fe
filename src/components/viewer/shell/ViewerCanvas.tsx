@@ -1509,7 +1509,7 @@ export function ViewerCanvas() {
               {/* Zone 2 — LEFT dock: the module's list — measurements tree (measure),
                   layers (survey), empty-states elsewhere. Collapsible via the header
                   chevron / re-clicking the rail module. */}
-              <div className="min-h-0 min-w-0 overflow-hidden">{leftPanelVisible && <TreePanel />}</div>
+              <div className="relative h-full min-h-0 min-w-0 overflow-hidden">{leftPanelVisible && <TreePanel />}</div>
 
               {/* Zone 3 — canvas cell: floating toolbar + draggable detail overlay;
                   neither resizes this cell. */}
