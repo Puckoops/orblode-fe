@@ -148,6 +148,7 @@ export function DetailContent({
       onPatch={actions.patchMeasurement}
       onDelete={actions.removeMeasurement}
       onLinkPile={actions.linkPile}
+      onExport={(id, format) => void actions.exportMeasurements(format, [id])}
       onCompute={actions.triggerCompute}
       onEditGeometry={actions.editGeometry}
       onCommitGeometry={actions.commitGeometry}

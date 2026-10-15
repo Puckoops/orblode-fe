@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy01Icon, Download01Icon, PlayIcon, Layers01Icon } from "@hugeicons/core-free-icons";
+import { Copy01Icon, Download01Icon, Layers01Icon } from "@hugeicons/core-free-icons";
 import {
   Alert,
   Band,
@@ -21,7 +21,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader } from "@/components/brand/Loader";
 import { StateChip } from "@/components/common/StateChip";
 import {
-  computeStockpiles,
   copyStockpilesForward,
   getInventory,
   type InventoryPile,
@@ -50,7 +49,7 @@ export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
   const [surveyId, setSurveyId] = useState("");
   const [report, setReport] = useState<InventoryReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"compute" | "copy" | null>(null);
+  const [copying, setCopying] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -92,25 +91,8 @@ export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
     return () => window.clearInterval(id);
   }, [computing, reload]);
 
-  const computeAll = async () => {
-    setBusy("compute");
-    try {
-      const out = await computeStockpiles(surveyId);
-      const parts = [`${out.queued.length} queued`];
-      if (out.current) parts.push(`${out.current} already current`);
-      if (out.skipped.length) parts.push(`${out.skipped.length} skipped`);
-      toast.success(`Compute all: ${parts.join(", ")}`);
-      for (const s of out.skipped) toast.info(`${s.name}: ${s.reason}`);
-      reload();
-    } catch (err) {
-      toast.error(message(err, "Couldn't queue the stockpiles"));
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const copyForward = async () => {
-    setBusy("copy");
+    setCopying(true);
     try {
       const created = await copyStockpilesForward(surveyId);
       toast.success(
@@ -122,7 +104,7 @@ export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
     } catch (err) {
       toast.error(message(err, "Couldn't copy the stockpiles"));
     } finally {
-      setBusy(null);
+      setCopying(false);
     }
   };
 
@@ -142,10 +124,7 @@ export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
           onValueChange={setSurveyId}
           options={surveys.map((s) => ({ value: s.id, label: `${formatSurveyDate(s.survey_date)} · ${s.survey_type || "survey"}` }))}
         />
-        <Button variant="primary" size="sm" iconStart={PlayIcon} loading={busy === "compute"} disabled={!report || busy !== null} onClick={computeAll}>
-          Compute all
-        </Button>
-        <Button variant="ghost" size="sm" iconStart={Copy01Icon} loading={busy === "copy"} disabled={!report || busy !== null} onClick={copyForward}>
+        <Button variant="ghost" size="sm" iconStart={Copy01Icon} loading={copying} disabled={!report || copying} onClick={copyForward}>
           Copy from previous survey
         </Button>
         <Button
@@ -200,7 +179,7 @@ export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
 
           {totals.computed < totals.piles && (
             <Alert tone="warning" title={`${totals.piles - totals.computed} of ${totals.piles} piles have no numbers yet`}>
-              Their volume is left out of the totals. Compute all queues them.
+              Their volume is left out of the totals. Open the survey in the viewer to compute them.
             </Alert>
           )}
 

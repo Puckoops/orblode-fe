@@ -84,10 +84,8 @@ import { MeasurementContextMenu } from "@/components/viewer/shell/MeasurementCon
 import { ShortcutSheet } from "@/components/viewer/shell/ShortcutSheet";
 import { CommandPalette } from "@/components/viewer/shell/CommandPalette";
 import { useViewerHotkeys } from "@/components/viewer/shell/hooks/useViewerHotkeys";
-import {
-  metricsOf,
-  resultForKind,
-} from "@/lib/viewer/calc";
+import { isExportable, type ExportFormat } from "@/lib/viewer/measurementExport";
+import { downloadMeasurements } from "@/lib/viewer/downloadMeasurements";
 import { applySceneBackground } from "@/lib/viewer/cesiumScene";
 import { applyViewMode, resetToNorth } from "@/lib/viewer/camera";
 import { TOP_DOWN_PITCH_DEG } from "@/lib/viewer/cameraControls";
@@ -1280,38 +1278,24 @@ export function ViewerCanvas() {
     if (m) frameMeasurement(m);
   }, [pendingFlyToId, viewerReady, store, frameMeasurement]);
 
-  const exportMeasurements = useCallback(() => {
-    const list = store.getState().measurements;
-    const features = list
-      .filter((m) => m.geometry)
-      .map((m) => ({
-        type: "Feature" as const,
-        properties: {
-          id: m.id,
-          name: m.name,
-          kind: m.kind,
-          folder: m.folder ?? null,
-          status: m.status,
-          ...metricsOf(resultForKind(m)),
-        },
-        geometry: m.geometry!,
-      }));
-    if (features.length === 0) {
-      toast.info("No measurements with geometry to export yet");
-      return;
-    }
-    const blob = new Blob(
-      [JSON.stringify({ type: "FeatureCollection", features }, null, 2)],
-      { type: "application/geo+json" }
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `survey-${surveyId}-measurements.geojson`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`Exported ${features.length} measurement${features.length === 1 ? "" : "s"}`);
-  }, [store, surveyId]);
+  const exportMeasurements = useCallback(
+    async (format: ExportFormat, ids?: string[]) => {
+      const { measurements: all, manifest: current } = store.getState();
+      if (!current) return;
+      const list = all.filter((m) => isExportable(m) && (!ids || ids.includes(m.id)));
+      if (list.length === 0) {
+        toast.info(ids ? "Save the measurement to export it" : "No saved measurements to export yet");
+        return;
+      }
+      try {
+        await downloadMeasurements(list, format, { id: surveyId, date: current.survey.survey_date, workingCrs: current.survey.working_crs });
+        toast.success(list.length === 1 ? `Exported ${list[0].name}` : `Exported ${list.length} measurements`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "The export failed");
+      }
+    },
+    [store, surveyId]
+  );
 
   useManifestLoad({ manifest, layersEmpty: layersEmpty && !processingStalled && !denial, loadManifest, refreshMeasurements, setProject });
   useMeasurementsPoll({

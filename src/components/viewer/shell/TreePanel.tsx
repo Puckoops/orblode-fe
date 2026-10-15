@@ -25,7 +25,7 @@ import {
   PencilEdit02Icon,
   PlayIcon,
 } from "@hugeicons/core-free-icons";
-import { Alert, Button, EmptyState, IconButton, Menu, MenuItem, MenuSeparator, Tooltip } from "@puckoops/camelot";
+import { Alert, Button, EmptyState, IconButton, Menu, MenuItem, MenuLabel, MenuSeparator, Tooltip } from "@puckoops/camelot";
 
 import { Loader } from "@/components/brand/Loader";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
@@ -42,6 +42,7 @@ import { SurveyList } from "@/components/viewer/SurveyList";
 import { WorkspaceTree } from "@/components/viewer/shell/WorkspaceTree";
 import { DesignsPanel } from "@/components/viewer/shell/DesignsPanel";
 import type { ModuleKey } from "@/lib/viewer/state/store";
+import { EXPORT_FORMATS } from "@/lib/viewer/measurementExport";
 
 const MODULE_TITLES: Record<Exclude<ModuleKey, "measure" | "survey">, string> = {
   designs: "Designs",
@@ -81,9 +82,14 @@ export function TreePanel() {
             <IconButton icon={PencilEdit02Icon} aria-label="Edit survey" variant="bare" size="sm" onClick={() => setEditing(true)} />
           </Tooltip>
         )}
-        <Tooltip content="Export measurements">
-          <IconButton icon={Download01Icon} aria-label="Export measurements" variant="bare" size="sm" onClick={actions.exportMeasurements} />
-        </Tooltip>
+        <Menu align="end" minWidth={280} trigger={<IconButton icon={Download01Icon} aria-label="Export saved measurements" variant="bare" size="sm" />}>
+          <MenuLabel>Export saved measurements</MenuLabel>
+          {EXPORT_FORMATS.map(({ format, label }) => (
+            <MenuItem key={format} onSelect={() => void actions.exportMeasurements(format)}>
+              {label}
+            </MenuItem>
+          ))}
+        </Menu>
         <Menu align="end" minWidth={248} trigger={<IconButton icon={MoreHorizontalIcon} aria-label="Stockpile actions" variant="bare" size="sm" />}>
           <MenuItem icon={PlayIcon} onSelect={() => void actions.computeAllStockpiles()}>
             Compute all stockpiles

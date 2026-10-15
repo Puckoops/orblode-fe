@@ -18,6 +18,7 @@
 import { createContext, useContext } from "react";
 import type { Measurement } from "@/lib/api/orblodeSvc";
 import type { ElevationRampId } from "@/lib/viewer/elevationRamp";
+import type { ExportFormat } from "@/lib/viewer/measurementExport";
 import type { ViewSettings } from "@/lib/viewer/state/store";
 
 export interface ViewerActions {
@@ -56,7 +57,8 @@ export interface ViewerActions {
     id: string,
     body: { name?: string; folder?: string; kind?: string; params?: Record<string, unknown>; draft?: boolean }
   ) => Promise<void>;
-  exportMeasurements: () => void;
+  /** Downloads the survey's saved measurements, or only those with `ids`, in a format. */
+  exportMeasurements: (format: ExportFormat, ids?: string[]) => Promise<void>;
   /** Link a stockpile by hand to a pile of the previous survey ("" for a new pile), then refresh. */
   linkPile: (id: string, pileId: string) => Promise<void>;
   /** Queue every stockpile of the survey without a current result, then refresh. */
