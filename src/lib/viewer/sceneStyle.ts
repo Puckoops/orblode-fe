@@ -31,6 +31,16 @@ export const GRID_INK = "#FFFFFF";
 export const GRID_INK_ON_LIGHT_MAP = "#27272A";
 export const GRID_OPACITY = 0.55;
 
+/** The flat 2D site reads as a plan, so its grid is drawn darker and stronger. Over the dark map dark lines would
+ * vanish, so there it stays light and only gets stronger. */
+export const GRID_INK_2D = "#09090B";
+export const GRID_OPACITY_2D = 0.8;
+
+export function gridInk(viewMode: "2d" | "3d", baseMap: string): { ink: string; opacity: number } {
+  if (viewMode !== "2d") return { ink: baseMap === "streets" ? GRID_INK_ON_LIGHT_MAP : GRID_INK, opacity: GRID_OPACITY };
+  return { ink: baseMap === "dark" ? GRID_INK : GRID_INK_2D, opacity: GRID_OPACITY_2D };
+}
+
 /** Vector overlays: contours, boundaries and other uploaded vectors. */
 export const VECTOR_OVERLAY = "#7DD3FC";
 

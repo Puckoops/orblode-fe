@@ -38,7 +38,7 @@ import {
   utmEpsgCode,
   type WorkingTransform,
 } from "@/lib/viewer/projection";
-import { GRID_INK, GRID_INK_ON_LIGHT_MAP, GRID_OPACITY } from "@/lib/viewer/sceneStyle";
+import { gridInk } from "@/lib/viewer/sceneStyle";
 import { useViewerStore, type ViewerShellState } from "@/lib/viewer/state/store";
 
 /** How far lines reach from the screen centre, in half canvas diagonals at the centre's scale. */
@@ -268,9 +268,10 @@ export function useViewGrid(
       if (pending) scene.requestRender();
 
       if (current) {
-        const ink = store.getState().view.baseMap === "streets" ? GRID_INK_ON_LIGHT_MAP : GRID_INK;
-        paint(current.major, ink, GRID_OPACITY);
-        paint(current.minor, ink, GRID_OPACITY * minorOpacity(current.level.minor, unitsPerPx));
+        const { viewMode, view } = store.getState();
+        const { ink, opacity } = gridInk(viewMode, view.baseMap);
+        paint(current.major, ink, opacity);
+        paint(current.minor, ink, opacity * minorOpacity(current.level.minor, unitsPerPx));
       }
       publish(formatGridSpacing(visibleSpacing(level, unitsPerPx), projectedUnits(transform!.def)));
     };

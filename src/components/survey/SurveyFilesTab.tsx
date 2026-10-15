@@ -231,7 +231,7 @@ export function SurveyFilesTab({
         >
           Processing runs in the background; the viewer&apos;s layers update as each workflow finishes.
           {files.dispatched.terrain &&
-            " Stockpile volumes measured on the replaced terrain show as stale until you recompute them: Compute all stockpiles in the viewer's stockpile actions menu, or Compute all on the stockpile inventory."}
+            " Stockpile volumes measured on the replaced terrain show as stale until you recompute them: Compute all stockpiles in the viewer's stockpile actions menu."}
         </Alert>
       )}
 

@@ -7,6 +7,7 @@ import {
   ArrowUp01Icon,
   Cancel01Icon,
   Delete02Icon,
+  Download01Icon,
   FileTextIcon,
   FloppyDiskIcon,
   PencilIcon,
@@ -26,6 +27,8 @@ import {
   Icon,
   IconButton,
   Input,
+  Menu,
+  MenuItem,
   Select,
   Skeleton,
   Slider,
@@ -42,6 +45,7 @@ import type { StateStyle } from "@/lib/status";
 import { toast } from "@/lib/toast";
 import type { EstimateResult, Measurement } from "@/lib/api/orblodeSvc";
 import { geometryLocalStats } from "@/lib/viewer/measure";
+import { EXPORT_FORMATS, isExportable, type ExportFormat } from "@/lib/viewer/measurementExport";
 import { CalcConfig } from "@/components/viewer/CalcConfig";
 import { ComparisonCard } from "@/components/viewer/shell/ComparisonCard";
 import { PileLinkField } from "@/components/viewer/shell/PileLinkField";
@@ -108,6 +112,7 @@ interface FeatureInspectorProps {
   onDelete?: (id: string) => void;
   /** Link a stockpile by hand to a pile of the previous survey; "" for a new pile. */
   onLinkPile?: (id: string, pileId: string) => Promise<void>;
+  onExport?: (id: string, format: ExportFormat) => void;
   onCompute?: (
     id: string,
     override?: Record<string, unknown>,
@@ -283,25 +288,27 @@ function ActionRow({
   loading = false,
   chevron = ArrowRight01Icon,
   expanded,
+  ...rest
 }: {
   icon: IconDefinition;
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
   primary?: boolean;
   disabled?: boolean;
   loading?: boolean;
   chevron?: IconDefinition;
   expanded?: boolean;
-}) {
+} & Omit<React.ComponentProps<typeof Button>, "children">) {
   return (
     <Button
+      aria-expanded={expanded}
+      onClick={onClick}
+      {...rest}
       variant={primary ? "primary" : "quiet"}
       iconStart={icon}
       iconEnd={chevron}
       disabled={disabled}
       loading={loading}
-      aria-expanded={expanded}
-      onClick={onClick}
       className="w-full justify-start [&>svg:last-child]:ml-auto"
     >
       {label}
@@ -451,6 +458,7 @@ export function FeatureInspector({
   onPatch,
   onDelete,
   onLinkPile,
+  onExport,
   onCompute,
   onEditGeometry,
   onCommitGeometry,
@@ -852,6 +860,15 @@ export function FeatureInspector({
                     </Alert>
                     <ActionRow icon={RefreshIcon} label="Force re-run" onClick={() => runCompute({ force: true })} loading={busy} />
                   </>
+                )}
+                {onExport && isExportable(measurement) && (
+                  <Menu align="start" minWidth={280} trigger={<ActionRow icon={Download01Icon} label="Export" />}>
+                    {EXPORT_FORMATS.map(({ format, label }) => (
+                      <MenuItem key={format} onSelect={() => onExport(measurement.id, format)}>
+                        {label}
+                      </MenuItem>
+                    ))}
+                  </Menu>
                 )}
                 {isDraft && (
                   <ActionRow

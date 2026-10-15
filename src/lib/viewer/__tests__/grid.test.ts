@@ -11,6 +11,7 @@ import {
   squareAround,
   visibleSpacing,
 } from "../grid.ts";
+import { GRID_INK, GRID_INK_2D, GRID_INK_ON_LIGHT_MAP, GRID_OPACITY, GRID_OPACITY_2D, gridInk } from "../sceneStyle.ts";
 
 const near = (a: number, b: number, tol = 1e-9) => assert.ok(Math.abs(a - b) < tol, `${a} ≉ ${b}`);
 
@@ -70,4 +71,16 @@ test("grid spacings print in km from a kilometre, other units as they are", () =
   assert.equal(formatGridSpacing(0.01, "m"), "0.01 m");
   assert.equal(formatGridSpacing(10_000, "m"), "10 km");
   assert.equal(formatGridSpacing(1000, "US ft"), "1,000 US ft");
+});
+
+test("the 2D grid is darker and stronger than the 3D one over imagery and the street map", () => {
+  assert.deepEqual(gridInk("3d", "satellite"), { ink: GRID_INK, opacity: GRID_OPACITY });
+  assert.deepEqual(gridInk("3d", "streets"), { ink: GRID_INK_ON_LIGHT_MAP, opacity: GRID_OPACITY });
+  assert.deepEqual(gridInk("2d", "satellite"), { ink: GRID_INK_2D, opacity: GRID_OPACITY_2D });
+  assert.deepEqual(gridInk("2d", "streets"), { ink: GRID_INK_2D, opacity: GRID_OPACITY_2D });
+  assert.ok(GRID_OPACITY_2D > GRID_OPACITY);
+});
+
+test("the 2D grid stays light over the dark map, where dark lines would vanish", () => {
+  assert.deepEqual(gridInk("2d", "dark"), { ink: GRID_INK, opacity: GRID_OPACITY_2D });
 });
