@@ -123,7 +123,7 @@ export function CommandPalette({
         { id: "sel-edit", label: "Edit shape", keywords: "reshape vertices selected", section: "Selection", hint: "↵", run: () => actions.editGeometry() },
         { id: "sel-redraw", label: "Redraw shape", keywords: "trace replace selected", section: "Selection", run: () => actions.redrawGeometry() },
         { id: "sel-frame", label: "Frame selection", keywords: "fly zoom focus", section: "Selection", hint: key("selection.frame"), run: () => s.selectMeasurement(selId, { fly: true }) },
-        { id: "sel-vis", label: "Show / hide selection", keywords: "visibility toggle", section: "Selection", hint: key("selection.visible"), run: () => s.setMeasurementVisible(selId, !(s.measurementVisibility[selId] ?? true)) }
+        { id: "sel-vis", label: "Show / hide selection", keywords: "visibility toggle", section: "Selection", hint: key("selection.visible"), run: () => s.toggleMeasurementVisible(selId) }
       );
     }
     // Measurements: select and frame.

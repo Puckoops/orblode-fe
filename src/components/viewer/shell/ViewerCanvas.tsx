@@ -53,6 +53,7 @@ import {
   updateMeasurement,
   type ComputeMeasurementBody,
   type GeoJsonGeometry,
+  type Measurement,
 } from "@/lib/api/orblodeSvc";
 import { ApiError } from "@/lib/api/client";
 import { filesUrlsIn } from "@/lib/files";
@@ -115,7 +116,6 @@ import {
   type ViewerActions,
 } from "@/components/viewer/shell/viewerActions";
 import type { LayerControl, DesignControl } from "@/components/viewer/LayerPanel";
-import type { PanelMeasurement } from "@/lib/viewer/sampleData";
 
 import { ModuleRail } from "@/components/viewer/shell/ModuleRail";
 import { TreePanel } from "@/components/viewer/shell/TreePanel";
@@ -749,25 +749,30 @@ export function ViewerCanvas() {
     [store, viewerRef]
   );
 
-  // Colours need a survey surface under them: turning them on shows the DSM
-  // (or the first surface) when none is visible.
+  // Colours and hillshade need a survey surface under them: turning either on
+  // shows the DSM (or the first surface) when none is visible.
+  const showSurface = useCallback(() => {
+    const layers = layerControlsRef.current;
+    if (visibleTerrain(layers)) return;
+    const surfaces = layers.filter((l) => l.category === "terrain");
+    const pick = surfaces.find((l) => l.label.toLowerCase() === "dsm") ?? surfaces[0];
+    if (pick) handleToggle(pick.key);
+  }, [handleToggle]);
+
   const handleColorMapChange = useCallback(
     (ramp: ElevationRampId | null) => {
       store.getState().setView(ramp ? { elevationColors: true, elevationRamp: ramp } : { elevationColors: false });
-      const layers = layerControlsRef.current;
-      if (!ramp || visibleTerrain(layers)) return;
-      const surfaces = layers.filter((l) => l.category === "terrain");
-      const pick = surfaces.find((l) => l.label.toLowerCase() === "dsm") ?? surfaces[0];
-      if (pick) handleToggle(pick.key);
+      if (ramp) showSurface();
     },
-    [store, handleToggle]
+    [store, showSurface]
   );
 
   const handleShadingChange = useCallback(
     (value: ViewSettings["shading"]) => {
       store.getState().setView({ shading: value });
+      if (value !== "None") showSurface();
     },
-    [store]
+    [store, showSurface]
   );
 
   const handleContourIntervalChange = useCallback(
@@ -1246,17 +1251,34 @@ export function ViewerCanvas() {
     [surveyId, store, refreshMeasurements]
   );
 
-  // Tree-row click: inspect the measurement, turn its canvas visibility on,
-  // and frame its geometry.
-  const selectMeasurementRow = useCallback(
-    (m: PanelMeasurement) => {
-      const s = store.getState();
-      s.selectMeasurement(m.id, { fly: false });
-      if (!m.demo) s.setMeasurementVisible(m.id, true);
-      if (!m.demo && m.geometry) frameGeometry(m.geometry);
+  const frameMeasurement = useCallback(
+    (m: Measurement) => {
+      store.getState().setMeasurementVisible(m.id, true);
+      if (m.geometry) frameGeometry(m.geometry);
     },
     [store, frameGeometry]
   );
+
+  // Tree-row click: inspect the measurement, turn its canvas visibility on,
+  // and frame its geometry.
+  const selectMeasurementRow = useCallback(
+    (m: Measurement) => {
+      store.getState().selectMeasurement(m.id, { fly: false });
+      frameMeasurement(m);
+    },
+    [store, frameMeasurement]
+  );
+
+  // F and the palette's Frame selection / measurement items select with a fly;
+  // frame those the way a tree-row click does.
+  const pendingFlyToId = useViewerStore((s) => s.pendingFlyToId);
+  useEffect(() => {
+    if (!pendingFlyToId || !viewerReady) return;
+    const s = store.getState();
+    s.clearPendingFly();
+    const m = s.measurements.find((x) => x.id === pendingFlyToId);
+    if (m) frameMeasurement(m);
+  }, [pendingFlyToId, viewerReady, store, frameMeasurement]);
 
   const exportMeasurements = useCallback(() => {
     const list = store.getState().measurements;

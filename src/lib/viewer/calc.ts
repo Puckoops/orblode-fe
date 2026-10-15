@@ -35,14 +35,14 @@ export const CALC_TYPES: Record<"probe" | "polyline" | "polygon", CalcType[]> = 
     },
   ],
   polyline: [
-    { id: "length", label: "Length", hint: "3D length along the line.", kind: "distance" },
+    { id: "length", label: "Length", hint: "Length along the line, in plan once saved.", kind: "distance" },
     {
       id: "cross-section",
       label: "Cross-section",
       hint: "The ground along the line, against other surveys and designs.",
       kind: "cross_section",
     },
-    { id: "slope", label: "Slope / grade", hint: "Grade between the endpoints.", kind: "slope" },
+    { id: "slope", label: "Slope / grade", hint: "Grade between the endpoints, shown while drawing.", kind: "slope" },
   ],
   polygon: [
     {
@@ -59,7 +59,7 @@ export const CALC_TYPES: Record<"probe" | "polyline" | "polygon", CalcType[]> = 
       kind: "cut_fill",
       needsBase: true,
     },
-    { id: "area", label: "Surface area", hint: "Plan and draped surface area.", kind: "area" },
+    { id: "area", label: "Area", hint: "Plan area and perimeter.", kind: "area" },
   ],
 };
 
@@ -84,6 +84,14 @@ export function defaultKindFor(mode: "polyline" | "polygon"): string {
 /** The only kinds orblode-svc computes — and so the only ones offered Compute. */
 export function isVolumeKind(kind: string): boolean {
   return kind === "volume" || kind === "stockpile" || kind === "cut_fill";
+}
+
+/** Caption under the plan stats a saved measurement shows before (or without)
+ * a computed result. Saved geometry keeps no heights, so these are plan values. */
+export function planStatsNote(kind: string): string {
+  if (isVolumeKind(kind)) return "Plan values measured from the drawn geometry — run compute for surface-true results.";
+  if (kind === "slope") return "Plan length of the drawn line. Saved lines keep no heights, so the grade shows only while drawing.";
+  return "Plan values measured from the drawn geometry.";
 }
 
 export const VOLUME_METHODS = [

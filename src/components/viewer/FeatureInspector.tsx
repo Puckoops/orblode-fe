@@ -41,7 +41,6 @@ import { measurementDeleteRequest } from "@/components/viewer/deleteConfirm";
 import type { StateStyle } from "@/lib/status";
 import { toast } from "@/lib/toast";
 import type { EstimateResult, Measurement } from "@/lib/api/orblodeSvc";
-import type { PanelMeasurement } from "@/lib/viewer/sampleData";
 import { geometryLocalStats } from "@/lib/viewer/measure";
 import { CalcConfig } from "@/components/viewer/CalcConfig";
 import { ComparisonCard } from "@/components/viewer/shell/ComparisonCard";
@@ -58,6 +57,7 @@ import {
   isVolumeKind,
   methodFromParams,
   metricsOf,
+  planStatsNote,
   provenanceOf,
   resultErrorOf,
   resultForKind,
@@ -83,7 +83,7 @@ import type { HeatmapState } from "@/lib/viewer/state/store";
 // blocking prompt; compute keeps running underneath.
 
 interface FeatureInspectorProps {
-  measurement: Measurement | PanelMeasurement | null;
+  measurement: Measurement | null;
   /** Property bag of a non-measurement feature picked on the map. */
   feature?: Record<string, unknown> | null;
   /** The survey's project and the survey itself, for the survey picker and the
@@ -251,8 +251,8 @@ const STATUS_CHIPS: Record<string, StateStyle> = {
   draft: { label: "Not computed", tone: "neutral", glyph: "circle-dashed" },
 };
 
-function StatusChip({ status, demo }: { status: string; demo?: boolean }) {
-  const state = STATUS_CHIPS[demo ? "completed" : status] ?? { ...STATUS_CHIPS.draft, label: status };
+function StatusChip({ status }: { status: string }) {
+  const state = STATUS_CHIPS[status] ?? { ...STATUS_CHIPS.draft, label: status };
   return (
     <Chip tone={state.tone} glyph={state.glyph}>
       {state.label}
@@ -503,27 +503,25 @@ export function FeatureInspector({
   }
   if (!measurement) return null;
 
-  const demo = (measurement as PanelMeasurement).demo === true;
-  const isDraft = !demo && measurement.draft === true;
+  const isDraft = measurement.draft === true;
   const isVolume = isVolumeKind(measurement.kind);
   // A temporal compare (params.from/to name two different surveys) gets the
   // A→B comparison card in the Properties tab.
-  const comparePair = demo ? null : temporalComparePair(measurement.params);
-  const canPatch = !demo && !!onPatch;
+  const comparePair = temporalComparePair(measurement.params);
+  const canPatch = !!onPatch;
   // Only the volume family is computed (instant methods); every other kind is
   // drawn, saved and listed without a Run row rather than offering a 422.
   // Completed rows may re-run (edit method → recompute); the in-flight 409 gate
   // covers the computing state.
-  const canCompute = !demo && isVolume && measurement.status !== "computing";
+  const canCompute = isVolume && measurement.status !== "computing";
   // ORB-39: once a compute job dies server-side the row is stranded in
   // `computing` — the Run row above is hidden and the tree's Play button only
   // shows for draft/failed, so nothing can restart it. After a few minutes,
   // offer a re-dispatch that sets `force` to bypass the in-flight 409.
-  const computeStuck = !demo && isVolume && isComputeStuck(measurement, now);
-  // Vertex-drag editing needs a real (non-demo) polygon/line and the handler.
+  const computeStuck = isVolume && isComputeStuck(measurement, now);
+  // Vertex-drag editing needs a polygon/line and the handler.
   const geomType = measurement.geometry?.type;
-  const canEditGeometry =
-    !demo && !!onEditGeometry && (geomType === "Polygon" || geomType === "LineString");
+  const canEditGeometry = !!onEditGeometry && (geomType === "Polygon" || geomType === "LineString");
   // v2: this measurement's geometry is being edited right now → the action row
   // becomes "Done editing" (commit) instead of "Edit shape" (start).
   const isEditingThis = !!editingGeometryId && editingGeometryId === measurement.id;
@@ -538,35 +536,26 @@ export function FeatureInspector({
   // kind (results[kind]); other kinds keep theirs. No doc for this kind →
   // plan stats + "Run compute". The LATEST run's error (legacy result column)
   // is only surfaced when this kind has no successful doc to show.
-  const doc = demo ? null : resultForKind(measurement);
+  const doc = resultForKind(measurement);
   const resultMetricMap = metricsOf(doc);
   const computing = measurement.status === "computing";
-  const showFailure = !demo && measurement.status === "failed" && !doc;
+  const showFailure = measurement.status === "failed" && !doc;
   // Instant estimate fills the panel before the authoritative worker doc lands.
   // It wins whenever there is no doc yet OR a (re-)compute is in flight — during
   // a re-run the estimate reflects the PENDING params, so it should supersede
   // the now-stale prior doc. A settled doc (not computing) wins; a failure wins.
   const estimateMetricMap =
-    !demo && !showFailure && (!doc || computing) && estimate && Object.keys(estimate.metrics).length > 0
+    !showFailure && (!doc || computing) && estimate && Object.keys(estimate.metrics).length > 0
       ? estimate.metrics
       : null;
   const showingEstimate = !!estimateMetricMap;
   const localStats =
-    !demo && !doc && !showingEstimate && measurement.geometry
-      ? geometryLocalStats(measurement.geometry)
-      : null;
-  const designBase = !demo && hasDesignBase(measurement.params);
-  const metrics = demo
-    ? [
-        { label: "Volume", value: "12,840 m³" },
-        { label: "Tonnage", value: "32,100 t" },
-        { label: "Area", value: "1,420 m²" },
-        { label: "Perimeter", value: "142 m" },
-      ]
-    : resultMetrics(localStats ?? estimateMetricMap ?? resultMetricMap, unitSystem, measurement.kind, designBase);
+    !doc && !showingEstimate && measurement.geometry ? geometryLocalStats(measurement.geometry) : null;
+  const designBase = hasDesignBase(measurement.params);
+  const metrics = resultMetrics(localStats ?? estimateMetricMap ?? resultMetricMap, unitSystem, measurement.kind, designBase);
 
   const computeError = showFailure ? resultErrorOf(measurement.result) : null;
-  const receipt = demo ? null : provenanceOf(doc);
+  const receipt = provenanceOf(doc);
   // Chip reflects the SELECTED kind: computing (row-level) → this kind's doc →
   // last-run failure → not computed yet.
   const chipStatus = computing ? "computing" : doc ? "completed" : showFailure ? "failed" : "draft";
@@ -709,8 +698,8 @@ export function FeatureInspector({
                     Draft
                   </Chip>
                 )}
-                <StatusChip status={chipStatus} demo={demo} />
-                {(demo || material?.name) && <Badge variant="tag">{demo ? "Limestone" : material!.name}</Badge>}
+                <StatusChip status={chipStatus} />
+                {material?.name && <Badge variant="tag">{material.name}</Badge>}
                 {measurement.folder && <Badge variant="tag">{measurement.folder}</Badge>}
               </div>
 
@@ -747,11 +736,7 @@ export function FeatureInspector({
                 </div>
               )}
 
-              {localStats && metrics.length > 0 && (
-                <p className="caption -mt-1 text-ink-4">
-                  {isVolume ? "Plan values measured from the drawn geometry — run compute for surface-true results." : "Plan values measured from the drawn geometry."}
-                </p>
-              )}
+              {localStats && metrics.length > 0 && <p className="caption -mt-1 text-ink-4">{planStatsNote(measurement.kind)}</p>}
 
               {designBase && measurement.kind === "cut_fill" && !localStats && metrics.length > 0 && (
                 <p className="caption -mt-1 text-ink-4">
@@ -763,14 +748,14 @@ export function FeatureInspector({
               {/* Metadata block (design): Material / Density / Base method /
                   Calculated. Base method discloses the shared CalcConfig. */}
               <div className="caption flex flex-col gap-1 text-ink-3">
-                {(demo || material?.name) && (
+                {material?.name && (
                   <p>
-                    Material: <span className="text-ink-2">{demo ? "Limestone" : material!.name}</span>
+                    Material: <span className="text-ink-2">{material.name}</span>
                   </p>
                 )}
-                {(demo || material?.density_t_m3) && (
+                {material?.density_t_m3 && (
                   <p>
-                    Density: <span className="num-sm text-ink-2">{demo ? "2.5" : material!.density_t_m3} t/m³</span>
+                    Density: <span className="num-sm text-ink-2">{material.density_t_m3} t/m³</span>
                   </p>
                 )}
                 {isVolume && calcCfg && (
@@ -788,7 +773,7 @@ export function FeatureInspector({
 
               {/* Disclosed base-method editor — same component as the drawing
                   panel; edits ride the next Run compute as the §6.1 override. */}
-              {editBase && isVolume && calcCfg && !demo && (
+              {editBase && isVolume && calcCfg && (
                 <div className="rounded-md border border-hairline bg-surface-2 p-2.5">
                   <CalcConfig
                     idPrefix="inspect"
@@ -801,9 +786,9 @@ export function FeatureInspector({
                 </div>
               )}
 
-              {!demo && geomType === "LineString" && <CrossSectionCard measurement={measurement as Measurement} />}
+              {geomType === "LineString" && <CrossSectionCard measurement={measurement} />}
 
-              {onLinkPile && !demo && measurement.kind === "stockpile" && !isDraft && measurement.geometry && (
+              {onLinkPile && measurement.kind === "stockpile" && !isDraft && measurement.geometry && (
                 <PileLinkField surveyId={surveyId} measurement={measurement} onLink={onLinkPile} />
               )}
 
@@ -843,7 +828,7 @@ export function FeatureInspector({
                     )}
                   </div>
                 )}
-                {isVolume && !demo && !isDraft && onToggleHeatmap && (
+                {isVolume && !isDraft && onToggleHeatmap && (
                   <div className="flex flex-col gap-2 rounded-md border border-hairline bg-surface-2 p-2.5">
                     <Switch size="sm" label="Cut / fill heatmap" checked={!!heatmap} onCheckedChange={onToggleHeatmap} />
                     {heatmap?.status === "loading" && <Skeleton width="100%" height={28} />}
@@ -877,7 +862,7 @@ export function FeatureInspector({
                     loading={saving}
                   />
                 )}
-                {!demo && onDelete && (
+                {onDelete && (
                   <Button
                     variant="ghost"
                     iconStart={Delete02Icon}
