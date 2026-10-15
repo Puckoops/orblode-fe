@@ -975,6 +975,40 @@ export function computeStockpiles(surveyId: string): Promise<ComputeStockpilesRe
   return apiFetch<ComputeStockpilesResult>(BASE, `/surveys/${surveyId}/stockpiles/compute`, { method: "POST" });
 }
 
+export type ShareSubjectType = "user" | "team" | "organisation";
+
+/** Someone the survey itself is shared with; the site's own roles are not listed here. */
+export interface SurveyShare {
+  subject: { type: ShareSubjectType; id: string };
+  role: "viewer";
+}
+
+/** `can_manage`: the caller may share the survey (they manage who has access to its site). */
+export interface SurveyAccess {
+  entries: SurveyShare[];
+  can_manage: boolean;
+}
+
+export function getSurveyAccess(surveyId: string): Promise<SurveyAccess> {
+  return apiFetch<SurveyAccess>(BASE, `/surveys/${encodeURIComponent(surveyId)}/access`);
+}
+
+/** Shares the survey with a person, a team or the whole organisation to view; answers its sharing as it now is. */
+export function shareSurvey(surveyId: string, subject: { type: ShareSubjectType; id: string }): Promise<SurveyAccess> {
+  return apiFetch<SurveyAccess>(BASE, `/surveys/${encodeURIComponent(surveyId)}/access`, {
+    method: "PUT",
+    body: { subject_type: subject.type, subject_id: subject.id, role: "viewer" },
+  });
+}
+
+export function unshareSurvey(surveyId: string, subject: { type: ShareSubjectType; id: string }): Promise<SurveyAccess> {
+  return apiFetch<SurveyAccess>(
+    BASE,
+    `/surveys/${encodeURIComponent(surveyId)}/access/${subject.type}/${encodeURIComponent(subject.id)}`,
+    { method: "DELETE" }
+  );
+}
+
 export interface SurveyRef {
   id: string;
   date: string;

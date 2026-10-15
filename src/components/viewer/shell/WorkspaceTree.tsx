@@ -61,6 +61,7 @@ import {
   useViewerStore,
 } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
+import { useMayMeasure } from "@/components/viewer/shell/hooks/useMayMeasure";
 import { useInteractionActor } from "@/components/viewer/shell/interactionContext";
 import { useSelector } from "@xstate/react";
 import { isComputeStuck, isVolumeKind, metricsOf, resultForKind } from "@/lib/viewer/calc";
@@ -185,6 +186,8 @@ interface DndHandlers {
 
 interface FolderOps {
   ready: boolean;
+  /** False for someone who may only view: no folder or measurement changes. */
+  editable: boolean;
   renamingId: string | null;
   create: (parent: WorkspaceTreeNode | null) => void;
   renameStart: (id: string) => void;
@@ -204,10 +207,12 @@ function MeasurementRow({
   onForceCompute,
   onDelete,
   onToggleVisible,
+  editable,
 }: {
   m: Measurement;
   busy: boolean;
   visible: boolean;
+  editable: boolean;
   /** Has been `computing` past the stuck threshold (ORB-39). */
   stuck: boolean;
   dnd: DndHandlers;
@@ -217,7 +222,7 @@ function MeasurementRow({
   onDelete: (id: string) => void;
   onToggleVisible: (id: string, visible: boolean) => void;
 }) {
-  const canCompute = isVolumeKind(m.kind) && (m.status === "draft" || m.status === "failed");
+  const canCompute = editable && isVolumeKind(m.kind) && (m.status === "draft" || m.status === "failed");
   const showDot = m.status !== "completed";
   const draggable = dnd.ready;
   return (
@@ -260,10 +265,10 @@ function MeasurementRow({
         {canCompute && <RowAction icon={PlayIcon} label="Compute" busy={busy} onClick={() => onCompute(m.id)} />}
         {/* ORB-39: a compute stuck past the threshold gets a force re-run here
             too — the ordinary Play button above is hidden for `computing`. */}
-        {stuck && (
+        {stuck && editable && (
           <RowAction icon={RefreshIcon} label="This compute looks stuck — force a re-run" busy={busy} onClick={() => onForceCompute(m.id)} />
         )}
-        <RowAction icon={Delete02Icon} label="Delete" disabled={busy} onClick={() => onDelete(m.id)} />
+        {editable && <RowAction icon={Delete02Icon} label="Delete" disabled={busy} onClick={() => onDelete(m.id)} />}
       </div>
     </div>
   );
@@ -402,7 +407,7 @@ function TreeNode({
         </Collapsible.Trigger>
 
         {/* Folder management — real backend folders only. */}
-        {isReal && !renaming && (
+        {isReal && !renaming && folderOps.editable && (
           <div className="hidden shrink-0 items-center gap-0.5 group-focus-within:flex group-hover:flex">
             {node.depth < MAX_FOLDER_DEPTH && (
               <RowAction
@@ -486,6 +491,7 @@ function TreeNode({
               onForceCompute={onForceCompute}
               onDelete={onDelete}
               onToggleVisible={onToggleVisible}
+              editable={folderOps.editable}
             />
           ))}
         </div>
@@ -495,6 +501,7 @@ function TreeNode({
 }
 
 export function WorkspaceTree() {
+  const mayMeasure = useMayMeasure();
   const measurements = useViewerStore((s) => s.measurements);
   const measurementVisibility = useViewerStore((s) => s.measurementVisibility);
   const measurementSearch = useViewerStore((s) => s.measurementSearch);
@@ -602,6 +609,7 @@ export function WorkspaceTree() {
 
   const folderOps: FolderOps = {
     ready: rawWorkspaces !== null,
+    editable: mayMeasure,
     renamingId,
     create: (parent) => {
       if (rawWorkspaces === null || !projectId) {
@@ -720,7 +728,7 @@ export function WorkspaceTree() {
   };
 
   const dnd: DndHandlers = {
-    ready: rawWorkspaces !== null,
+    ready: rawWorkspaces !== null && mayMeasure,
     dropTargetId,
     startMeasurement: (e, id) => {
       dragRef.current = { kind: "measurement", id };
@@ -791,7 +799,7 @@ export function WorkspaceTree() {
 
       {/* Toolbar — new folder, sort, filter, collapse-all. (The floating canvas toolbar owns drawing.) */}
       <div className="flex items-center gap-1 px-1 pb-2">
-        <ToolbarButton label="New folder" icon={FolderPlusIcon} onClick={() => folderOps.create(null)} />
+        {mayMeasure && <ToolbarButton label="New folder" icon={FolderPlusIcon} onClick={() => folderOps.create(null)} />}
         <ToolbarButton
           label={sortRecent ? "Sorting by recent" : "Sorting by name"}
           icon={ArrowUpDownIcon}

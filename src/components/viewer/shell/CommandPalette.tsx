@@ -46,6 +46,8 @@ interface PaletteItem {
   run: () => void;
 }
 
+const DRAWING_ITEMS = new Set(["tool-line", "tool-area", "tool-section", "tool-slope", "sel-edit", "sel-redraw"]);
+
 export function CommandPalette({
   open,
   onClose,
@@ -53,6 +55,7 @@ export function CommandPalette({
   store,
   actions,
   onShowSheet,
+  mayDraw = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -60,6 +63,8 @@ export function CommandPalette({
   store: StoreApi<ViewerShellState>;
   actions: HotkeyActions & { redrawGeometry: () => void };
   onShowSheet: () => void;
+  /** False for someone who may only view: no drawing tools or shape edits. */
+  mayDraw?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -136,8 +141,8 @@ export function CommandPalette({
         run: () => s.selectMeasurement(m.id, { fly: true }),
       });
     }
-    return list;
-  }, [open, store, actor, actions, measurements, selection, assistance, onShowSheet, bindings, mac]);
+    return mayDraw ? list : list.filter((item) => !DRAWING_ITEMS.has(item.id));
+  }, [open, store, actor, actions, measurements, selection, assistance, onShowSheet, bindings, mac, mayDraw]);
 
   const ranked = useMemo(() => rankEntries(items, query), [items, query]);
   const clampedCursor = Math.min(cursor, Math.max(0, ranked.length - 1));

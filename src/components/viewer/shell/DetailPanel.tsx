@@ -19,6 +19,7 @@ import { useSelector } from "@xstate/react";
 
 import { estimateKey, useViewerStore } from "@/lib/viewer/state/store";
 import { useViewerActions } from "@/components/viewer/shell/viewerActions";
+import { useMayMeasure } from "@/components/viewer/shell/hooks/useMayMeasure";
 import { useInteractionActor } from "@/components/viewer/shell/interactionContext";
 import { useSurfaceHeights } from "@/components/viewer/shell/surfaceHeightsContext";
 import { MeasurePalette, type LiveReadout } from "@/components/viewer/MeasurePalette";
@@ -95,6 +96,7 @@ export function DetailContent({
   const surveyId = useViewerStore((s) => s.surveyId);
   const heatmap = useViewerStore((s) => s.heatmap);
   const setHeatmap = useViewerStore((s) => s.setHeatmap);
+  const mayMeasure = useMayMeasure();
 
   const actions = useViewerActions();
 
@@ -145,14 +147,14 @@ export function DetailContent({
       onCollapse={onCollapse}
       collapsed={collapsed}
       onSave={actions.saveMeasurement}
-      onPatch={actions.patchMeasurement}
-      onDelete={actions.removeMeasurement}
-      onLinkPile={actions.linkPile}
+      onPatch={mayMeasure ? actions.patchMeasurement : undefined}
+      onDelete={mayMeasure ? actions.removeMeasurement : undefined}
+      onLinkPile={mayMeasure ? actions.linkPile : undefined}
       onExport={(id, format) => void actions.exportMeasurements(format, [id])}
-      onPin={actions.pinPile}
-      onCompute={actions.triggerCompute}
-      onEditGeometry={actions.editGeometry}
-      onCommitGeometry={actions.commitGeometry}
+      onPin={mayMeasure ? actions.pinPile : undefined}
+      onCompute={mayMeasure ? actions.triggerCompute : undefined}
+      onEditGeometry={mayMeasure ? actions.editGeometry : undefined}
+      onCommitGeometry={mayMeasure ? actions.commitGeometry : undefined}
       editingGeometryId={editingGeometryId}
       estimate={estimate}
       onClearEstimate={
