@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuthClient } from "@/hooks/useAuth";
 import { switchOrganisation } from "@/lib/auth";
-import { organisationLabel } from "@/lib/organisation/links";
+import { organisationForClient, organisationLabel } from "@/lib/organisation/links";
 import { useOrganisation, useOrgViewer } from "@/lib/organisation/store";
 import { useCurrentWorkspace, useWorkspaces } from "@/lib/workspaces/store";
 import styles from "@/components/shell/shell.module.css";
@@ -14,8 +14,9 @@ import { NewWorkspaceDialog } from "./NewWorkspaceDialog";
 
 /**
  * The workspace dropdown at the top of the left pane: the open workspace and its organisation, a
- * switch to any other workspace or, for someone in several, organisation, the workspace's settings
- * and a new one. `compact` is the collapsed rail's icon-only form.
+ * switch to any other workspace (each named with the organisation it belongs to) or, for someone in
+ * several, organisation, the workspace's settings and a new one. `compact` is the collapsed rail's
+ * icon-only form.
  */
 export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
@@ -63,7 +64,7 @@ export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
         side={compact ? "right" : "bottom"}
         minWidth={248}
         trigger={
-          <button type="button" className={classes} title={compact ? name : undefined} aria-label={`Workspace: ${name}. Switch workspace`}>
+          <button type="button" className={classes} title={compact ? [name, company].filter(Boolean).join(" · ") : undefined} aria-label={`Workspace: ${name}${company ? `, ${company}` : ""}. Switch workspace`}>
             {mark}
             <span className={styles.workspaceText}>
               <span className={styles.workspaceName}>{name}</span>
@@ -74,11 +75,17 @@ export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
         }
       >
         <MenuLabel>Workspaces</MenuLabel>
-        {workspaces.map((w) => (
-          <MenuItem key={w.id} icon={w.id === current?.id ? Tick02Icon : Briefcase01Icon} onSelect={() => void select(w.id)}>
-            {w.name}
-          </MenuItem>
-        ))}
+        {workspaces.map((w) => {
+          const organisation = organisationForClient(w.client_id, organisations, client);
+          return (
+            <MenuItem key={w.id} icon={w.id === current?.id ? Tick02Icon : Briefcase01Icon} onSelect={() => void select(w.id)}>
+              <span className={styles.workspaceChoice}>
+                <span className={styles.workspaceChoiceName}>{w.name}</span>
+                {organisation && <span className={styles.workspaceChoiceOrg}>{organisation}</span>}
+              </span>
+            </MenuItem>
+          );
+        })}
         <MenuSeparator />
         {organisations && organisations.length > 1 && (
           <>

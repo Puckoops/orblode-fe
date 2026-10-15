@@ -91,6 +91,20 @@ button.workspaceTrigger:hover,
 .workspaceOrg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspaceName { font-size: 13.5px; font-weight: 500; line-height: 18px; }
 .workspaceOrg { font-size: 12px; line-height: 16px; color: var(--text-4); }
+
+/* A workspace row in the dropdown: its name over the organisation it belongs to.
+   The menu item is a fixed 34px, which clips the second line, so this row grows it. */
+:global(.Menu_item):has(.workspaceChoice) {
+  height: auto;
+  min-height: 34px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.workspaceChoice { display: flex; flex-direction: column; min-width: 0; line-height: 1; }
+.workspaceChoiceName,
+.workspaceChoiceOrg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspaceChoiceName { font-size: 13px; line-height: 16px; color: var(--text-1); }
+.workspaceChoiceOrg { font-size: 11px; line-height: 14px; color: var(--text-4); }
 .workspaceChevron { flex: none; color: var(--text-4); }
 
 .workspaceCompact { justify-content: center; width: auto; min-height: 0; padding: 4px; border-color: transparent; background: none; }

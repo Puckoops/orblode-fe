@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { organisationLabel, orgLink, unopened, withoutOrg, type OrganisationChoice } from "../links.ts";
+import { organisationForClient, organisationLabel, orgLink, unopened, withoutOrg, type OrganisationChoice } from "../links.ts";
 
 const own: OrganisationChoice = { id: "own", name: "Own", current: true, joined: true };
 const added: OrganisationChoice = { id: "added", name: "acme", company_name: "Acme Mining", current: false, joined: false };
@@ -34,4 +34,10 @@ test("unopened points out organisations not yet opened, once", () => {
 test("organisationLabel prefers the company name", () => {
   assert.equal(organisationLabel(added), "Acme Mining");
   assert.equal(organisationLabel(own), "Own");
+});
+
+test("organisationForClient names the organisation a workspace belongs to", () => {
+  assert.equal(organisationForClient("added", [own, added], own), "Acme Mining");
+  assert.equal(organisationForClient("own", null, own), "Own");
+  assert.equal(organisationForClient("elsewhere", [own, added], own), "");
 });

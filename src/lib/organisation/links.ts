@@ -9,6 +9,18 @@ export interface OrganisationChoice {
 
 export const organisationLabel = (o: Pick<OrganisationChoice, "name" | "company_name">) => o.company_name?.trim() || o.name.trim();
 
+/** The organisation a workspace's client id names: one of the person's organisations, else the open client. */
+export function organisationForClient(
+  clientId: string,
+  organisations: readonly Pick<OrganisationChoice, "id" | "name" | "company_name">[] | null | undefined,
+  current: Pick<OrganisationChoice, "id" | "name" | "company_name"> | null,
+): string {
+  const match = organisations?.find((o) => o.id === clientId);
+  if (match) return organisationLabel(match);
+  if (current && current.id === clientId) return organisationLabel(current);
+  return "";
+}
+
 export type OrgLink = { kind: "none" } | { kind: "here" } | { kind: "switch"; id: string } | { kind: "unknown" };
 
 /** What a link's `?org=` asks for: nothing, the organisation already open, another of theirs, or one they're not in. */
