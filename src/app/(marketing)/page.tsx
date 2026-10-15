@@ -6,7 +6,6 @@ import { Hero } from "@/components/landing/Hero";
 import { Industries } from "@/components/landing/Industries";
 import styles from "@/components/landing/landing.module.css";
 import { Measure } from "@/components/landing/Measure";
-import { Pipeline } from "@/components/landing/Pipeline";
 import { Proof } from "@/components/landing/Proof";
 import { SiteProvider } from "@/components/landing/SiteContext";
 import { SiteFooter } from "@/components/landing/SiteFooter";
@@ -32,19 +31,12 @@ export default function LandingPage() {
           <a href="#main" className={styles.skipLink}>
             Skip to content
           </a>
-          <div className={styles.announce}>
-            <span className={styles.announceTag}>New</span>
-            <span className={styles.announceLong}>Cut and fill against your design surface, on a 0.2 m grid.</span>
-            <span className={styles.announceShort}>Cut and fill against design.</span>
-            <a href="#measure">See it</a>
-          </div>
           <SiteHeader />
           <main id="main">
             <Hero media={media} />
             <Proof />
             <Descent descent={media.descent} frame={media.frame} />
             <Measure site={site} media={media} />
-            <Pipeline contours={media.stills.contoursPipeline!} />
             <Industries site={site} stills={media.stills} />
             <TryViewer turntable={media.turntable} />
             <ClosingCta backdrop={media.stills.closing!} />
