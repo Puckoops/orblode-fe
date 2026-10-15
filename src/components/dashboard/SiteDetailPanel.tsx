@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight01Icon, Cancel01Icon, PencilEdit02Icon, SatelliteIcon, Upload01Icon } from "@hugeicons/core-free-icons";
-import { Alert, Badge, Button, EmptyState, Icon, IconButton } from "@puckoops/camelot";
+import { Alert, Badge, Button, EmptyState, Icon, IconButton, Tooltip } from "@puckoops/camelot";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
@@ -12,7 +12,7 @@ import { getProject, type Project } from "@/lib/api/userSvc";
 import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
 import { failedInProject, failureTitle } from "@/lib/processing/summary";
-import { lifecycleState, PROCESSING_FAILED } from "@/lib/status";
+import { lifecycleState, PROCESSING, PROCESSING_FAILED } from "@/lib/status";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 
@@ -26,6 +26,8 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   const retry = useProcessing((s) => s.retry);
   const failedHere = useMemo(() => failedInProject(failed, projectId), [failed, projectId]);
   const failedIds = useMemo(() => new Set(failedHere.map((s) => s.survey_id)), [failedHere]);
+  const running = useProcessing((s) => s.running);
+  const runningIds = useMemo(() => new Set(running.map((s) => s.survey_id)), [running]);
   const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   }, [projectId, surveysTick]);
 
   const latestSurveyId = surveys[0]?.id;
+  const openableSurveyId = surveys.find((s) => !runningIds.has(s.id))?.id;
 
   useEffect(() => {
     if (!latestSurveyId) return;
@@ -160,12 +163,10 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
           <EmptyState icon={SatelliteIcon} title="No surveys yet." />
         ) : (
           <ul className="flex flex-col gap-2">
-            {surveys.map((survey) => (
-              <li key={survey.id} className="flex items-center gap-1">
-                <Link
-                  href={`/viewer/${survey.id}`}
-                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 hover:border-hairline-strong hover:bg-surface-3"
-                >
+            {surveys.map((survey) => {
+              const processing = runningIds.has(survey.id);
+              const body = (
+                <>
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-surface-3 text-ink-4">
                     <Icon icon={SatelliteIcon} size={20} />
                   </span>
@@ -175,21 +176,44 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
                     </span>
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="num-sm text-ink-4">{survey.working_crs}</span>
+                      {processing && <StateChip state={PROCESSING} />}
                       {failedIds.has(survey.id) && <StateChip state={PROCESSING_FAILED} />}
                     </span>
                     {typeof survey.metadata?.sensor === "string" && <span className="caption mt-1 block text-ink-4">{survey.metadata.sensor}</span>}
                   </span>
-                  <Icon icon={ArrowRight01Icon} size={16} className="ml-2 shrink-0 text-ink-4 group-hover:text-ink-2" />
-                </Link>
-                <IconButton
-                  icon={PencilEdit02Icon}
-                  aria-label={`Edit survey of ${formatSurveyDate(survey.survey_date)}`}
-                  variant="bare"
-                  size="sm"
-                  onClick={() => setEditingId(survey.id)}
-                />
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={survey.id} className="flex items-center gap-1">
+                  {processing ? (
+                    <Tooltip content="Opens in the viewer once processing finishes">
+                      <div
+                        aria-disabled="true"
+                        tabIndex={0}
+                        className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 opacity-70"
+                      >
+                        {body}
+                      </div>
+                    </Tooltip>
+                  ) : (
+                    <Link
+                      href={`/viewer/${survey.id}`}
+                      className="group flex min-w-0 flex-1 items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 hover:border-hairline-strong hover:bg-surface-3"
+                    >
+                      {body}
+                      <Icon icon={ArrowRight01Icon} size={16} className="ml-2 shrink-0 text-ink-4 group-hover:text-ink-2" />
+                    </Link>
+                  )}
+                  <IconButton
+                    icon={PencilEdit02Icon}
+                    aria-label={`Edit survey of ${formatSurveyDate(survey.survey_date)}`}
+                    variant="bare"
+                    size="sm"
+                    onClick={() => setEditingId(survey.id)}
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -200,13 +224,13 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
         <Button asChild variant="ghost">
           <Link href={`/reports?site=${encodeURIComponent(projectId)}`}>Reports</Link>
         </Button>
-        {latestSurveyId ? (
+        {openableSurveyId ? (
           <Button asChild variant="primary" className="flex-1">
-            <Link href={`/viewer/${latestSurveyId}`}>Open viewer</Link>
+            <Link href={`/viewer/${openableSurveyId}`}>Open viewer</Link>
           </Button>
         ) : (
           <Button variant="primary" className="flex-1" disabled>
-            Open viewer
+            {latestSurveyId ? "Processing" : "Open viewer"}
           </Button>
         )}
       </div>

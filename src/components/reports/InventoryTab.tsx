@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Loader } from "@/components/brand/Loader";
 import { StateChip } from "@/components/common/StateChip";
+import { ProcessingChip } from "@/components/viewer/ProcessingChip";
 import {
   copyStockpilesForward,
   getInventory,
@@ -27,6 +28,7 @@ import {
   type InventoryReport,
   type Survey,
 } from "@/lib/api/orblodeSvc";
+import { useSurveyProcessing } from "@/lib/processing/store";
 import { formatCubic, formatDelta, formatTonnes, formatValue, inventoryCsv } from "@/lib/reports";
 import { pileState } from "@/lib/status";
 import { toast } from "@/lib/toast";
@@ -47,6 +49,7 @@ const message = (err: unknown, fallback: string) => (err instanceof Error && err
 
 export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
   const [surveyId, setSurveyId] = useState("");
+  const processing = useSurveyProcessing(surveyId);
   const [report, setReport] = useState<InventoryReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
@@ -136,11 +139,16 @@ export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
         >
           Export CSV
         </Button>
-        {survey && (
-          <TextLink as={Link} href={`/viewer/${survey.id}`} arrow="forward" className="caption ml-auto">
-            Open in viewer
-          </TextLink>
-        )}
+        {survey &&
+          (processing ? (
+            <span className="ml-auto">
+              <ProcessingChip />
+            </span>
+          ) : (
+            <TextLink as={Link} href={`/viewer/${survey.id}`} arrow="forward" className="caption ml-auto">
+              Open in viewer
+            </TextLink>
+          ))}
       </div>
 
       {error ? (

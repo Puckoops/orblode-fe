@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Loader } from "@/components/brand/Loader";
+import { SurveyProcessingGate } from "@/components/viewer/SurveyProcessingGate";
 import { useCesiumReady } from "@/hooks/useCesiumReady";
 
 const ViewerPlaceholder = () => <Loader variant="fill" label="Loading the viewer" />;
@@ -16,7 +17,9 @@ export function ViewerScreen({ surveyId }: { surveyId: string }) {
   const cesiumReady = useCesiumReady();
   return (
     <div className="relative h-full w-full overflow-hidden bg-canvas" aria-busy={!cesiumReady}>
-      {cesiumReady ? <ViewerShell surveyId={surveyId} /> : <ViewerPlaceholder />}
+      <SurveyProcessingGate key={surveyId} surveyId={surveyId}>
+        {cesiumReady ? <ViewerShell surveyId={surveyId} /> : <ViewerPlaceholder />}
+      </SurveyProcessingGate>
     </div>
   );
 }

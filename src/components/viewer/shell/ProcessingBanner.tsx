@@ -86,30 +86,37 @@ export function ProcessingBanner({ surveyId }: { surveyId: string }) {
   );
 }
 
-/** One bar per open run; a stage that can't be measured slides. Hidden until the set of open runs changes. */
+/** Hidden until the set of open runs changes. */
 function RunningRuns({ runs, onDismiss }: { runs: ProcessingRun[]; onDismiss: () => void }) {
-  const one = runs.length === 1;
   return (
     // A group, not a live region: the percents change every few seconds.
     <Alert
       tone="info"
       role="group"
       aria-label="Processing"
-      title={one ? `Processing ${runs[0].label}` : `Processing ${runs.length} layers`}
+      title={runsTitle(runs)}
       onDismiss={onDismiss}
       dismissLabel="Hide processing"
       className="pointer-events-auto w-full max-w-xl"
     >
-      {runs.map((run) => (
-        <Progress
-          key={run.workflow_id}
-          value={run.percent ?? null}
-          size="thin"
-          showValue={false}
-          label={one ? runStatus(run) : `${run.label}: ${runStatus(run)}`}
-          className="mt-2"
-        />
-      ))}
+      <RunProgress runs={runs} />
     </Alert>
   );
+}
+
+export const runsTitle = (runs: ProcessingRun[]) => (runs.length === 1 ? `Processing ${runs[0].label}` : `Processing ${runs.length} layers`);
+
+/** One bar per open run; a stage that can't be measured slides. */
+export function RunProgress({ runs }: { runs: ProcessingRun[] }) {
+  const one = runs.length === 1;
+  return runs.map((run) => (
+    <Progress
+      key={run.workflow_id}
+      value={run.percent ?? null}
+      size="thin"
+      showValue={false}
+      label={one ? runStatus(run) : `${run.label}: ${runStatus(run)}`}
+      className="mt-2"
+    />
+  ));
 }
