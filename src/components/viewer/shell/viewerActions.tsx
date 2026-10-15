@@ -61,6 +61,8 @@ export interface ViewerActions {
   exportMeasurements: (format: ExportFormat, ids?: string[]) => Promise<void>;
   /** Link a stockpile by hand to a pile of the previous survey ("" for a new pile), then refresh. */
   linkPile: (id: string, pileId: string) => Promise<void>;
+  /** Pin a saved stockpile's pile to every survey of the site, or unpin it, then refresh. */
+  pinPile: (id: string, pinned: boolean) => Promise<void>;
   /** Queue every stockpile of the survey without a current result, then refresh. */
   computeAllStockpiles: () => Promise<void>;
   /** Copy the previous survey's stockpiles into this one, then refresh. */

@@ -6,7 +6,7 @@
 // targets the stored id. Closes on action, Esc, or a click-away.
 
 import { createPortal } from "react-dom";
-import { Delete02Icon, PenLineIcon, SplineIcon } from "@hugeicons/core-free-icons";
+import { Delete02Icon, PenLineIcon, PinIcon, PinOffIcon, SplineIcon } from "@hugeicons/core-free-icons";
 import { Menu, MenuItem } from "@puckoops/camelot";
 
 import { useViewerStore } from "@/lib/viewer/state/store";
@@ -14,7 +14,7 @@ import { useViewerActions } from "@/components/viewer/shell/viewerActions";
 import { useConfirm } from "@/components/common/confirm";
 import { measurementDeleteRequest } from "@/components/viewer/deleteConfirm";
 
-const MENU_WIDTH = 168;
+const MENU_WIDTH = 208;
 
 export function MeasurementContextMenu() {
   const contextMenu = useViewerStore((s) => s.contextMenu);
@@ -35,6 +35,7 @@ export function MeasurementContextMenu() {
   if (contextMenu && measurement) {
     const geomType = measurement.geometry?.type;
     const editable = geomType === "Polygon" || geomType === "LineString";
+    const pinnable = measurement.kind === "stockpile" && !measurement.draft && !!measurement.geometry;
 
     // Selection-dependent actions (Edit / Redraw read the current selection); make
     // the menu self-consistent by re-selecting its target first, regardless of how
@@ -64,6 +65,11 @@ export function MeasurementContextMenu() {
         {editable && (
           <MenuItem icon={PenLineIcon} onSelect={() => run(actions.redrawGeometry)}>
             Redraw
+          </MenuItem>
+        )}
+        {pinnable && (
+          <MenuItem icon={measurement.pinned ? PinOffIcon : PinIcon} onSelect={() => run(() => void actions.pinPile(measurement.id, !measurement.pinned))}>
+            {measurement.pinned ? "Unpin from every survey" : "Pin to every survey"}
           </MenuItem>
         )}
         <MenuItem

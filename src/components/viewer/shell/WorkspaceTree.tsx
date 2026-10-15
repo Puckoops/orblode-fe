@@ -29,6 +29,7 @@ import {
   FolderTreeIcon,
   FoldVerticalIcon,
   PencilIcon,
+  PinIcon,
   PlayIcon,
   RefreshIcon,
   RulerIcon,
@@ -239,6 +240,11 @@ function MeasurementRow({
       >
         {measurementLabel(m)}
       </button>
+      {m.pinned && !m.draft && (
+        <span title="Pinned to every survey" className="flex shrink-0 text-ink-4">
+          <Icon icon={PinIcon} size={14} aria-label="Pinned to every survey" />
+        </span>
+      )}
       {m.draft && (
         <Chip tone="amber" glyph="circle-dashed" title="Draft — save it from the inspector to keep it" className="shrink-0">
           Draft

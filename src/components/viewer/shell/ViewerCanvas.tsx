@@ -50,6 +50,7 @@ import {
   getManifest,
   linkPile,
   listMeasurements,
+  pinPile,
   updateMeasurement,
   type ComputeMeasurementBody,
   type GeoJsonGeometry,
@@ -87,6 +88,7 @@ import { useViewerHotkeys } from "@/components/viewer/shell/hooks/useViewerHotke
 import { isExportable, type ExportFormat } from "@/lib/viewer/measurementExport";
 import { downloadMeasurements } from "@/lib/viewer/downloadMeasurements";
 import { applySceneBackground } from "@/lib/viewer/cesiumScene";
+import { pinOutcome } from "@/lib/viewer/pins";
 import { applyViewMode, resetToNorth } from "@/lib/viewer/camera";
 import { TOP_DOWN_PITCH_DEG } from "@/lib/viewer/cameraControls";
 import { framingSpots, groundUnder, raiseOverGround } from "@/lib/viewer/framing";
@@ -1204,6 +1206,20 @@ export function ViewerCanvas() {
     [surveyId, refreshMeasurements]
   );
 
+  const pinMeasurementPile = useCallback(
+    async (id: string, pinned: boolean) => {
+      try {
+        const out = pinOutcome(await pinPile(surveyId, id, pinned));
+        toast.success(out.description ? `${out.title}. ${out.description}` : out.title);
+        for (const line of out.skipped) toast.info(`Left out ${line}`);
+        await refreshMeasurements();
+      } catch (err) {
+        if (err instanceof Error) toast.error(err.message);
+      }
+    },
+    [surveyId, refreshMeasurements]
+  );
+
   const computeAllStockpiles = useCallback(async () => {
     try {
       const out = await computeStockpiles(surveyId);
@@ -1403,6 +1419,7 @@ export function ViewerCanvas() {
       patchMeasurement,
       exportMeasurements,
       linkPile: linkMeasurementPile,
+      pinPile: pinMeasurementPile,
       computeAllStockpiles,
       copyStockpilesForward: copyStockpiles,
       reloadManifest: loadManifest,
@@ -1434,6 +1451,7 @@ export function ViewerCanvas() {
       patchMeasurement,
       exportMeasurements,
       linkMeasurementPile,
+      pinMeasurementPile,
       computeAllStockpiles,
       copyStockpiles,
       loadManifest,

@@ -1,12 +1,13 @@
 "use client";
 
-import { Copy01Icon, Download01Icon, Layers01Icon } from "@hugeicons/core-free-icons";
+import { Copy01Icon, Download01Icon, Layers01Icon, PinIcon } from "@hugeicons/core-free-icons";
 import {
   Alert,
   Band,
   Button,
   EmptyState,
   FigureCard,
+  Icon,
   Select,
   Table,
   TBody,
@@ -268,7 +269,12 @@ function PileRow({ pile }: { pile: InventoryPile }) {
           : "—";
   return (
     <Tr>
-      <Td primary>{pile.name}</Td>
+      <Td primary>
+        <span className="inline-flex items-center gap-1.5">
+          {pile.name}
+          {pile.pinned && <Icon icon={PinIcon} size={14} className="text-ink-4" aria-label="Pinned to every survey" />}
+        </span>
+      </Td>
       <Td>{pile.material_name ?? "—"}</Td>
       <Td>
         <StateChip state={pileState(pile.state)} />
