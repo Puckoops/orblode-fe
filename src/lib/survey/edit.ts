@@ -1,5 +1,15 @@
 import type { SourceAsset, Survey, UpdateSurveyRequest } from "@/lib/api/orblodeSvc";
-import { PROCESSED_OUTPUT, ROLE_LABELS, buildProcessorPlan, skipReason, vectorFeaturesReads, type FileRole, type PlannedFile, type ProcessorPlan } from "../upload/planner.ts";
+import {
+  PROCESSED_OUTPUT,
+  ROLE_LABELS,
+  UNREADABLE_SKIP,
+  buildProcessorPlan,
+  skipReason,
+  vectorFeaturesReads,
+  type FileRole,
+  type PlannedFile,
+  type ProcessorPlan,
+} from "../upload/planner.ts";
 
 const EDITABLE_STATUSES = new Set(["pending", "processing", "ready_to_approve", "failed"]);
 
@@ -77,14 +87,17 @@ export function isProcessableAsset(asset: SourceAsset): boolean {
   return asset.is_active !== false && asset.status !== "removed" && asset.status !== "superseded" && asset.status !== "pending_upload";
 }
 
+/** GDAL couldn't open it when it was checked, so it stays out of reprocessing until Detect again reads it. */
+const isUnreadable = (asset: SourceAsset) => asset.detection?.status === "failed";
+
 /** A processable file whose role builds a layer from a file like it: one worth running through its processor again. */
 export function canReprocess(asset: SourceAsset): boolean {
   const role = assetRole(asset);
-  return isProcessableAsset(asset) && role !== null && PROCESSED_OUTPUT[role] !== null && skipReason(assetName(asset), role) === null;
+  return isProcessableAsset(asset) && !isUnreadable(asset) && role !== null && PROCESSED_OUTPUT[role] !== null && skipReason(assetName(asset), role) === null;
 }
 
 const isVectorRole = (role: FileRole | null) => role === "vector" || role === "contours";
-const joinsVectorBatch = (a: SourceAsset) => isVectorRole(assetRole(a)) && vectorFeaturesReads(assetName(a));
+const joinsVectorBatch = (a: SourceAsset) => isVectorRole(assetRole(a)) && vectorFeaturesReads(assetName(a)) && !isUnreadable(a);
 
 export interface ReprocessPlan extends ProcessorPlan {
   /** Every asset the dispatches reference. */
@@ -101,7 +114,7 @@ export function reprocessPlan(assets: SourceAsset[], opts: { epsg: string; alsoD
   const batch = ready.filter((a) => isDue(a) || (withVectors && joinsVectorBatch(a)));
   const files = batch.flatMap((a): PlannedFile[] => {
     const role = assetRole(a);
-    return role ? [{ name: assetName(a), role, url: a.url, crs: a.crs || a.declared_crs || undefined }] : [];
+    return role ? [{ name: assetName(a), role, url: a.url, crs: a.crs || a.declared_crs || undefined, skip: isUnreadable(a) ? UNREADABLE_SKIP : undefined }] : [];
   });
   return { ...buildProcessorPlan(files, { epsg: opts.epsg }), assets: batch };
 }

@@ -4,7 +4,7 @@
 import type { CrsSource, SourceAsset, UpdateSurveyAssetRequest } from "@/lib/api/orblodeSvc";
 import { assetName } from "../survey/edit.ts";
 import { CRS_OPTIONS } from "./options.ts";
-import { SELECTABLE_ROLES, roleToAssetKind, skipReason, type DataType, type FileRole, type PlannedFile } from "./planner.ts";
+import { SELECTABLE_ROLES, UNREADABLE_SKIP, roleToAssetKind, skipReason, type DataType, type FileRole, type PlannedFile } from "./planner.ts";
 
 export const DETECTION_POLL_INTERVAL_MS = 1_500;
 export const DETECTION_POLL_WINDOW_MS = 90_000;
@@ -122,6 +122,7 @@ export function buildReviewRows(entries: ReviewEntry[], edits: Record<string, Ro
     const name = assetName(asset);
     const role = effectiveRole(entry, dataType, edit);
     const plannerSkip = skipReason(name, role);
+    const unreadable = asset.detection?.status === "failed" && !edit?.role && !entry.roleByHand;
     const note = detectionNote(asset, now);
     return {
       assetId: asset.id,
@@ -134,7 +135,7 @@ export function buildReviewRows(entries: ReviewEntry[], edits: Record<string, Ro
       inspecting: isInspecting(asset, now),
       stale: isDetectionStale(asset, now),
       detectAgain: canDetectAgain(asset, now),
-      skipReason: plannerSkip ? asset.detection?.skip_reason || plannerSkip : null,
+      skipReason: plannerSkip ? asset.detection?.skip_reason || plannerSkip : unreadable ? UNREADABLE_SKIP : null,
       notes: [...(asset.detection?.warnings ?? []), ...(note ? [note] : [])],
     };
   });
@@ -172,9 +173,9 @@ export function reviewPatches(rows: ReviewRow[], edits: Record<string, RowEdit>)
   });
 }
 
-/** buildProcessorPlan's input: each file with its own role and CRS. */
+/** buildProcessorPlan's input: each file with its own role and CRS, stored only when its row says so. */
 export function plannedFiles(rows: ReviewRow[]): PlannedFile[] {
-  return rows.map((r) => ({ name: r.name, role: r.role, url: r.asset.url, crs: r.crs || undefined }));
+  return rows.map((r) => ({ name: r.name, role: r.role, url: r.asset.url, crs: r.crs || undefined, skip: r.skipReason ?? undefined }));
 }
 
 export function fileWarnings(rows: ReviewRow[]): { filename: string; warnings: string[] }[] {

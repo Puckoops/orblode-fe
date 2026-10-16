@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Detection, SourceAsset } from "@/lib/api/orblodeSvc";
-import { buildProcessorPlan, type FileRole } from "../planner.ts";
+import { UNREADABLE_SKIP, buildProcessorPlan, type FileRole } from "../planner.ts";
 import {
   DETECTION_STALE_AFTER_MS,
   buildReviewRows,
@@ -244,4 +244,36 @@ test("a new site takes the projected CRS most of its files resolved to", () => {
   assert.equal(siteCrsFrom(geographicOnly), null);
   const fallbackOnly = rows([entry(asset("a.dxf", { declared_crs: "EPSG:7856" }), "vector")]);
   assert.deepEqual(siteCrsFrom(fallbackOnly), { epsg: "EPSG:7856", label: "GDA2020 / MGA Zone 56" });
+});
+
+test("a file that couldn't be read is stored, not dispatched, unless its role was picked by hand", () => {
+  const haul = asset("haul.dxf", { detection: detection({ status: "failed", error: "GDAL can't open it: not recognized as a supported file format" }) });
+  const shp = asset("Mine_Site_06_Jul_2026_Test.shp", {
+    crs: "EPSG:4326",
+    detection: detection({ status: "failed", error: "GDAL can't open it: Unable to open /vsigs/b/orblode/clients/c1/original/s1/Mine_Site_06_Jul_2026_Test.shx" }),
+  });
+  const queued = rows([...mineSite(), entry(haul, "vector"), entry(shp, "vector")]);
+  const [haulRow, shpRow] = queued.slice(-2);
+  assert.equal(haulRow.skipReason, UNREADABLE_SKIP);
+  assert.equal(shpRow.skipReason, "stored — a shapefile needs its .shx, .dbf and .prj; upload them together in one ZIP");
+  assert.deepEqual(shpRow.notes, ["Couldn't read the file"]);
+  assert.equal(canProcess(queued, false), true);
+
+  const plan = buildProcessorPlan(plannedFiles(queued), { epsg: "" });
+  assert.deepEqual(
+    plan.dispatches.find((d) => d.request.processor_type === "vector-features")?.request.inputs?.map((i) => i.url.split("/").pop()),
+    ["Mine_Site_DXF_Contours_1_unit.zip", "Mine_Site_Polygons_of_interest.json"]
+  );
+  assert.deepEqual(
+    plan.skips.map((s) => s.filename),
+    ["Mine_Site_JFIF_JPEG_ortho.zip", "haul.dxf", "Mine_Site_06_Jul_2026_Test.shp"]
+  );
+
+  assert.equal(rows([entry(haul, "contours", true)])[0].skipReason, null);
+  const picked = rows([entry(haul, "vector")], { [haul.id]: { role: "contours", crs: "EPSG:28356" } });
+  assert.equal(picked[0].skipReason, null);
+  assert.deepEqual(
+    buildProcessorPlan(plannedFiles(picked), { epsg: "" }).dispatches.map((d) => d.request.processor_type),
+    ["vector-features"]
+  );
 });

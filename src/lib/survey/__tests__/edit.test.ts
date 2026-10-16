@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SourceAsset, Survey } from "@/lib/api/orblodeSvc";
+import { UNREADABLE_SKIP } from "../../upload/planner.ts";
 import { assetRole, canReprocess, isSurveyEditable, reprocessPlan, surveyDetailsOf, surveyDetailsPatch, surveySourceCrs } from "../edit.ts";
 
 const survey = (over: Partial<Survey> = {}): Survey => ({
@@ -173,4 +174,34 @@ test("canReprocess offers files a processor builds a layer from, and nothing pen
   assert.equal(canReprocess(asset("pit.obj", "site_model", { kind: "site_model" })), false);
   assert.equal(canReprocess(asset("ortho.jpg", "ortho", { kind: "ortho" })), false);
   assert.equal(canReprocess(asset("design.dxf", "design", { kind: "vector" })), false);
+});
+
+test("a file that couldn't be read, or a shapefile's bare .shp, stays out of reprocessing and can't be included", () => {
+  const unreadable = { status: "failed" as const, error: "GDAL can't open it" };
+  const plan = reprocessPlan(
+    [
+      asset("contours.dxf", "contours", { kind: "vector", needs_processing: true }),
+      asset("haul.dxf", "vector", { kind: "vector", detection: unreadable }),
+      asset("Mine_Site_06_Jul_2026_Test.shp", "vector", { kind: "vector" }),
+      asset("pit.dxf", "vector", { kind: "vector", needs_processing: true, detection: unreadable }),
+    ],
+    { epsg: "EPSG:28356" }
+  );
+  assert.deepEqual(
+    plan.dispatches.map((d) => d.request.inputs?.map((i) => i.url)),
+    [["gs://b/original/s1/contours.dxf"]]
+  );
+  assert.deepEqual(plan.skips, [{ filename: "pit.dxf", reason: UNREADABLE_SKIP }]);
+
+  const alone = reprocessPlan([asset("pit.dxf", "vector", { kind: "vector", needs_processing: true, detection: unreadable }), asset("pads.geojson", "vector", { kind: "vector" })], {
+    epsg: "EPSG:28356",
+  });
+  assert.deepEqual(alone.dispatches, []);
+  assert.deepEqual(
+    alone.assets.map((a) => a.id),
+    ["pit.dxf"]
+  );
+
+  assert.equal(canReprocess(asset("haul.dxf", "vector", { kind: "vector", detection: unreadable })), false);
+  assert.equal(canReprocess(asset("Mine_Site_06_Jul_2026_Test.shp", "vector", { kind: "vector" })), false);
 });
