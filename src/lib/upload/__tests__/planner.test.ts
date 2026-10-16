@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   ACCEPT,
   SELECTABLE_ROLES,
+  UNREADABLE_SKIP,
   buildProcessorPlan,
   guessRole,
   roleFromRasterBands,
@@ -311,6 +312,7 @@ test("skipReason names exactly the files the plan skips", () => {
     { name: "ortho.zip", role: "ortho" as const },
     { name: "contours.dxf", role: "contours" as const },
     { name: "Mine_Site_DXF_faces.zip", role: "vector" as const },
+    { name: "Test.shp", role: "vector" as const },
     { name: "site.obj", role: "site_model" as const },
     { name: "cloud.laz", role: "pointcloud" as const },
     { name: "plan.ifc", role: "design" as const },
@@ -323,4 +325,42 @@ test("skipReason names exactly the files the plan skips", () => {
     files.filter((f) => skipReason(f.name, f.role)).map((f) => ({ filename: f.name, reason: skipReason(f.name, f.role) })),
     plan.skips
   );
+});
+
+test("a shapefile's .shp on its own is stored with a reason, while a ZIP of its parts is sent", () => {
+  const names = ["Mine_Site_06_Jul_2026_Test.shp", "Mine_Site_06_Jul_2026_Test (1).SHP", "Haul_roads_shapefile.zip", MINE_SITE.contours];
+  const plan = buildProcessorPlan(
+    names.map((name) => ({ name, role: guessRole(name, "preprocessed"), url: url(name) })),
+    { epsg: "EPSG:28356" }
+  );
+  assert.deepEqual(
+    plan.dispatches.map((d) => d.request.inputs?.map((i) => i.url)),
+    [[url("Haul_roads_shapefile.zip"), url(MINE_SITE.contours)]]
+  );
+  const reason = "stored — a shapefile needs its .shx, .dbf and .prj; upload them together in one ZIP";
+  assert.deepEqual(plan.skips, [
+    { filename: "Mine_Site_06_Jul_2026_Test.shp", reason },
+    { filename: "Mine_Site_06_Jul_2026_Test (1).SHP", reason },
+  ]);
+});
+
+test("a file its caller knows can't be read is stored with that reason, unless its name already says why", () => {
+  const plan = buildProcessorPlan(
+    [
+      { name: "haul.dxf", role: "vector", url: url("haul.dxf"), crs: "EPSG:28356", skip: UNREADABLE_SKIP },
+      { name: "dsm.tif", role: "dsm", url: url("dsm.tif"), skip: UNREADABLE_SKIP },
+      { name: "site.obj", role: "site_model", url: url("site.obj"), skip: UNREADABLE_SKIP },
+      { name: "pads.geojson", role: "vector", url: url("pads.geojson"), crs: "EPSG:4326" },
+    ],
+    { epsg: "" }
+  );
+  assert.deepEqual(
+    plan.dispatches.map((d) => d.request.inputs?.map((i) => i.url)),
+    [[url("pads.geojson")]]
+  );
+  assert.deepEqual(plan.skips, [
+    { filename: "haul.dxf", reason: UNREADABLE_SKIP },
+    { filename: "dsm.tif", reason: UNREADABLE_SKIP },
+    { filename: "site.obj", reason: "3D mesh stored — no processor turns meshes into viewer tiles yet" },
+  ]);
 });

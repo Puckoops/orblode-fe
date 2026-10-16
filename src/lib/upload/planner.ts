@@ -63,7 +63,7 @@ export const ACCEPT: Record<DataType, string> = {
 
 export const DROPZONE_HINT: Record<DataType, string> = {
   lidar: "LAS / LAZ point clouds",
-  preprocessed: "GeoTIFF DSM / DTM / ortho, LAZ, contour DXF / SHP / GeoJSON",
+  preprocessed: "GeoTIFF DSM / DTM / ortho, LAZ, contour DXF / zipped SHP / GeoJSON",
   design: "DXF, LandXML, GeoJSON, OBJ, IFC design surfaces",
 };
 
@@ -79,13 +79,16 @@ const VECTOR_FEATURE_EXTENSIONS = new Set(["dxf", "shp", "geojson", "json", "kml
  * (Propeller's `…_DXF_<n>_faces.zip`), or an orthophoto as JPEG tiles in a ZIP (`…_JFIF_JPEG_….zip`). */
 const isFaceMesh = (lowerName: string) => /(^|[\s._-])faces\.(zip|dxf)$/.test(lowerName);
 const isJpegZip = (lowerName: string) => ext(lowerName) === "zip" && /jfif|jpe?g/.test(lowerName);
+/** GDAL opens a .shp only with its .shx beside it, and the upload takes a shapefile's parts only as one ZIP. */
+const isBareShapefile = (lowerName: string) => ext(lowerName) === "shp";
 
 export function vectorFeaturesReads(filename: string): boolean {
   const n = filename.toLowerCase();
-  return VECTOR_FEATURE_EXTENSIONS.has(ext(n)) && !isFaceMesh(n) && !isJpegZip(n);
+  return VECTOR_FEATURE_EXTENSIONS.has(ext(n)) && !isBareShapefile(n) && !isFaceMesh(n) && !isJpegZip(n);
 }
 
 function vectorSkipReason(lowerName: string): string {
+  if (isBareShapefile(lowerName)) return "stored — a shapefile needs its .shx, .dbf and .prj; upload them together in one ZIP";
   if (isFaceMesh(lowerName)) return "stored — a DXF face mesh is a 3D surface, not vector linework; pick 3D mesh";
   if (isJpegZip(lowerName)) return "stored — a ZIP of JPEG images holds no vector data";
   if (ext(lowerName) === "czml") return "stored — GDAL can't read CZML, so no vector layer is built";
@@ -192,7 +195,12 @@ export interface PlannedFile {
   url: string;
   /** This file's horizontal CRS; `PlannerOptions.epsg` applies when absent. */
   crs?: string;
+  /** Why the file is stored, not processed, when its name and role don't show it, e.g. UNREADABLE_SKIP. */
+  skip?: string;
 }
+
+/** A file GDAL couldn't open when it was checked; a Detect again that reads it lifts this. */
+export const UNREADABLE_SKIP = "stored — the file couldn't be read; detect it again to process it";
 
 export interface PlannerOptions {
   /** Horizontal CRS for files that carry none, e.g. "EPSG:32645"; may be "". */
@@ -243,7 +251,7 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
   for (const f of files) {
     if (f.role === "design") continue;
     const crs = f.crs || opts.epsg;
-    const reason = skipReason(f.name, f.role) ?? (crs ? null : "stored — its CRS isn't known; set one to process it");
+    const reason = skipReason(f.name, f.role) ?? f.skip ?? (crs ? null : "stored — its CRS isn't known; set one to process it");
     if (reason) {
       skips.push({ filename: f.name, reason });
       continue;
