@@ -7,11 +7,21 @@ import { Cartesian3, Color, Viewer as CesiumViewer } from "cesium";
 import type { Project } from "@/lib/api/userSvc";
 import { projectWgs84Center, resolveProjectCenter, type Wgs84Center } from "@/lib/dashboard/resolveProjectCenter";
 import { SITE_MARKER } from "@/lib/viewer/sceneStyle";
+import type { InstaViewState } from "./InstaView";
+import { InstaViewLayer } from "./InstaViewLayer";
 
 const MARKER_FILL = Color.fromCssColorString(SITE_MARKER.fill);
 const MARKER_OUTLINE = Color.fromCssColorString(SITE_MARKER.outline);
 
-export function DashboardGlobe({ projects, selectedSiteId }: { projects: Project[]; selectedSiteId?: string }) {
+export function DashboardGlobe({
+  projects,
+  selectedSiteId,
+  insta,
+}: {
+  projects: Project[];
+  selectedSiteId?: string;
+  insta: Pick<InstaViewState, "overlays" | "focus" | "loaded" | "failed">;
+}) {
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer> | null>(null);
   const centersRef = useRef<Map<string, Wgs84Center>>(new Map());
   const [viewerReady, setViewerReady] = useState(false);
@@ -123,6 +133,9 @@ export function DashboardGlobe({ projects, selectedSiteId }: { projects: Project
             </Entity>
           );
         })}
+        {insta.overlays.map((o) => (
+          <InstaViewLayer key={o.id} overlay={o} focus={insta.focus} onLoaded={insta.loaded} onFailed={insta.failed} />
+        ))}
       </Viewer>
     </div>
   );

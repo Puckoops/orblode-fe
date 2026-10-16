@@ -9,6 +9,7 @@ import { useSiteInWorkspace } from "@/hooks/useSiteInWorkspace";
 import { sitesHref } from "@/lib/viewer/surveyAccess";
 import { useWorkspaces } from "@/lib/workspaces/store";
 import { ActiveSitesPanel } from "./ActiveSitesPanel";
+import { InstaView, useInstaView } from "./InstaView";
 import { SiteDetailPanel } from "./SiteDetailPanel";
 
 const CanvasPlaceholder = () => <Loader variant="fill" label="Loading the globe" />;
@@ -26,6 +27,7 @@ export function GlobeScreen() {
   const noWorkspace = useWorkspaces((s) => s.workspaces?.length === 0 && !s.unavailable);
   // DashboardGlobe's chunk resolves the `cesium` external at eval time, so it must not load before window.Cesium exists.
   const cesiumReady = useCesiumReady();
+  const insta = useInstaView();
 
   // ?site= is read from window.location so the page needs no Suspense boundary.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -53,8 +55,9 @@ export function GlobeScreen() {
           <ActiveSitesPanel projects={projects} selectedSiteId={selectedSiteId} onSiteSelect={setSelectedSiteId} />
         )}
       </div>
-      <div className="relative flex-1">
-        {cesiumReady ? <DashboardGlobe projects={projects ?? []} selectedSiteId={selectedSiteId} /> : <CanvasPlaceholder />}
+      <div className="relative flex-1" {...insta.dropTarget}>
+        {cesiumReady ? <DashboardGlobe projects={projects ?? []} selectedSiteId={selectedSiteId} insta={insta} /> : <CanvasPlaceholder />}
+        <InstaView insta={insta} />
         {selectedSiteId && <SiteDetailPanel key={selectedSiteId} projectId={selectedSiteId} onClose={() => setSelectedSiteId("")} />}
       </div>
     </div>
