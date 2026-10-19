@@ -55,9 +55,10 @@ export function AnalysisSummary({
 }) {
   const r = a.results;
   const c = coverage(r);
-  // Studies measured before coverage was recorded took the uncertainty over the whole lease.
+  // Studies measured before coverage was recorded took the uncertainty over the whole lease;
+  // the API answers 0 for their coverage, which a study with any data never has.
   const uncertainOverM2 =
-    r.coverage_pct === undefined ? r.effective_m2 : c.measuredM2;
+    !r.coverage_pct && r.dtm_diff.area_m2 > 0 ? r.effective_m2 : c.measuredM2;
   return (
     <div className="flex flex-col gap-4">
       {c.short && (
