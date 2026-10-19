@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { ConfirmRequest } from "@/components/common/confirm";
 import { useAuthUser } from "@/hooks/useAuth";
 import { refusalMessage } from "@/lib/api/client";
-import { getAccess, removeAccess, type AccessEntry, type AccessScope, type SubjectType } from "@/lib/api/userSvc";
+import { getAccess, getCustomAccess, removeAccess, setCustomAccess, type AccessEntry, type AccessScope, type CustomAccessEntry, type SubjectType } from "@/lib/api/userSvc";
+import { describeCustomRoles, useCustomRoles } from "@/lib/access/customRoles";
 import { describeRoles, splitAccess } from "@/lib/access/roles";
 import { toast } from "@/lib/toast";
 import { GrantDialog } from "./GrantDialog";
@@ -29,6 +30,21 @@ function Who({ entry }: { entry: AccessEntry }) {
       </span>
     </span>
   );
+}
+
+type Row = AccessEntry & { custom: string[] };
+
+/** One row per grantee and where their access comes from, with its built-in and its custom roles together. */
+function mergeAccess(builtIn: AccessEntry[], custom: CustomAccessEntry[]): Row[] {
+  const key = (e: { subject: AccessEntry["subject"]; source?: AccessEntry["source"] }) =>
+    `${e.source?.type ?? ""}:${e.source?.id ?? ""}|${e.subject.type}:${e.subject.id}`;
+  const rows = new Map<string, Row>(builtIn.map((e) => [key(e), { ...e, custom: [] }]));
+  for (const c of custom) {
+    const row = rows.get(key(c));
+    if (row) row.custom = c.role_ids;
+    else rows.set(key(c), { subject: c.subject, source: c.source, roles: [], custom: c.role_ids });
+  }
+  return [...rows.values()];
 }
 
 function sourceLabel(entry: AccessEntry): string {
@@ -54,31 +70,36 @@ export function AccessList({
   onChanged?: () => void;
 }) {
   const me = useAuthUser();
-  const [entries, setEntries] = useState<AccessEntry[] | null>(null);
+  const [entries, setEntries] = useState<Row[] | null>(null);
+  const customRoles = useCustomRoles((s) => s.roles);
+  const loadCustomRoles = useCustomRoles((s) => s.load);
   const [failed, setFailed] = useState(false);
-  const [dialog, setDialog] = useState<{ editing: AccessEntry | null } | null>(null);
+  const [dialog, setDialog] = useState<{ editing: Row | null } | null>(null);
 
   const load = useCallback(() => {
-    getAccess(scope, objectId)
-      .then((next) => {
+    void loadCustomRoles();
+    Promise.all([getAccess(scope, objectId), getCustomAccess(scope, objectId).catch(() => [] as CustomAccessEntry[])])
+      .then(([builtIn, custom]) => {
         setFailed(false);
-        setEntries(next);
+        setEntries(mergeAccess(builtIn, custom));
       })
       .catch((err) => {
         console.error("Failed to fetch access:", err);
         setFailed(true);
         setEntries([]);
       });
-  }, [scope, objectId]);
+  }, [scope, objectId, loadCustomRoles]);
 
   useEffect(load, [load]);
 
-  const saved = (next: AccessEntry[]) => {
-    setEntries(next);
+  const saved = () => {
+    load();
     onChanged?.();
   };
 
-  const remove = (entry: AccessEntry) => {
+  const rolesOf = (entry: Row) => [describeRoles(entry.roles, scope), describeCustomRoles(entry.custom, customRoles)].filter(Boolean).join(", ");
+
+  const remove = (entry: Row) => {
     const self = entry.subject.type === "user" && entry.subject.id === me?.id;
     const who = self ? "your" : `${entry.subject.name || "their"}'s`;
     confirm({
@@ -90,7 +111,8 @@ export function AccessList({
       confirmLabel: "Take away",
       onConfirm: async () => {
         try {
-          await removeAccess(scope, objectId, entry.subject);
+          if (entry.roles.length > 0) await removeAccess(scope, objectId, entry.subject);
+          if (entry.custom.length > 0) await setCustomAccess(scope, objectId, entry.subject, []);
           load();
           onChanged?.();
         } catch (err) {
@@ -124,7 +146,7 @@ export function AccessList({
               <Td primary>
                 <Who entry={entry} />
               </Td>
-              <Td>{describeRoles(entry.roles, scope)}</Td>
+              <Td>{rolesOf(entry)}</Td>
               {canManage && (
                 <Td className="whitespace-nowrap text-right">
                   <IconButton icon={PencilEdit02Icon} aria-label={`Change ${entry.subject.name}'s roles`} variant="bare" size="sm" onClick={() => setDialog({ editing: entry })} />
@@ -161,7 +183,7 @@ export function AccessList({
                   <Td primary>
                     <Who entry={entry} />
                   </Td>
-                  <Td>{describeRoles(entry.roles, scope)}</Td>
+                  <Td>{rolesOf(entry)}</Td>
                   <Td className="caption text-ink-4">{sourceLabel(entry)}</Td>
                 </Tr>
               ))}

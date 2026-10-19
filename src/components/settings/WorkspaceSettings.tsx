@@ -12,6 +12,7 @@ import {
   Field,
   formatIsoDate,
   HelperText,
+  RadioGroup,
   Input,
   Skeleton,
   Table,
@@ -25,25 +26,30 @@ import {
 import { useState, type FormEvent } from "react";
 import { AccessList } from "@/components/access/AccessList";
 import { useConfirm, type ConfirmRequest } from "@/components/common/confirm";
-import { NewWorkspaceDialog } from "@/components/workspaces/NewWorkspaceDialog";
+import { NewWorkspaceDialog, WORKSPACE_TYPES } from "@/components/workspaces/NewWorkspaceDialog";
 import { useAuthClient } from "@/hooks/useAuth";
+import { useMinorMineralsLicence } from "@/hooks/useMinorMinerals";
 import { refusalMessage } from "@/lib/api/client";
-import { deleteWorkspace, updateWorkspace, type Workspace } from "@/lib/api/userSvc";
+import { deleteWorkspace, updateWorkspace, type Workspace, type WorkspaceType } from "@/lib/api/userSvc";
 import { useOrgViewer } from "@/lib/organisation/store";
 import { toast } from "@/lib/toast";
 import { useCurrentWorkspace, useWorkspaces } from "@/lib/workspaces/store";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** Name and description, and what the workspace is at a glance. */
+/** Name, description and what it is for, and the workspace at a glance. */
 function Details({ workspace }: { workspace: Workspace }) {
   const client = useAuthClient();
+  const licensed = useMinorMineralsLicence();
   const refresh = useWorkspaces((s) => s.refresh);
   const [name, setName] = useState(workspace.name);
   const [description, setDescription] = useState(workspace.description);
+  const savedType: WorkspaceType = workspace.type ?? "general";
+  const [type, setType] = useState<WorkspaceType>(savedType);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const changed = name.trim() !== workspace.name || description.trim() !== workspace.description;
+  const changed = name.trim() !== workspace.name || description.trim() !== workspace.description || type !== savedType;
+  const mayType = licensed && workspace.can_manage && !workspace.is_default;
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,7 +60,7 @@ function Details({ workspace }: { workspace: Workspace }) {
     setError(null);
     setSaving(true);
     try {
-      await updateWorkspace(workspace.id, { name: name.trim(), description: description.trim() });
+      await updateWorkspace(workspace.id, { name: name.trim(), description: description.trim(), ...(type !== savedType ? { type } : {}) });
       await refresh();
       toast.success("Workspace saved.");
     } catch (err) {
@@ -74,6 +80,14 @@ function Details({ workspace }: { workspace: Workspace }) {
           <Field label="Description" hint="Optional. What the workspace's sites have in common.">
             <Input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} disabled={!workspace.can_manage} />
           </Field>
+          {mayType && (
+            <Field label="What it’s for">
+              <RadioGroup value={type} onValueChange={(v) => setType(v as WorkspaceType)} options={WORKSPACE_TYPES} aria-label="What the workspace is for" />
+            </Field>
+          )}
+          {mayType && savedType === "minor_minerals" && type === "general" && (
+            <HelperText>Its leases, missions and studies stay, hidden, until it is a minor-minerals workspace again.</HelperText>
+          )}
           {workspace.can_manage ? (
             <div>
               <Button type="submit" variant="primary" loading={saving} disabled={!changed}>
@@ -88,6 +102,7 @@ function Details({ workspace }: { workspace: Workspace }) {
           items={[
             { label: "Organisation", value: client?.company_name || client?.name || "—" },
             { label: "Sites", value: String(workspace.project_count) },
+            ...(licensed ? [{ label: "What it’s for", value: WORKSPACE_TYPES.find((t) => t.value === savedType)?.label ?? "General" }] : []),
             {
               label: "Default",
               value: workspace.is_default ? "Yes: sites made without a workspace land here, and everyone in the organisation can view it" : "No",

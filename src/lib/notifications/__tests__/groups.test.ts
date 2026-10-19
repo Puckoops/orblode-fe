@@ -38,3 +38,10 @@ test("groupTypes puts a survey shared with someone under People", () => {
     ["People", ["member_joined", "survey_shared"]],
   ]);
 });
+
+test("groupTypes puts the minor-minerals notices in their own section after People", () => {
+  assert.deepEqual(groupTypes([type("mm_study_failed"), type("member_joined"), type("mm_study_ready")]).map((g) => [g.label, g.types.map((t) => t.type)]), [
+    ["People", ["member_joined"]],
+    ["Minor minerals", ["mm_study_ready", "mm_study_failed"]],
+  ]);
+});

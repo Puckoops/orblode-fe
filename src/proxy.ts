@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "orblode_session";
-const PROTECTED = ["/globe", "/viewer", "/upload", "/files", "/reports", "/settings"];
+const PROTECTED = ["/globe", "/viewer", "/upload", "/files", "/reports", "/settings", "/mm"];
 const SIGNED_OUT_ONLY = ["/sign-in", "/sign-up"];
 const FILES_PREFIX = "/files/";
 const SHOWCASE_FILES_PREFIX = "/showcase/files/";
@@ -67,5 +67,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/globe", "/viewer/:path*", "/upload", "/files", "/files/:path*", "/showcase/files/:path*", "/reports", "/settings", "/sign-in", "/sign-up"],
+  matcher: ["/", "/globe", "/viewer/:path*", "/upload", "/files", "/files/:path*", "/showcase/files/:path*", "/reports", "/settings", "/mm", "/mm/:path*", "/sign-in", "/sign-up"],
 };
