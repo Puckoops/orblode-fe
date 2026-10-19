@@ -1,18 +1,32 @@
 "use client";
 
-import { Button, Dialog, Field, Input } from "@puckoops/camelot";
+import { Button, Dialog, Field, Input, RadioGroup } from "@puckoops/camelot";
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { useMinorMineralsLicence } from "@/hooks/useMinorMinerals";
 import { refusalMessage } from "@/lib/api/client";
-import { createWorkspace } from "@/lib/api/userSvc";
+import { createWorkspace, type WorkspaceType } from "@/lib/api/userSvc";
 import { toast } from "@/lib/toast";
 import { useWorkspaces } from "@/lib/workspaces/store";
 
-/** Makes a workspace with the caller as its admin, and opens it. */
+export const WORKSPACE_TYPES: { value: WorkspaceType; label: string; description: string }[] = [
+  { value: "general", label: "General", description: "Sites, surveys, measurements and stockpile reports." },
+  {
+    value: "minor_minerals",
+    label: "River sand and minor minerals",
+    description: "Leases, drone missions, DGPS, replenishment studies and vetted reports, with their own vendors and drones.",
+  },
+];
+
+/** Makes a workspace with the caller as its admin, and opens it. A licensed organisation chooses what it is for. */
 export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const router = useRouter();
+  const licensed = useMinorMineralsLicence();
   const refresh = useWorkspaces((s) => s.refresh);
   const select = useWorkspaces((s) => s.select);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [type, setType] = useState<WorkspaceType>("general");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -21,6 +35,7 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
     if (!next) {
       setName("");
       setDescription("");
+      setType("general");
       setError(null);
     }
     onOpenChange(next);
@@ -35,9 +50,10 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
     setError(null);
     setBusy(true);
     try {
-      const created = await createWorkspace({ name: name.trim(), description: description.trim() });
+      const created = await createWorkspace({ name: name.trim(), description: description.trim(), ...(type !== "general" ? { type } : {}) });
       await refresh();
       await select(created.id);
+      if (type === "minor_minerals") router.push("/mm");
       toast.success(`Created ${created.name}. Give people and teams access from its settings.`);
       setBusy(false);
       close(false);
@@ -71,6 +87,11 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
         <Field label="Description" hint="Optional.">
           <Input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} />
         </Field>
+        {licensed && (
+          <Field label="What it’s for">
+            <RadioGroup value={type} onValueChange={(v) => setType(v as WorkspaceType)} options={WORKSPACE_TYPES} aria-label="What the workspace is for" />
+          </Field>
+        )}
       </form>
     </Dialog>
   );

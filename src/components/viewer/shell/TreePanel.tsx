@@ -43,6 +43,7 @@ import { LayerPanel } from "@/components/viewer/LayerPanel";
 import { SurveyList } from "@/components/viewer/SurveyList";
 import { WorkspaceTree } from "@/components/viewer/shell/WorkspaceTree";
 import { DesignsPanel } from "@/components/viewer/shell/DesignsPanel";
+import { ReplenishmentPanel } from "@/components/mm/viewer/ReplenishmentPanel";
 import type { ModuleKey } from "@/lib/viewer/state/store";
 import { EXPORT_FORMATS } from "@/lib/viewer/measurementExport";
 
@@ -52,6 +53,7 @@ const MODULE_TITLES: Record<Exclude<ModuleKey, "measure" | "survey">, string> = 
   hydro: "Hydro",
   crew: "Crew",
   machines: "Machines",
+  replenishment: "Replenishment",
 };
 
 export function TreePanel() {
@@ -125,6 +127,8 @@ export function TreePanel() {
         ) : activeModule === "measure" ? (
           // Renders without a manifest: an empty tree is the valid no-data state.
           <WorkspaceTree />
+        ) : activeModule === "replenishment" ? (
+          manifest ? <ReplenishmentPanel projectId={manifest.survey.project_id} surveyId={surveyId} /> : <Loader label="Loading survey" />
         ) : activeModule === "designs" ? (
           manifest ? <DesignsPanel projectId={manifest.survey.project_id} /> : <Loader label="Loading designs" />
         ) : activeModule === "survey" ? (

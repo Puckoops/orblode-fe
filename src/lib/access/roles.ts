@@ -65,7 +65,7 @@ export function canRemove(viewer: OrgViewer | null, member: OrgMember, owners: n
 export const hasJoined = (member: Pick<OrgMember, "last_login_time">) => !!member.last_login_time;
 
 /** Grants made on the object itself, and those reaching it from its workspace or the organisation. */
-export function splitAccess(entries: AccessEntry[]): { direct: AccessEntry[]; inherited: AccessEntry[] } {
+export function splitAccess<T extends AccessEntry>(entries: T[]): { direct: T[]; inherited: T[] } {
   return { direct: entries.filter((e) => !e.source), inherited: entries.filter((e) => e.source) };
 }
 

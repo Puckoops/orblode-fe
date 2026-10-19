@@ -1,10 +1,13 @@
 "use client";
 
 import { Button, Checkbox, Dialog, Field, HelperText, SearchSelect, Skeleton } from "@puckoops/camelot";
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { refusalMessage } from "@/lib/api/client";
-import { listOrgMembers, listTeams, setAccess, type AccessEntry, type AccessScope, type OrgMember, type Team } from "@/lib/api/userSvc";
+import { listOrgMembers, listTeams, removeAccess, setAccess, setCustomAccess, type AccessEntry, type AccessScope, type OrgMember, type Team } from "@/lib/api/userSvc";
 import { grantableSubjects, parseSubjectKey, ROLES, rolesFor, subjectKey } from "@/lib/access/roles";
+import { useCustomRoles } from "@/lib/access/customRoles";
 import { useOrganisation } from "@/lib/organisation/store";
 import { toast } from "@/lib/toast";
 
@@ -24,9 +27,13 @@ export function GrantDialog({
   objectId: string;
   objectName: string;
   granted: AccessEntry[];
-  editing: AccessEntry | null;
+  editing: (AccessEntry & { custom?: string[] }) | null;
   onSaved: (entries: AccessEntry[]) => void;
 }) {
+  const customRoles = useCustomRoles((s) => s.roles);
+  const minorMinerals = useMinorMinerals();
+  const loadCustomRoles = useCustomRoles((s) => s.load);
+  const [custom, setCustom] = useState<string[]>(editing?.custom ?? []);
   const organisation = useOrganisation((s) => s.organisation);
   const [teams, setTeams] = useState<Team[] | null>(null);
   const [people, setPeople] = useState<OrgMember[] | null>(null);
@@ -34,6 +41,10 @@ export function GrantDialog({
   const [roles, setRoles] = useState<string[]>(editing ? editing.roles : []);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void loadCustomRoles();
+  }, [loadCustomRoles]);
 
   useEffect(() => {
     if (editing) return;
@@ -55,20 +66,28 @@ export function GrantDialog({
     teams && people && organisation ? grantableSubjects(scope, { id: organisation.id, name: organisation.name }, teams, people, granted) : null;
 
   const toggle = (role: string, on: boolean) => setRoles((held) => (on ? [...held, role] : held.filter((r) => r !== role)));
+  const toggleCustom = (id: string, on: boolean) => setCustom((held) => (on ? [...held, id] : held.filter((r) => r !== id)));
 
   const save = async () => {
     if (!subject) {
       setError("Choose who gets access.");
       return;
     }
-    if (roles.length === 0) {
+    if (roles.length === 0 && custom.length === 0) {
       setError("Choose at least one role.");
       return;
     }
     setError(null);
     setBusy(true);
     try {
-      const entries = await setAccess(scope, objectId, parseSubjectKey(subject), roles);
+      const who = parseSubjectKey(subject);
+      let entries = granted;
+      if (roles.length > 0) entries = await setAccess(scope, objectId, who, roles);
+      else if (editing && editing.roles.length > 0) await removeAccess(scope, objectId, who);
+      const customBefore = editing?.custom ?? [];
+      if (who.type !== "organisation" && (custom.length !== customBefore.length || custom.some((id) => !customBefore.includes(id)))) {
+        await setCustomAccess(scope, objectId, who, custom);
+      }
       toast.success(editing ? "Access changed." : "Access given.");
       onSaved(entries);
       onClose();
@@ -136,6 +155,23 @@ export function GrantDialog({
           ))}
           {everyone && <HelperText>Everyone in the organisation can be a viewer only.</HelperText>}
         </fieldset>
+        {customRoles && customRoles.length > 0 && !everyone && (
+          <fieldset className="flex flex-col gap-3">
+            <legend className="small mb-2 font-medium text-ink-1">Custom roles</legend>
+            {customRoles.map((role) => (
+              <div key={role.id} className="flex flex-col gap-1">
+                <Checkbox label={role.name} checked={custom.includes(role.id)} disabled={busy} onCheckedChange={(on) => toggleCustom(role.id, on)} />
+                {role.description && <span className="caption pl-7 text-ink-4">{role.description}</span>}
+              </div>
+            ))}
+          </fieldset>
+        )}
+        {minorMinerals && customRoles?.length === 0 && !everyone && (
+          <HelperText>
+            Officials and vendors usually hold a custom role: make one from the Authority reviewer or Field vendor template in{" "}
+            <Link href="/settings?tab=roles">Settings → Roles</Link>.
+          </HelperText>
+        )}
         {error && (
           <HelperText tone="error" role="alert">
             {error}

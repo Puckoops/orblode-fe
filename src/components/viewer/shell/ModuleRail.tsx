@@ -18,14 +18,17 @@ import {
   DropletsIcon,
   Image01Icon,
   Layers01Icon,
+  MountainIcon,
   RulerIcon,
   TruckIcon,
   UsersIcon,
 } from "@hugeicons/core-free-icons";
 import { IconButton, Tooltip, type IconDefinition } from "@puckoops/camelot";
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { OrblodeMark } from "@/components/brand/OrblodeLogo";
+import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { useViewerStore } from "@/lib/viewer/state/store";
 import type { ModuleKey } from "@/lib/viewer/state/store";
 
@@ -47,11 +50,22 @@ const MODULES: ModuleDef[] = [
   { key: "machines", label: "Machines", icon: TruckIcon, live: false },
 ];
 
+const REPLENISHMENT: ModuleDef = { key: "replenishment", label: "Replenishment", icon: MountainIcon, live: true };
+
 export function ModuleRail() {
   const activeModule = useViewerStore((s) => s.activeModule);
   const treePanelOpen = useViewerStore((s) => s.treePanelOpen);
   const setActiveModule = useViewerStore((s) => s.setActiveModule);
   const setTreePanelOpen = useViewerStore((s) => s.setTreePanelOpen);
+  const minorMinerals = useMinorMinerals();
+  const modules = minorMinerals ? [...MODULES.slice(0, 3), REPLENISHMENT, ...MODULES.slice(3)] : MODULES;
+
+  useEffect(() => {
+    if (minorMinerals && new URLSearchParams(window.location.search).get("module") === "replenishment") {
+      setActiveModule("replenishment");
+      setTreePanelOpen(true);
+    }
+  }, [minorMinerals, setActiveModule, setTreePanelOpen]);
 
   const onSelect = (m: ModuleDef) => {
     if (!m.live) return;
@@ -75,7 +89,7 @@ export function ModuleRail() {
       <div className="my-3 h-px w-7 shrink-0 bg-hairline" />
 
       <div className="flex flex-col items-center gap-1">
-        {MODULES.map((m) => {
+        {modules.map((m) => {
           const active = m.key === activeModule;
           return (
             <Tooltip

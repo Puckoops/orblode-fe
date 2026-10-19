@@ -6,6 +6,23 @@ const GROUPS: { label: string; types: string[] }[] = [
   { label: "Measurements", types: ["measurement_computed", "measurement_failed", "stockpiles_computed"] },
   { label: "Sites", types: ["reconciliation_red", "stock_anomaly", "site_summary"] },
   { label: "People", types: ["member_joined", "added_to_organisation", "survey_shared"] },
+  {
+    label: "Minor minerals",
+    types: [
+      "mm_application_filed",
+      "mm_study_ready",
+      "mm_study_failed",
+      "mm_report_submitted",
+      "mm_report_returned",
+      "mm_report_vetted",
+      "mm_mission_issued",
+      "mm_mission_returned",
+      "mm_move_approval",
+      "mm_flight_uploaded",
+      "mm_gnss_processed",
+      "mm_gnss_failed",
+    ],
+  },
 ];
 
 export interface NotificationGroup {

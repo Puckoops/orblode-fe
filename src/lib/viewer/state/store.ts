@@ -44,7 +44,8 @@ export type ModuleKey =
   | "media"
   | "hydro"
   | "crew"
-  | "machines";
+  | "machines"
+  | "replenishment";
 
 /** Camera pose in the URL/bookmark/preset serialization format: degrees,
  * meters, ellipsoidal height. Serde lives in `lib/viewer/camera.ts` (§5.3). */

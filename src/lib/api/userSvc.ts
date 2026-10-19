@@ -88,6 +88,8 @@ export interface CreateProjectRequest {
   crs_label?: string;
   vertical_datum?: string;
   primary_material?: string;
+  center_lat?: number;
+  center_lng?: number;
 }
 
 export function createProject(req: CreateProjectRequest): Promise<Project> {
@@ -99,6 +101,9 @@ export function updateProject(id: string, change: Partial<Omit<CreateProjectRequ
   return apiFetch<Project>(USERS_API, `/orblode/projects/${encodeURIComponent(id)}`, { method: "PUT", body: change });
 }
 
+/** What a workspace is for: minor_minerals needs the organisation's extension. */
+export type WorkspaceType = "general" | "minor_minerals";
+
 /** A group of sites. A role on it reaches every site in it; the organisation's owners and admins manage them all. */
 export interface Workspace {
   id: string;
@@ -108,6 +113,8 @@ export interface Workspace {
   /** What the workspace listed before access moved to roles; no longer kept up to date. */
   user_ids: string[];
   is_default: boolean;
+  /** Absent from a user-svc older than workspace types: general. */
+  type?: WorkspaceType;
   project_count: number;
   /** Whether the signed-in person may rename it, delete it and change who has access. */
   can_manage: boolean;
@@ -123,11 +130,11 @@ export function listWorkspaces(): Promise<Workspace[]> {
 }
 
 /** The caller becomes the workspace's admin. */
-export function createWorkspace(req: { name: string; description?: string; user_ids?: string[] }): Promise<Workspace> {
+export function createWorkspace(req: { name: string; description?: string; user_ids?: string[]; type?: WorkspaceType }): Promise<Workspace> {
   return apiFetch<Workspace>(USERS_API, "/orblode/workspaces", { method: "POST", body: req });
 }
 
-export function updateWorkspace(id: string, change: { name?: string; description?: string }): Promise<Workspace> {
+export function updateWorkspace(id: string, change: { name?: string; description?: string; type?: WorkspaceType }): Promise<Workspace> {
   return apiFetch<Workspace>(USERS_API, `/orblode/workspaces/${encodeURIComponent(id)}`, { method: "PUT", body: change });
 }
 
@@ -168,6 +175,8 @@ export interface Organisation {
   company_name?: string;
   member_privileges: MemberPrivileges;
   viewer: OrgViewer;
+  /** Extensions switched on for the organisation, such as "minor_minerals". */
+  extensions?: string[];
 }
 
 export interface OrgMember {
@@ -359,4 +368,71 @@ export async function removeAccess(scope: AccessScope, id: string, subject: { ty
 /** Every permission the caller holds on the site, false when denied. */
 export function getProjectPermissions(projectId: string): Promise<{ project_id: string; permissions: Record<string, boolean> }> {
   return apiFetch(USERS_API, `/orblode/auth/permissions?project_id=${encodeURIComponent(projectId)}`);
+}
+
+/** A role an organisation made by choosing permissions; it is given on a workspace or a site like a built-in one. */
+export interface CustomRole {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  template?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PermissionInfo {
+  key: string;
+  label: string;
+  description: string;
+  locked?: boolean;
+}
+
+export interface RoleCatalogue {
+  groups: { key: string; label: string; permissions: PermissionInfo[] }[];
+  templates: { key: string; name: string; description: string; permissions: string[] }[];
+}
+
+export function listCustomRoles(): Promise<CustomRole[]> {
+  return apiFetch<{ roles: CustomRole[] }>(USERS_API, "/orblode/roles").then((r) => r.roles ?? []);
+}
+
+export function getRoleCatalogue(): Promise<RoleCatalogue> {
+  return apiFetch<RoleCatalogue>(USERS_API, "/orblode/roles/catalogue");
+}
+
+export function createCustomRole(role: Omit<CustomRole, "id">): Promise<CustomRole> {
+  return apiFetch<CustomRole>(USERS_API, "/orblode/roles", { method: "POST", body: role });
+}
+
+export function updateCustomRole(id: string, role: Omit<CustomRole, "id">): Promise<CustomRole> {
+  return apiFetch<CustomRole>(USERS_API, `/orblode/roles/${encodeURIComponent(id)}`, { method: "PATCH", body: role });
+}
+
+export async function deleteCustomRole(id: string): Promise<void> {
+  await apiFetch<null>(USERS_API, `/orblode/roles/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** One grantee's custom roles on a workspace or a site; inherited rows name their workspace in `source`. */
+export interface CustomAccessEntry {
+  subject: AccessEntry["subject"];
+  role_ids: string[];
+  source?: AccessEntry["source"];
+}
+
+const customAccessPath = (scope: AccessScope, id: string) =>
+  `/orblode/${scope === "workspace" ? "workspaces" : "projects"}/${encodeURIComponent(id)}/custom-access`;
+
+const entriesOf = (body: CustomAccessEntry[] | { entries?: CustomAccessEntry[] }) => (Array.isArray(body) ? body : (body.entries ?? []));
+
+export function getCustomAccess(scope: AccessScope, id: string): Promise<CustomAccessEntry[]> {
+  return apiFetch<CustomAccessEntry[] | { entries?: CustomAccessEntry[] }>(USERS_API, customAccessPath(scope, id)).then(entriesOf);
+}
+
+/** Replaces the grantee's custom roles on the workspace or site; an empty list takes them all away. */
+export function setCustomAccess(scope: AccessScope, id: string, subject: { type: SubjectType; id: string }, roleIds: string[]): Promise<CustomAccessEntry[]> {
+  return apiFetch<CustomAccessEntry[] | { entries?: CustomAccessEntry[] }>(USERS_API, customAccessPath(scope, id), {
+    method: "PUT",
+    body: { subject_type: subject.type, subject_id: subject.id, role_ids: roleIds },
+  }).then(entriesOf);
 }
