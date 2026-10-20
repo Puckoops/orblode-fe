@@ -165,7 +165,9 @@ export function SendForVettingDialog({
               className="flex flex-col gap-2 rounded-md border border-hairline p-3"
             >
               <div className="flex items-center gap-2">
-                <span className="caption text-ink-4">Step {i + 1}</span>
+                <span className="caption shrink-0 whitespace-nowrap text-ink-4">
+                  Step {i + 1}
+                </span>
                 <Input
                   aria-label={`Name of step ${i + 1}`}
                   value={s.label}

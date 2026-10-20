@@ -24,7 +24,7 @@ import {
 } from "@/lib/api/mm";
 import type { Survey } from "@/lib/api/orblodeSvc";
 import { useMay } from "@/lib/access/sitePermissions";
-import { m3 } from "@/lib/mm/format";
+import { m3, thousands } from "@/lib/mm/format";
 import { seasonOf, SEASON_LABEL } from "@/lib/mm/season";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
@@ -207,7 +207,9 @@ export function LeaseCard({ projectId, surveys, className }: { projectId: string
               <StatusChip map={VERDICT} value={latest.verdict} />
             </div>
             <span className="caption text-ink-4">
-              Replenished; proposed is {latest.rules.ratio_pct.toFixed(0)} % of it
+              {latest.results.adopted_m3 > 0
+                ? `Net deposition; the proposed ${thousands(latest.inputs.proposed_m3)} m³/yr is ${latest.rules.ratio_pct.toFixed(0)} % of it`
+                : "Nothing was replenished between the two surveys"}
             </span>
             {latest.status === "accepted" ? (
               latest.report_id && (

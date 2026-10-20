@@ -47,16 +47,17 @@ export function ReportsScreen() {
       setLinkedSite(site);
     }
     if (t && (TABS as readonly string[]).includes(t)) setTab(t as Tab);
-    if (site || t) setKind("stockpiles");
+    if (t) setKind("stockpiles");
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useSiteInWorkspace(siteId, setSiteId, linkedSite, true);
 
+  const replenishment = minorMinerals && (official || kind === "replenishment");
   useEffect(() => {
-    if (!siteId) return;
-    window.history.replaceState(null, "", `/reports?site=${encodeURIComponent(siteId)}&tab=${tab}`);
-  }, [siteId, tab]);
+    if (replenishment) window.history.replaceState(null, "", "/reports");
+    else if (siteId) window.history.replaceState(null, "", `/reports?site=${encodeURIComponent(siteId)}&tab=${tab}`);
+  }, [siteId, tab, replenishment]);
 
   const loadMaterials = useCallback(() => {
     if (!siteId) return;
@@ -98,7 +99,7 @@ export function ReportsScreen() {
     />
   );
 
-  if (minorMinerals && (official || kind === "replenishment"))
+  if (replenishment)
     return (
       <Page>
         <PageHeader
