@@ -336,7 +336,10 @@ export function ReplenishmentPanel({
     return (
       <Alert tone="info" title="This site has no lease" className="m-3">
         Replenishment is measured inside a lease boundary.{" "}
-        <Link href="/mm/leases/new">Start an application</Link> for this site.
+        <Link href={`/upload?create=lease&site=${encodeURIComponent(projectId)}`}>
+          Start an application
+        </Link>{" "}
+        for this site.
       </Alert>
     );
 

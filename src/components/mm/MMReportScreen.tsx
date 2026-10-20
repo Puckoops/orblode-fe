@@ -244,7 +244,7 @@ function Content({ reportId }: { reportId: string }) {
         eyebrow={`Minor minerals · report v${report.version}`}
         title={report.title}
         subtitle={[report.lease.name, report.lease.river && `${report.lease.river} river`, report.lease.district].filter(Boolean).join(" · ")}
-        back={<Link href="/mm/reports">← Studies</Link>}
+        back={<Link href="/reports">← Reports</Link>}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusChip map={REPORT_STATUS} value={report.status} />

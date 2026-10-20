@@ -338,7 +338,7 @@ function Content({ leaseId }: { leaseId: string }) {
         eyebrow="Minor minerals · lease"
         title={lease.name}
         subtitle={[lease.river && `${lease.river} river`, lease.district, lease.tahasil && `${lease.tahasil} tahasil`, site?.name].filter(Boolean).join(" · ")}
-        back={<Link href="/mm/leases">← Leases</Link>}
+        back={<Link href={`/globe?site=${encodeURIComponent(lease.project_id)}`}>← Sites</Link>}
         actions={
           <div className="flex items-center gap-2">
             <StatusChip map={LEASE_STATUS} value={lease.status} />

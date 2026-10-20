@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Loader } from "@/components/brand/Loader";
 import { NoWorkspace } from "@/components/workspaces/NoWorkspace";
 import { useCesiumReady } from "@/hooks/useCesiumReady";
+import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { useSiteInWorkspace } from "@/hooks/useSiteInWorkspace";
 import { sitesHref } from "@/lib/viewer/surveyAccess";
 import { useWorkspaces } from "@/lib/workspaces/store";
@@ -28,6 +29,7 @@ export function GlobeScreen() {
   // DashboardGlobe's chunk resolves the `cesium` external at eval time, so it must not load before window.Cesium exists.
   const cesiumReady = useCesiumReady();
   const insta = useInstaView();
+  const minorMinerals = useMinorMinerals();
 
   // ?site= is read from window.location so the page needs no Suspense boundary.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -48,7 +50,7 @@ export function GlobeScreen() {
 
   return (
     <div className="flex h-[calc(100vh-var(--pagehead-h))] w-full overflow-hidden bg-canvas">
-      <div className="z-10 w-72 shrink-0 border-r border-hairline">
+      <div className={`z-10 shrink-0 border-r border-hairline ${minorMinerals ? "w-96" : "w-72"}`}>
         {noWorkspace ? (
           <NoWorkspace className="px-5 pt-10" />
         ) : (

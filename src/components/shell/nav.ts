@@ -38,11 +38,14 @@ export const TITLES: Record<string, string> = {
   "/files": "Files",
   "/reports": "Reports",
   "/settings": "Settings",
-  "/mm": "Minor minerals",
-  "/mm/leases": "Leases",
-  "/mm/register": "Project register",
   "/mm/missions": "Missions",
   "/mm/dgps": "DGPS",
-  "/mm/reports": "Studies",
-  "/mm/registers": "Registers",
+};
+
+/** Minor-minerals records live under the Orblode page their kind folded into. */
+export const FOLDED: Record<string, string> = {
+  "/mm/leases": "/globe",
+  "/mm/register": "/globe",
+  "/mm/reports": "/reports",
+  "/mm/registers": "/settings",
 };

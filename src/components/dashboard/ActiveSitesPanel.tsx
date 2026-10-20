@@ -5,6 +5,10 @@ import { Button, EmptyState, Glyph, Icon, SearchInput, Skeleton } from "@puckoop
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Loader } from "@/components/brand/Loader";
+import { Stages } from "@/components/mm/common";
+import { MMSitesHeader } from "@/components/mm/MMSitesHeader";
+import { useMinorMinerals } from "@/hooks/useMinorMinerals";
+import { getOverview, getRegister, type Overview, type RegisterRow } from "@/lib/api/mm";
 import type { Project } from "@/lib/api/userSvc";
 import { listSurveys } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
@@ -17,7 +21,8 @@ interface SurveyStats {
   latestDate: string;
 }
 
-/** The site list beside the globe: filter, pick a site, or start a new one. `projects` is null while loading. */
+/** The site list beside the globe: filter, pick a site, or start a new one. `projects` is null while loading. In a
+ * minor-minerals workspace each site shows its lease's stages, and the stages above filter the list. */
 export function ActiveSitesPanel({
   projects,
   onSiteSelect,
@@ -32,9 +37,30 @@ export function ActiveSitesPanel({
   const mayCreateSite = useCurrentWorkspace()?.can_create_project ?? true;
   const [surveyStats, setSurveyStats] = useState<Record<string, SurveyStats>>({});
   const [filter, setFilter] = useState("");
+  const minorMinerals = useMinorMinerals();
+  const [register, setRegister] = useState<RegisterRow[] | null>(null);
+  const [attention, setAttention] = useState<Overview["attention"]>([]);
+  const [stage, setStage] = useState<string | null>(null);
+  const leaseOf = (siteId: string) => register?.find((r) => r.lease.project_id === siteId);
+  const newSite = minorMinerals ? { href: "/upload?create=lease", label: "New lease site" } : { href: "/upload?new=1", label: "New site" };
 
   const q = filter.trim().toLowerCase();
-  const visibleProjects = projects ? (q ? projects.filter((p) => p.name.toLowerCase().includes(q)) : projects) : null;
+  const visibleProjects = projects
+    ? projects.filter((p) => (!q || p.name.toLowerCase().includes(q)) && (!stage || leaseOf(p.id)?.current_stage === stage))
+    : null;
+
+  useEffect(() => {
+    if (!minorMinerals || !projects) return;
+    let cancelled = false;
+    Promise.all([getRegister().catch(() => [] as RegisterRow[]), getOverview().catch(() => null)]).then(([rows, overview]) => {
+      if (cancelled) return;
+      setRegister(rows);
+      setAttention(overview?.attention ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [minorMinerals, projects]);
 
   useEffect(() => {
     // Stale entries are harmless: render only reads stats for projects in the list.
@@ -63,6 +89,11 @@ export function ActiveSitesPanel({
 
   return (
     <div className="flex h-full w-full flex-col bg-surface pt-4 pb-5">
+      {minorMinerals && register && (
+        <div className="mb-5">
+          <MMSitesHeader rows={register} attention={attention} stage={stage} onStage={setStage} />
+        </div>
+      )}
       <div className="mb-5 px-5">
         <SearchInput value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter sites…" aria-label="Filter sites" />
       </div>
@@ -78,7 +109,7 @@ export function ActiveSitesPanel({
           )}
           {visibleProjects?.length === 0 && (
             <li>
-              {q ? (
+              {q || stage ? (
                 <EmptyState icon={Location01Icon} title="No sites match your filter." />
               ) : (
                 <EmptyState
@@ -87,7 +118,7 @@ export function ActiveSitesPanel({
                   action={
                     mayCreateSite ? (
                       <Button asChild variant="ghost" size="sm">
-                        <Link href="/upload?new=1">New site</Link>
+                        <Link href={newSite.href}>{newSite.label}</Link>
                       </Button>
                     ) : undefined
                   }
@@ -100,6 +131,7 @@ export function ActiveSitesPanel({
             const state = lifecycleState(site.lifecycle_status);
             const stats = surveyStats[site.id];
             const failedCount = failed.filter((s) => s.project_id === site.id).length;
+            const lease = minorMinerals && register ? leaseOf(site.id) : undefined;
             return (
               <li key={site.id}>
                 <button
@@ -126,6 +158,18 @@ export function ActiveSitesPanel({
                     ) : (
                       <Skeleton width={120} height={12} />
                     )}
+                    {minorMinerals && register && (
+                      <span className="mt-1.5 flex items-center gap-2">
+                        {lease ? (
+                          <>
+                            <Stages stages={lease.stages} />
+                            <span className="caption truncate text-ink-3">{lease.state_label}</span>
+                          </>
+                        ) : (
+                          <span className="caption text-ink-4">No lease yet</span>
+                        )}
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>
@@ -137,9 +181,9 @@ export function ActiveSitesPanel({
       {mayCreateSite && (
         <div className="mt-4 px-5">
           <Button asChild variant="quiet" className="w-full">
-            <Link href="/upload?new=1">
+            <Link href={newSite.href}>
               <Icon icon={Add01Icon} size={16} />
-              New site
+              {newSite.label}
             </Link>
           </Button>
         </div>

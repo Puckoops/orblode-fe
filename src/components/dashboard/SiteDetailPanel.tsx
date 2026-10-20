@@ -7,7 +7,9 @@ import { useEffect, useMemo, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
 import { SiteAccess } from "@/components/access/SiteAccess";
+import { LeaseCard } from "@/components/mm/LeaseCard";
 import { MoveSite } from "@/components/workspaces/MoveSite";
+import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { getProject, type Project } from "@/lib/api/userSvc";
 import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
@@ -29,6 +31,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   const running = useProcessing((s) => s.running);
   const runningIds = useMemo(() => new Set(running.map((s) => s.survey_id)), [running]);
   const [retrying, setRetrying] = useState(false);
+  const minorMinerals = useMinorMinerals();
 
   useEffect(() => {
     if (!projectId) return;
@@ -118,6 +121,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
 
         <MoveSite site={projectData} onMoved={onClose} className="mb-6" />
         <SiteAccess site={projectData} className="mb-6" />
+        {minorMinerals && <LeaseCard projectId={projectId} surveys={surveys} className="mb-6" />}
 
         <dl className="mb-8 grid grid-cols-3 gap-2">
           <Stat value={String(surveys.length)} label="surveys" />

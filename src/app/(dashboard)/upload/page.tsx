@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { UploadScreen } from "@/components/upload/UploadScreen";
+import { CreateScreen } from "@/components/upload/CreateScreen";
 
 export const metadata: Metadata = { title: "Create" };
 
 export default function UploadPage() {
-  return <UploadScreen />;
+  return <CreateScreen />;
 }
