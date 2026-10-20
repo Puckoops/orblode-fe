@@ -26,9 +26,10 @@ import {
 import { useState, type FormEvent } from "react";
 import { AccessList } from "@/components/access/AccessList";
 import { useConfirm, type ConfirmRequest } from "@/components/common/confirm";
+import { WorkspaceDefaults } from "@/components/mm/WorkspaceDefaults";
 import { NewWorkspaceDialog, WORKSPACE_TYPES } from "@/components/workspaces/NewWorkspaceDialog";
 import { useAuthClient } from "@/hooks/useAuth";
-import { useMinorMineralsLicence } from "@/hooks/useMinorMinerals";
+import { useMinorMinerals, useMinorMineralsLicence } from "@/hooks/useMinorMinerals";
 import { refusalMessage } from "@/lib/api/client";
 import { deleteWorkspace, updateWorkspace, type Workspace, type WorkspaceType } from "@/lib/api/userSvc";
 import { useOrgViewer } from "@/lib/organisation/store";
@@ -202,7 +203,8 @@ function DeleteWorkspace({ workspace, confirm }: { workspace: Workspace; confirm
   );
 }
 
-/** Settings for the open workspace: its details, who has access, the other workspaces, and deleting it. */
+/** Settings for the open workspace: its details, who has access, a minor-minerals workspace's defaults, the other
+ * workspaces, and deleting it. */
 export function WorkspaceSettings() {
   const workspaces = useWorkspaces((s) => s.workspaces);
   const unavailable = useWorkspaces((s) => s.unavailable);
@@ -211,6 +213,7 @@ export function WorkspaceSettings() {
   const viewer = useOrgViewer();
   const { confirm, confirmDialog } = useConfirm();
   const [creating, setCreating] = useState(false);
+  const minorMinerals = useMinorMinerals();
   const mayCreate = viewer?.can_create_workspaces ?? false;
 
   if (unavailable) {
@@ -276,6 +279,14 @@ export function WorkspaceSettings() {
           onChanged={() => void refresh()}
         />
       </Band>
+      {minorMinerals && (
+        <Band
+          heading="Minor minerals defaults"
+          caption="The review chain, reference station and study settings every lease site in this workspace starts from."
+        >
+          <WorkspaceDefaults key={current.id} workspace={current} />
+        </Band>
+      )}
       <Band heading="Your workspaces" caption={mayCreate ? "Every workspace you have access to. You can start one." : "Every workspace you have access to."}>
         <AllWorkspaces onNew={mayCreate ? () => setCreating(true) : null} />
       </Band>

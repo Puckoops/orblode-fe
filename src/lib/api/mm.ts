@@ -42,6 +42,11 @@ export interface LeaseBoundary {
   set_at: number;
 }
 
+export interface LeaseStudy {
+  proposed_m3?: number;
+  water_table_depth_m?: number;
+}
+
 export type LeaseStatus = "draft" | "submitted" | "registered";
 export type Workflow = "A" | "B" | "C" | "D";
 
@@ -67,6 +72,8 @@ export interface Lease {
   remarks: string;
   status: LeaseStatus;
   boundary?: LeaseBoundary;
+  /** What the lease's studies measure against; a study starts on its own once the proposed extraction is set. */
+  study?: LeaseStudy;
   checklist: ChecklistItem[];
   submitted_at?: number;
   registered_at?: number;
@@ -337,6 +344,16 @@ export function acceptAnalysis(analysisId: string): Promise<Report> {
   return apiFetch<Report>(BASE, `/mm/analyses/${id(analysisId)}/accept`, { method: "POST" });
 }
 
+/** Accepts a measured study and sends the report it drafts up the chain given, or the workspace's default chain. */
+export function sendForVetting(analysisId: string, steps?: { label: string; reviewer_ids: string[] }[]): Promise<Report> {
+  return apiFetch<Report>(BASE, `/mm/analyses/${id(analysisId)}/send-for-vetting`, { method: "POST", body: steps ? { steps } : {} });
+}
+
+/** A value left out keeps the stored one. */
+export function setLeaseStudy(leaseId: string, study: LeaseStudy): Promise<Lease> {
+  return apiFetch<Lease>(BASE, `/mm/leases/${id(leaseId)}/study`, { method: "PUT", body: study });
+}
+
 export type ReportStatus = "draft" | "in_review" | "returned" | "vetted" | "superseded";
 
 export interface ReviewStep {
@@ -380,10 +397,14 @@ export interface Report {
   created_by: Person;
 }
 
-export function listReports(params: { projectId?: string; leaseId?: string; status?: ReportStatus } = {}): Promise<Report[]> {
-  return apiFetch<{ reports: Report[] }>(BASE, `/mm/reports${q({ ...scope(params.projectId), lease_id: params.leaseId, status: params.status })}`).then(
-    (r) => r.reports ?? []
-  );
+/** waiting: only reports in review whose current step lists the caller. */
+export function listReports(
+  params: { projectId?: string; leaseId?: string; status?: ReportStatus; waiting?: boolean } = {}
+): Promise<Report[]> {
+  return apiFetch<{ reports: Report[] }>(
+    BASE,
+    `/mm/reports${q({ ...scope(params.projectId), lease_id: params.leaseId, status: params.status, waiting: params.waiting ? "me" : undefined })}`
+  ).then((r) => r.reports ?? []);
 }
 
 export function getReport(reportId: string): Promise<Report> {
@@ -522,6 +543,8 @@ export interface Mission {
   return_note?: string;
   baseline_id?: string;
   survey_ids: string[];
+  /** The DGPS job made when it was issued, when its workspace has a reference station. */
+  gnss_job_id?: string;
   issued_at?: number;
   issued_by?: Person;
   created_at: number;
@@ -603,6 +626,11 @@ export function resetGCP(missionId: string, pointId: string): Promise<Mission> {
   return apiFetch<Mission>(BASE, `/mm/missions/${id(missionId)}/gcps/${id(pointId)}/reset`, { method: "POST" });
 }
 
+/** Makes an issued mission's DGPS job from its points and the workspace's reference station. */
+export function missionGroundControl(missionId: string): Promise<Mission> {
+  return apiFetch<Mission>(BASE, `/mm/missions/${id(missionId)}/ground-control`, { method: "POST" });
+}
+
 export function issueMission(missionId: string): Promise<Mission> {
   return apiFetch<Mission>(BASE, `/mm/missions/${id(missionId)}/issue`, { method: "POST" });
 }
@@ -638,6 +666,8 @@ export interface Vendor {
   name: string;
   contact: string;
   user_ids: string[];
+  /** The organisation's team whose members fly for the vendor. */
+  team_id?: string;
 }
 
 export interface Drone {
@@ -822,6 +852,41 @@ export interface PublicShare {
 
 export const PUBLIC_API = "/api/public/mm";
 
+/** Who can vet reports on the site, for naming a chain before a report exists. */
+export function siteReviewers(projectId: string): Promise<string[]> {
+  return apiFetch<{ user_ids: string[] }>(BASE, `/mm/projects/${id(projectId)}/reviewers`).then((r) => r.user_ids ?? []);
+}
+
 export function reportReviewers(reportId: string): Promise<string[]> {
   return apiFetch<{ user_ids: string[] | null }>(BASE, `/mm/reports/${id(reportId)}/reviewers`).then((r) => r.user_ids ?? []);
+}
+
+/** A minor-minerals workspace's defaults: the review chain reports are sent along, the station ground control is
+ * solved against, and how studies measure. */
+export interface WorkspaceSettings {
+  workspace_id: string;
+  review_chain: { label: string; reviewer_ids: string[] }[];
+  reference_station: ReferenceStation | null;
+  study_defaults: { spacing_m: number; vertical_accuracy_m: number; max_extraction_pct: number };
+  updated_at?: number;
+  updated_by?: Person;
+}
+
+export interface ReferenceStation {
+  name: string;
+  lat: number;
+  lon: number;
+  h_ellipsoid: number;
+  antenna_height_m: number;
+}
+
+export function getSettings(workspaceId = currentWorkspace()): Promise<WorkspaceSettings> {
+  return apiFetch<WorkspaceSettings>(BASE, `/mm/settings${q({ workspace_id: workspaceId })}`);
+}
+
+export function saveSettings(
+  settings: Omit<WorkspaceSettings, "workspace_id" | "updated_at" | "updated_by">,
+  workspaceId = currentWorkspace()
+): Promise<WorkspaceSettings> {
+  return apiFetch<WorkspaceSettings>(BASE, `/mm/settings${q({ workspace_id: workspaceId })}`, { method: "PUT", body: settings });
 }

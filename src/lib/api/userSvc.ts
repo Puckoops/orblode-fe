@@ -366,6 +366,22 @@ export async function removeAccess(scope: AccessScope, id: string, subject: { ty
 }
 
 /** Every permission the caller holds on the site, false when denied. */
+/** What the caller may do across a workspace: on it, or on any of its sites. A user-svc that predates it sends none. */
+export interface WorkspaceAccessSummary {
+  can_manage: boolean;
+  can_upload_any: boolean;
+  can_run_analysis_any: boolean;
+  can_plan_mission_any: boolean;
+  can_upload_mission_data_any: boolean;
+  can_vet_any: boolean;
+}
+
+export function getWorkspacePermissions(
+  workspaceId: string
+): Promise<{ workspace_id: string; permissions: Record<string, boolean>; summary?: WorkspaceAccessSummary }> {
+  return apiFetch(USERS_API, `/orblode/auth/permissions?workspace_id=${encodeURIComponent(workspaceId)}`);
+}
+
 export function getProjectPermissions(projectId: string): Promise<{ project_id: string; permissions: Record<string, boolean> }> {
   return apiFetch(USERS_API, `/orblode/auth/permissions?project_id=${encodeURIComponent(projectId)}`);
 }
