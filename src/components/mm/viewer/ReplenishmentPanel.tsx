@@ -54,6 +54,7 @@ import {
   studyRunning,
 } from "../AnalysisSummary";
 import { SendForVettingDialog } from "../SendForVettingDialog";
+import { KeepAwayPlaces } from "./KeepAwayPlaces";
 import { useMmOverlay, useMmPolygonDraw, type Overlay } from "./useMmScene";
 
 const MASK_KINDS: { value: MaskKind; label: string }[] = [
@@ -204,6 +205,7 @@ export function ReplenishmentPanel({
   const [vetting, setVetting] = useState<Analysis | null>(null);
   const mayMask = useMay(projectId, "can_create_measurement");
   const mayRun = useMay(projectId, "can_run_analysis");
+  const mayUpload = useMay(projectId, "can_upload");
 
   const load = useCallback(
     () =>
@@ -497,6 +499,8 @@ export function ReplenishmentPanel({
             </div>
           ))}
       </section>
+
+      <KeepAwayPlaces projectId={projectId} editable={mayUpload} />
 
       {mayRun && lease.boundary && (
         <section className="flex flex-col gap-3">

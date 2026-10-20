@@ -61,6 +61,7 @@ import { toUtm } from "@/lib/mm/utm";
 import { toast } from "@/lib/toast";
 import { CHECK_STATE, MISSION_STATUS, MMGate, StatusChip, useFollowSite, useSitePermissionsLoad } from "./common";
 import { FlightUpload } from "./FlightUpload";
+import { GroundControlCard } from "./GroundControlCard";
 import { LazyMap } from "./LazyMap";
 import type { MapArea, MapPoint } from "./MMMap";
 
@@ -456,7 +457,7 @@ function Content({ missionId }: { missionId: string }) {
           <TabsContent value="handoff" className="flex flex-col gap-5 pt-4">
             <Band first heading="Vendor and window">
               <div className="flex flex-col gap-4">
-                <Field label="Vendor" hint={vendors.length === 0 ? "Add vendors under Registers." : undefined}>
+                <Field label="Vendor team" hint={vendors.length === 0 ? "Make a team a drone vendor in Settings → Teams." : undefined}>
                   <Select
                     value={mission.vendor_id ?? ""}
                     onValueChange={(v) => void run("vendor", () => updateMission(mission.id, { vendor_id: v }))}
@@ -493,6 +494,9 @@ function Content({ missionId }: { missionId: string }) {
                   </Field>
                 </div>
               </div>
+            </Band>
+            <Band heading="Ground control">
+              <GroundControlCard mission={mission} canPlan={canPlan} onChange={(m) => void refresh(m)} />
             </Band>
             <Band heading="Field files" caption={issued ? "For the pilot and the DGPS crew." : "Ready once the mission is issued."}>
               <div className="flex flex-wrap gap-2">

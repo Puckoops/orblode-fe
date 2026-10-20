@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { Button, Field, HelperText, Icon, Input, Select, Skeleton } from "@puckoops/camelot";
+import { Button, HelperText, Icon, Select, Skeleton } from "@puckoops/camelot";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -13,7 +13,6 @@ import {
   listAnalyses,
   listSurveyTags,
   sendForVetting,
-  setLeaseStudy,
   siteReviewers,
   tagSurvey,
   type Analysis,
@@ -32,10 +31,10 @@ import { formatSurveyDate } from "@/lib/utils";
 import { StudyProgress, studyRunning } from "./AnalysisSummary";
 import { LEASE_STATUS, Stages, StatusChip, useSitePermissionsLoad, VERDICT } from "./common";
 import { SendForVettingDialog } from "./SendForVettingDialog";
+import { StudyInputs } from "./StudyInputs";
 
 const SEASONS_SHOWN = 4;
 
-const optionalNumber = (raw: string) => (raw.trim() === "" || !Number.isFinite(Number(raw)) ? undefined : Number(raw));
 const today = () => new Date().toISOString().slice(0, 10);
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -56,9 +55,6 @@ export function LeaseCard({ projectId, surveys, className }: { projectId: string
   const [attention, setAttention] = useState<Overview["attention"]>([]);
   const [tags, setTags] = useState<SurveyTag[]>([]);
   const [latest, setLatest] = useState<Analysis | null>(null);
-  const [proposed, setProposed] = useState("");
-  const [waterTable, setWaterTable] = useState("");
-  const [saving, setSaving] = useState(false);
   const [vetting, setVetting] = useState(false);
   useSitePermissionsLoad(projectId);
   const mayUpload = useMay(projectId, "can_upload");
@@ -72,8 +68,6 @@ export function LeaseCard({ projectId, surveys, className }: { projectId: string
         .then((l) => {
           setLease(l);
           if (!l) return;
-          setProposed(l.study?.proposed_m3 != null ? String(l.study.proposed_m3) : "");
-          setWaterTable(l.study?.water_table_depth_m != null ? String(l.study.water_table_depth_m) : "");
           return Promise.all([
             getRegister(projectId).catch(() => [] as RegisterRow[]),
             getOverview().catch(() => null),
@@ -130,27 +124,12 @@ export function LeaseCard({ projectId, surveys, className }: { projectId: string
     }
   };
 
-  const saveStudy = async () => {
-    setSaving(true);
-    try {
-      const saved = await setLeaseStudy(lease.id, { proposed_m3: optionalNumber(proposed), water_table_depth_m: optionalNumber(waterTable) });
-      setLease({ ...lease, study: saved.study });
-      toast.success("Study inputs saved.");
-    } catch (err) {
-      toast.error(refusalMessage(err, "Couldn't save the study inputs."));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const nextSeason = seasonOf(today()) ?? "post";
   const next = attention[0]
     ? { href: attention[0].link, text: attention[0].item }
     : lease.status === "registered" && mayPlan
       ? { href: `/upload?create=mission&lease=${encodeURIComponent(lease.id)}`, text: `Plan the ${SEASON_LABEL[nextSeason].toLowerCase()} mission` }
       : null;
-  const studyChanged =
-    optionalNumber(proposed) !== (lease.study?.proposed_m3 ?? undefined) || optionalNumber(waterTable) !== (lease.study?.water_table_depth_m ?? undefined);
   const documents = lease.documents?.filter((d) => d.status === "uploaded").length ?? 0;
 
   return (
@@ -213,24 +192,7 @@ export function LeaseCard({ projectId, surveys, className }: { projectId: string
       )}
 
       <Section title="Study inputs">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Proposed (m³/yr)">
-            <Input inputMode="decimal" value={proposed} disabled={!mayRun} onChange={(e) => setProposed(e.target.value)} />
-          </Field>
-          <Field label="Water table (m)">
-            <Input inputMode="decimal" value={waterTable} disabled={!mayRun} onChange={(e) => setWaterTable(e.target.value)} />
-          </Field>
-        </div>
-        {mayRun && studyChanged && (
-          <div>
-            <Button size="sm" variant="ghost" loading={saving} onClick={() => void saveStudy()}>
-              Save
-            </Button>
-          </div>
-        )}
-        {lease.study?.proposed_m3 == null && (
-          <HelperText>With a proposed extraction, a study starts on its own once both seasons have terrain.</HelperText>
-        )}
+        <StudyInputs key={lease.id} lease={lease} editable={mayRun} compact onSaved={(l) => setLease({ ...lease, study: l.study })} />
       </Section>
 
       <Section title="Latest study">

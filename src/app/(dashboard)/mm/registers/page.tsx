@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { RegistersScreen } from "@/components/mm/RegistersScreen";
-
-export const metadata: Metadata = { title: "Registers" };
+import { redirect } from "next/navigation";
 
 export default function RegistersPage() {
-  return <RegistersScreen />;
+  redirect("/settings?tab=teams");
 }

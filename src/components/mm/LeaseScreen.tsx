@@ -64,6 +64,7 @@ import { BoundaryUpload } from "./BoundaryUpload";
 import { LEASE_STATUS, MISSION_STATUS, MMGate, StatusChip, useFollowSite, useSitePermissionsLoad, VERDICT } from "./common";
 import { Documents } from "./Documents";
 import { SendForVettingDialog } from "./SendForVettingDialog";
+import { StudyInputs } from "./StudyInputs";
 import { LazyMap } from "./LazyMap";
 import { LeaseForm, leaseInput } from "./LeaseForm";
 
@@ -238,6 +239,7 @@ function Content({ leaseId }: { leaseId: string }) {
   useFollowSite(lease?.project_id);
   const canUpload = useMay(lease?.project_id, "can_upload");
   const canApprove = useMay(lease?.project_id, "can_approve");
+  const canRun = useMay(lease?.project_id, "can_run_analysis");
 
   const load = useCallback(
     () =>
@@ -455,6 +457,9 @@ function Content({ leaseId }: { leaseId: string }) {
                 ))}
               </TBody>
             </Table>
+          </Band>
+          <Band heading="Study inputs" caption="What this lease's studies measure against.">
+            <StudyInputs key={lease.id} lease={lease} editable={canRun} onSaved={(l) => setLease({ ...lease, study: l.study })} />
           </Band>
           <Band
             heading="Replenishment studies"
