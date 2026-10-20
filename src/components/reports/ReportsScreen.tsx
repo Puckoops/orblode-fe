@@ -1,9 +1,12 @@
 "use client";
 
-import { Page, PageHeader, SearchSelect, Tabs, TabsContent, TabsList, TabsTrigger } from "@puckoops/camelot";
+import { Page, PageHeader, SearchSelect, SegmentedControl, Tabs, TabsContent, TabsList, TabsTrigger } from "@puckoops/camelot";
 import { useCallback, useEffect, useState } from "react";
+import { ReplenishmentReports, SummaryCsvButton } from "@/components/mm/ReplenishmentReports";
+import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { useSiteInWorkspace } from "@/hooks/useSiteInWorkspace";
 import { listMaterials, listSurveys, type Material, type Survey } from "@/lib/api/orblodeSvc";
+import { useMMMode } from "@/lib/workspaces/access";
 import { useWorkspaceSites } from "@/lib/workspaces/store";
 import { InventoryTab } from "./InventoryTab";
 import { MaterialsTab } from "./MaterialsTab";
@@ -13,8 +16,13 @@ import { TrendsTab } from "./TrendsTab";
 const TABS = ["inventory", "reconciliation", "trends", "materials"] as const;
 type Tab = (typeof TABS)[number];
 
+/** Stockpile reports by site; a minor-minerals workspace leads with its replenishment reports, and an official sees
+ * only those. */
 export function ReportsScreen() {
   const projects = useWorkspaceSites();
+  const minorMinerals = useMinorMinerals();
+  const official = useMMMode() === "official";
+  const [kind, setKind] = useState<"replenishment" | "stockpiles">("replenishment");
   const [siteId, setSiteId] = useState("");
   const [linkedSite, setLinkedSite] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("inventory");
@@ -39,15 +47,17 @@ export function ReportsScreen() {
       setLinkedSite(site);
     }
     if (t && (TABS as readonly string[]).includes(t)) setTab(t as Tab);
+    if (t) setKind("stockpiles");
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useSiteInWorkspace(siteId, setSiteId, linkedSite, true);
 
+  const replenishment = minorMinerals && (official || kind === "replenishment");
   useEffect(() => {
-    if (!siteId) return;
-    window.history.replaceState(null, "", `/reports?site=${encodeURIComponent(siteId)}&tab=${tab}`);
-  }, [siteId, tab]);
+    if (replenishment) window.history.replaceState(null, "", "/reports");
+    else if (siteId) window.history.replaceState(null, "", `/reports?site=${encodeURIComponent(siteId)}&tab=${tab}`);
+  }, [siteId, tab, replenishment]);
 
   const loadMaterials = useCallback(() => {
     if (!siteId) return;
@@ -77,6 +87,34 @@ export function ReportsScreen() {
   }, [siteId, loadMaterials]);
 
   const site = projects.find((p) => p.id === siteId);
+  const kindSwitch = minorMinerals && !official && (
+    <SegmentedControl
+      aria-label="Kind of report"
+      value={kind}
+      onValueChange={(v) => setKind(v as typeof kind)}
+      options={[
+        { value: "replenishment", label: "Replenishment" },
+        { value: "stockpiles", label: "Stockpiles" },
+      ]}
+    />
+  );
+
+  if (replenishment)
+    return (
+      <Page>
+        <PageHeader
+          title="Reports"
+          subtitle="Replenishment reports: drafted from a study, vetted along the review chain, shared by link."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {kindSwitch}
+              <SummaryCsvButton />
+            </div>
+          }
+        />
+        <ReplenishmentReports />
+      </Page>
+    );
 
   return (
     <Page>
@@ -84,16 +122,19 @@ export function ReportsScreen() {
         title="Reports"
         subtitle={site ? `Stockpile inventory, reconciliation and trends for ${site.name}` : "Stockpile inventory, reconciliation and trends"}
         actions={
-          <SearchSelect
-            className="w-64"
-            aria-label="Site"
-            value={siteId || null}
-            onValueChange={setSiteId}
-            placeholder="Select a site…"
-            searchPlaceholder="Find a site"
-            options={projects.map((p) => ({ value: p.id, label: p.name, meta: p.location_name ?? undefined }))}
-            empty={(query) => (query ? `No site matches “${query}”.` : "No sites yet.")}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {kindSwitch}
+            <SearchSelect
+              className="w-64"
+              aria-label="Site"
+              value={siteId || null}
+              onValueChange={setSiteId}
+              placeholder="Select a site…"
+              searchPlaceholder="Find a site"
+              options={projects.map((p) => ({ value: p.id, label: p.name, meta: p.location_name ?? undefined }))}
+              empty={(query) => (query ? `No site matches “${query}”.` : "No sites yet.")}
+            />
+          </div>
         }
       />
 

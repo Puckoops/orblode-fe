@@ -25,6 +25,8 @@ import {
 } from "@puckoops/camelot";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useConfirm } from "@/components/common/confirm";
+import { TeamVendor } from "@/components/mm/TeamVendor";
+import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { refusalMessage } from "@/lib/api/client";
 import {
   createTeam,
@@ -184,6 +186,7 @@ function TeamList({ onOpen }: { onOpen: (id: string) => void }) {
 
 function TeamPage({ id, onBack }: { id: string; onBack: () => void }) {
   const viewer = useOrgViewer();
+  const minorMinerals = useMinorMinerals();
   const { confirm, confirmDialog } = useConfirm();
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [missing, setMissing] = useState(false);
@@ -415,6 +418,12 @@ function TeamPage({ id, onBack }: { id: string; onBack: () => void }) {
           )}
         </div>
       </Band>
+
+      {minorMinerals && (
+        <Band heading="Drone vendor" caption="Whether the team flies the open workspace's missions, and its drones.">
+          <TeamVendor team={team} />
+        </Band>
+      )}
 
       <Band heading="Access" caption="Where the team holds roles. Give or take them away in each workspace's settings or each site's panel.">
         {team.access.length === 0 ? (

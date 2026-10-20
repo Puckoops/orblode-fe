@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { MMReportsScreen } from "@/components/mm/MMReportsScreen";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Studies" };
-
-export default function StudiesPage() {
-  return <MMReportsScreen />;
+export default function ReportsPage() {
+  redirect("/reports");
 }

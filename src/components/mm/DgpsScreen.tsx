@@ -346,10 +346,15 @@ function Content() {
   );
 
   useEffect(() => {
-    load().catch((err) => {
-      console.error("Failed to fetch DGPS jobs:", err);
-      setJobs([]);
-    });
+    load()
+      .then(() => {
+        const asked = new URLSearchParams(window.location.search).get("job");
+        if (asked) setOpen(asked);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch DGPS jobs:", err);
+        setJobs([]);
+      });
     listLeases()
       .then(setLeases)
       .catch(() => setLeases([]));

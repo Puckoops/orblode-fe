@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { LeaseWizard } from "@/components/mm/LeaseWizard";
-
-export const metadata: Metadata = { title: "New application" };
+import { redirect } from "next/navigation";
 
 export default function NewLeasePage() {
-  return <LeaseWizard />;
+  redirect("/upload?create=lease");
 }

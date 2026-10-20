@@ -8,25 +8,24 @@ import { useMemo } from "react";
 import { OrblodeLogo } from "@/components/brand/OrblodeLogo";
 import { WorkspaceMenu } from "@/components/workspaces/WorkspaceMenu";
 import { useAuthUser } from "@/hooks/useAuth";
-import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { useProcessing } from "@/lib/processing/store";
 import { useSiteAlerts } from "@/lib/reports/alerts";
+import { useMMMode } from "@/lib/workspaces/access";
 import { inSites } from "@/lib/workspaces/pick";
 import { useWorkspaces } from "@/lib/workspaces/store";
 import styles from "./shell.module.css";
-import { MM_NAV, NAV, type NavItem } from "./nav";
+import { NAV, OFFICIAL_NAV, VENDOR_NAV, type NavItem } from "./nav";
 import { railDotClass } from "./railDot";
 import { UserMenu } from "./UserMenu";
 
 /** The global app rail: the workspace dropdown, then Sites, Create, Files and Reports, then the signed-in
- * person. A minor-minerals workspace leads with its own pages instead and keeps Sites, Create and Files below them.
+ * person. In a minor-minerals workspace an official sees only Reports and a drone vendor only Missions and Files.
  * Collapsed it shows icons only. Its counts are the current workspace's. */
 export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   const pathname = usePathname();
   const user = useAuthUser();
-  const minorMinerals = useMinorMinerals();
-  const primary = minorMinerals ? MM_NAV : NAV;
-  const secondary = minorMinerals ? NAV.filter((item) => item.href !== "/reports") : [];
+  const mode = useMMMode();
+  const items = mode === null ? [] : mode === "official" ? OFFICIAL_NAV : mode === "vendor" ? VENDOR_NAV : NAV;
   const name = user?.name?.trim() || user?.email || "Account";
   const workspaceSites = useWorkspaces((s) => s.sites);
   const failed = useProcessing((s) => s.failed);
@@ -64,26 +63,22 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
         <div className={styles.workspaceRow}>
           <WorkspaceMenu />
         </div>
-        {[primary, secondary]
-          .filter((items) => items.length > 0)
-          .map((items, i) => (
-            <SidebarSection key={i} label={i === 1 ? "Sites and files" : undefined}>
-              {items.map((item) => (
-                <SidebarItem
-                  key={item.href}
-                  as={Link}
-                  href={item.href}
-                  icon={item.icon}
-                  current={item.isActive(pathname)}
-                  badge={countOf(item) > 0 ? countOf(item) : undefined}
-                  aria-label={countOf(item) > 0 ? labelOf(item) : undefined}
-                  className={railDotClass(countOf(item) > 0, false)}
-                >
-                  {item.label}
-                </SidebarItem>
-              ))}
-            </SidebarSection>
+        <SidebarSection>
+          {items.map((item) => (
+            <SidebarItem
+              key={item.href}
+              as={Link}
+              href={item.href}
+              icon={item.icon}
+              current={item.isActive(pathname)}
+              badge={countOf(item) > 0 ? countOf(item) : undefined}
+              aria-label={countOf(item) > 0 ? labelOf(item) : undefined}
+              className={railDotClass(countOf(item) > 0, false)}
+            >
+              {item.label}
+            </SidebarItem>
           ))}
+        </SidebarSection>
         <SidebarFooter>
           <SidebarUser name={name} email={user?.name?.trim() ? user.email : undefined} avatar={<Avatar name={name} src={user?.avatar_url} />} menu={<UserMenu />} />
         </SidebarFooter>
@@ -101,26 +96,22 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
       <div className={styles.workspaceRow}>
         <WorkspaceMenu compact />
       </div>
-      {[primary, secondary]
-        .filter((items) => items.length > 0)
-        .map((items, i) => (
-          <SidebarSection key={i}>
-            {items.map((item) => (
-              <Tooltip key={item.href} content={labelOf(item)} side="right">
-                <SidebarItem
-                  as={Link}
-                  href={item.href}
-                  icon={item.icon}
-                  current={item.isActive(pathname)}
-                  aria-label={labelOf(item)}
-                  className={railDotClass(countOf(item) > 0, true)}
-                >
-                  <span className="visually-hidden">{item.label}</span>
-                </SidebarItem>
-              </Tooltip>
-            ))}
-          </SidebarSection>
+      <SidebarSection>
+        {items.map((item) => (
+          <Tooltip key={item.href} content={labelOf(item)} side="right">
+            <SidebarItem
+              as={Link}
+              href={item.href}
+              icon={item.icon}
+              current={item.isActive(pathname)}
+              aria-label={labelOf(item)}
+              className={railDotClass(countOf(item) > 0, true)}
+            >
+              <span className="visually-hidden">{item.label}</span>
+            </SidebarItem>
+          </Tooltip>
         ))}
+      </SidebarSection>
       <div className={styles.railFoot}>
         <Tooltip content={name} side="right">
           <Link href="/settings" aria-label="Account settings" className={styles.railAvatar}>

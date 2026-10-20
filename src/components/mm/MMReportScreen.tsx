@@ -1,6 +1,6 @@
 "use client";
 
-import { Add01Icon, Copy01Icon, Delete02Icon, Download01Icon } from "@hugeicons/core-free-icons";
+import { Copy01Icon, Download01Icon } from "@hugeicons/core-free-icons";
 import {
   Alert,
   Band,
@@ -49,114 +49,12 @@ import {
   type Share,
   type ShareInput,
 } from "@/lib/api/mm";
-import { listOrgMembers, type OrgMember } from "@/lib/api/userSvc";
 import { useMay } from "@/lib/access/sitePermissions";
 import { bytes, dateOf, dateTimeOf, MINERALS, WORKFLOWS } from "@/lib/mm/format";
 import { toast } from "@/lib/toast";
 import { AnalysisSummary } from "./AnalysisSummary";
 import { MMGate, REPORT_STATUS, StatusChip, useFollowSite, useSitePermissionsLoad } from "./common";
-
-const DEFAULT_STEPS = ["Tahasildar", "Sub-Collector", "District Mining Officer"];
-
-function SubmitDialog({ report, onClose, onDone }: { report: Report; onClose: () => void; onDone: (r: Report) => void }) {
-  const [people, setPeople] = useState<OrgMember[] | null>(null);
-  const [steps, setSteps] = useState<{ label: string; reviewer_ids: string[] }[]>(
-    report.chain.length ? report.chain.map((s) => ({ label: s.label, reviewer_ids: s.reviewer_ids })) : [{ label: DEFAULT_STEPS[0], reviewer_ids: [] }]
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([reportReviewers(report.id), listOrgMembers()])
-      .then(([ids, members]) => setPeople(members.filter((m) => ids.includes(m.user_id))))
-      .catch((err) => {
-        console.error("Failed to fetch reviewers:", err);
-        setPeople([]);
-      });
-  }, [report.id]);
-
-  const toggle = (i: number, uid: string, on: boolean) =>
-    setSteps((list) => list.map((s, k) => (k === i ? { ...s, reviewer_ids: on ? [...s.reviewer_ids, uid] : s.reviewer_ids.filter((x) => x !== uid) } : s)));
-
-  const submit = async () => {
-    if (steps.some((s) => !s.label.trim() || s.reviewer_ids.length === 0)) {
-      setError("Name every step and give it at least one reviewer.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      onDone(await submitReport(report.id, steps));
-      toast.success("Sent for review.");
-      onClose();
-    } catch (err) {
-      setError(refusalMessage(err, "Couldn't send the report. Try again."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(o) => !o && !busy && onClose()}
-      title="Send for review"
-      description="Each step is decided by any one of its reviewers, in order. Reviewers are the people who can vet reports on this site."
-      width={640}
-      footer={
-        <>
-          <Button variant="quiet" disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" loading={busy} onClick={() => void submit()}>
-            Send
-          </Button>
-        </>
-      }
-    >
-      {!people ? (
-        <Skeleton height={160} />
-      ) : people.length === 0 ? (
-        <Alert tone="warning" title="Nobody can vet reports on this site yet">
-          Give the officials a role that can vet, such as one made from the Authority reviewer template in <Link href="/settings?tab=roles">Settings → Roles</Link>, on this site.
-        </Alert>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {steps.map((s, i) => (
-            <fieldset key={i} className="flex flex-col gap-2 rounded-md border border-hairline p-3">
-              <div className="flex items-center gap-2">
-                <span className="caption text-ink-4">Step {i + 1}</span>
-                <Input aria-label={`Name of step ${i + 1}`} value={s.label} onChange={(e) => setSteps(steps.map((x, k) => (k === i ? { ...x, label: e.target.value } : x)))} />
-                {steps.length > 1 && <IconButton icon={Delete02Icon} aria-label={`Remove step ${i + 1}`} variant="bare" size="sm" onClick={() => setSteps(steps.filter((_, k) => k !== i))} />}
-              </div>
-              <div className="flex flex-col gap-1">
-                {people.map((p) => (
-                  <label key={p.user_id} className="small flex items-center gap-2">
-                    <input type="checkbox" checked={s.reviewer_ids.includes(p.user_id)} onChange={(e) => toggle(i, p.user_id, e.target.checked)} />
-                    {p.name || p.email}
-                    {p.name && p.email && <span className="caption text-ink-4">{p.email}</span>}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ))}
-          {steps.length < 6 && (
-            <div>
-              <Button size="sm" variant="quiet" iconStart={Add01Icon} onClick={() => setSteps([...steps, { label: DEFAULT_STEPS[steps.length] ?? "", reviewer_ids: [] }])}>
-                Add a step
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      {error && (
-        <HelperText tone="error" role="alert" className="mt-3">
-          {error}
-        </HelperText>
-      )}
-    </Dialog>
-  );
-}
+import { SendForVettingDialog } from "./SendForVettingDialog";
 
 function ShareDialog({ report, onClose, onDone }: { report: Report; onClose: () => void; onDone: () => void }) {
   const [input, setInput] = useState<ShareInput>({ recipient: "", recipient_email: "", access: "view", expires_in_days: 30, watermark: true });
@@ -346,7 +244,7 @@ function Content({ reportId }: { reportId: string }) {
         eyebrow={`Minor minerals · report v${report.version}`}
         title={report.title}
         subtitle={[report.lease.name, report.lease.river && `${report.lease.river} river`, report.lease.district].filter(Boolean).join(" · ")}
-        back={<Link href="/mm/reports">← Studies</Link>}
+        back={<Link href="/reports">← Reports</Link>}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusChip map={REPORT_STATUS} value={report.status} />
@@ -549,7 +447,16 @@ function Content({ reportId }: { reportId: string }) {
           </TabsContent>
         )}
       </Tabs>
-      {submitting && <SubmitDialog report={report} onClose={() => setSubmitting(false)} onDone={setReport} />}
+      {submitting && (
+        <SendForVettingDialog
+          title="Send for review"
+          initialSteps={report.chain.length ? report.chain.map((c) => ({ label: c.label, reviewer_ids: c.reviewer_ids })) : undefined}
+          reviewers={() => reportReviewers(report.id)}
+          send={(steps) => submitReport(report.id, steps)}
+          onClose={() => setSubmitting(false)}
+          onDone={setReport}
+        />
+      )}
       {sharing && <ShareDialog report={report} onClose={() => setSharing(false)} onDone={() => void load()} />}
     </Page>
   );

@@ -9,13 +9,17 @@ import { NotificationsLive } from "@/components/notifications/NotificationsLive"
 import { OrganisationLinks } from "@/components/organisation/OrganisationLinks";
 import { WorkspaceSync } from "@/components/workspaces/WorkspaceSync";
 import { AppRail } from "./AppRail";
-import { TITLES } from "./nav";
+import { FOLDED, TITLES } from "./nav";
 import { useRailExpanded } from "./railState";
 import styles from "./shell.module.css";
 
+const under = (pathname: string, p: string) => pathname === p || pathname.startsWith(`${p}/`);
+
 function Crumbs() {
-  const pathname = usePathname();
-  const base = Object.keys(TITLES).find((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const raw = usePathname();
+  const folded = Object.keys(FOLDED).find((p) => under(raw, p));
+  const pathname = folded ? FOLDED[folded] : raw;
+  const base = Object.keys(TITLES).find((p) => under(pathname, p));
   const items = [{ label: "ORBLODE", href: "/globe" }];
   if (base) items.push({ label: TITLES[base], href: base });
   return <Breadcrumbs items={items} linkAs={Link} />;

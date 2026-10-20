@@ -178,6 +178,14 @@ export function boundaryAreaM2(g: BoundaryGeometry): number {
   return (g.coordinates as Ring[][]).reduce((sum, p) => sum + ringAreaM2(p[0]), 0);
 }
 
+/** The mean of a boundary's outer corners: where a site made from it opens on the map. */
+export function centreOf(g: BoundaryGeometry): { lon: number; lat: number } | null {
+  const rings = g.type === "Polygon" ? (g.coordinates as Ring[]).slice(0, 1) : (g.coordinates as Ring[][]).map((p) => p[0]);
+  const corners = rings.flatMap((r) => r.slice(0, -1));
+  if (corners.length === 0) return null;
+  return { lon: corners.reduce((a, c) => a + c[0], 0) / corners.length, lat: corners.reduce((a, c) => a + c[1], 0) / corners.length };
+}
+
 /** The polygons of a KML: each Polygon's outer boundary. */
 export function parseKml(text: string): ParsedBoundary {
   const rings: Ring[] = [];

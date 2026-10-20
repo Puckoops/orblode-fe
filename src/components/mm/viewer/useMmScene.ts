@@ -140,3 +140,37 @@ export function useMmPolygonDraw(onDone: (ring: LonLat[]) => void) {
 
   return { drawing, count, start, finish, cancel };
 }
+
+/** One point picked by a click on the viewer, abandoned by Escape. */
+export function useMmPointPick(onPick: (at: LonLat) => void) {
+  const { viewerRef, viewerReady } = useCesiumViewer();
+  const [picking, setPicking] = useState(false);
+  const pickRef = useRef(onPick);
+  useEffect(() => {
+    pickRef.current = onPick;
+  });
+  const start = useCallback(() => setPicking(true), []);
+  const cancel = useCallback(() => setPicking(false), []);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!picking || !viewerReady || !viewer || viewer.isDestroyed()) return;
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((e: { position: Cartesian2 }) => {
+      const at = lonLatAt(viewer, e.position);
+      if (!at) return;
+      setPicking(false);
+      pickRef.current(at);
+    }, ScreenSpaceEventType.LEFT_CLICK);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPicking(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      handler.destroy();
+    };
+  }, [picking, viewerRef, viewerReady]);
+
+  return { picking, start, cancel };
+}

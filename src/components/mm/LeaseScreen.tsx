@@ -32,9 +32,12 @@ import { SiteAccess } from "@/components/access/SiteAccess";
 import { refusalMessage } from "@/lib/api/client";
 import {
   acceptAnalysis,
+  sendForVetting,
+  siteReviewers,
   createAnalysis,
   createMission,
   getLease,
+  getSettings,
   listAnalyses,
   listMasks,
   listMissions,
@@ -60,6 +63,8 @@ import { AnalysisSummary, StudyProgress, studyRunning } from "./AnalysisSummary"
 import { BoundaryUpload } from "./BoundaryUpload";
 import { LEASE_STATUS, MISSION_STATUS, MMGate, StatusChip, useFollowSite, useSitePermissionsLoad, VERDICT } from "./common";
 import { Documents } from "./Documents";
+import { SendForVettingDialog } from "./SendForVettingDialog";
+import { StudyInputs } from "./StudyInputs";
 import { LazyMap } from "./LazyMap";
 import { LeaseForm, leaseInput } from "./LeaseForm";
 
@@ -83,14 +88,29 @@ function AnalysisDialog({
   const [pre, setPre] = useState(pickDefault("pre") || surveys[surveys.length - 1]?.id || "");
   const [post, setPost] = useState(pickDefault("post") || surveys[0]?.id || "");
   const [maskIds, setMaskIds] = useState<string[]>(masks.filter((m) => m.kind !== "exclusion").map((m) => m.id));
-  const [proposed, setProposed] = useState("");
-  const [waterTable, setWaterTable] = useState("");
+  const [proposed, setProposed] = useState(lease.study?.proposed_m3 != null ? String(lease.study.proposed_m3) : "");
+  const [waterTable, setWaterTable] = useState(lease.study?.water_table_depth_m != null ? String(lease.study.water_table_depth_m) : "");
   const [empirical, setEmpirical] = useState("");
   const [note, setNote] = useState("");
   const [spacing, setSpacing] = useState("50");
   const [accuracy, setAccuracy] = useState("4");
+  const [maxExtraction, setMaxExtraction] = useState<number | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    getSettings()
+      .then(({ study_defaults: d }) => {
+        if (!live) return;
+        setSpacing((v) => (v === "50" ? String(d.spacing_m) : v));
+        setAccuracy((v) => (v === "4" ? String(+(d.vertical_accuracy_m * 100).toFixed(2)) : v));
+        setMaxExtraction(d.max_extraction_pct);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
   const options = surveys.map((s) => ({ value: s.id, label: `${s.survey_date}${seasonOf(s.id) ? ` · ${seasonOf(s.id) === "pre" ? "pre-monsoon" : "post-monsoon"}` : ""}` }));
 
   const run = async () => {
@@ -112,6 +132,7 @@ function AnalysisDialog({
         empirical_note: note || undefined,
         spacing_m: Number(spacing) || 50,
         vertical_accuracy_m: (Number(accuracy) || 4) / 100,
+        max_extraction_pct: maxExtraction,
       });
       toast.success("Measuring the replenishment: you’ll get a notice when it’s done.");
       onDone(a);
@@ -192,6 +213,7 @@ function AnalysisDialog({
 const LEASE_TABS = ["lease", "documents", "studies", "missions", "access"];
 
 function Content({ leaseId }: { leaseId: string }) {
+  const [vetting, setVetting] = useState<Analysis | null>(null);
   const router = useRouter();
   const sites = useWorkspaceSites();
   const [lease, setLease] = useState<LeaseDetail | null>(null);
@@ -217,6 +239,7 @@ function Content({ leaseId }: { leaseId: string }) {
   useFollowSite(lease?.project_id);
   const canUpload = useMay(lease?.project_id, "can_upload");
   const canApprove = useMay(lease?.project_id, "can_approve");
+  const canRun = useMay(lease?.project_id, "can_run_analysis");
 
   const load = useCallback(
     () =>
@@ -317,7 +340,7 @@ function Content({ leaseId }: { leaseId: string }) {
         eyebrow="Minor minerals · lease"
         title={lease.name}
         subtitle={[lease.river && `${lease.river} river`, lease.district, lease.tahasil && `${lease.tahasil} tahasil`, site?.name].filter(Boolean).join(" · ")}
-        back={<Link href="/mm/leases">← Leases</Link>}
+        back={<Link href={`/globe?site=${encodeURIComponent(lease.project_id)}`}>← Sites</Link>}
         actions={
           <div className="flex items-center gap-2">
             <StatusChip map={LEASE_STATUS} value={lease.status} />
@@ -435,6 +458,9 @@ function Content({ leaseId }: { leaseId: string }) {
               </TBody>
             </Table>
           </Band>
+          <Band heading="Study inputs" caption="What this lease's studies measure against.">
+            <StudyInputs key={lease.id} lease={lease} editable={canRun} onSaved={(l) => setLease({ ...lease, study: l.study })} />
+          </Band>
           <Band
             heading="Replenishment studies"
             caption="Each measures one pair of surveys. Accept one to draft the lease's report."
@@ -468,9 +494,14 @@ function Content({ leaseId }: { leaseId: string }) {
                           </Button>
                         )
                       ) : (
-                        <Button variant="primary" size="sm" onClick={() => void accept(a)}>
-                          Accept and draft report
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button variant="quiet" size="sm" onClick={() => void accept(a)}>
+                            Draft only
+                          </Button>
+                          <Button variant="primary" size="sm" onClick={() => setVetting(a)}>
+                            Send for vetting
+                          </Button>
+                        </div>
                       )}
                     </div>
                     {a.status === "draft" || a.status === "accepted" ? <AnalysisSummary a={a} /> : <StudyProgress a={a} />}
@@ -481,6 +512,14 @@ function Content({ leaseId }: { leaseId: string }) {
           </Band>
         </TabsContent>
 
+        {vetting && (
+          <SendForVettingDialog
+            reviewers={() => siteReviewers(lease.project_id)}
+            send={(steps) => sendForVetting(vetting.id, steps)}
+            onClose={() => setVetting(null)}
+            onDone={(r) => router.push(`/mm/reports/${r.id}`)}
+          />
+        )}
         <TabsContent value="missions" className="pt-6">
           <Band
             heading="Missions"

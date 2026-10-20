@@ -1,7 +1,7 @@
 "use client";
 
 import { Download01Icon } from "@hugeicons/core-free-icons";
-import { Band, Button, Chip, Page, PageHeader, Select, Skeleton, Table, TBody, Td, Th, THead, Tr } from "@puckoops/camelot";
+import { Band, Button, Chip, Select, Skeleton, Table, TBody, Td, Th, THead, Tr } from "@puckoops/camelot";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listReports, sharingLog, summaryCsvUrl, type Report, type ReportStatus, type Share, type ShareAccess } from "@/lib/api/mm";
@@ -9,6 +9,59 @@ import { dateOf, dateTimeOf, m3 } from "@/lib/mm/format";
 import { MMGate, REPORT_STATUS, StatusChip, VERDICT } from "./common";
 
 type LogRow = { share: Share; open: boolean; accesses: ShareAccess[] };
+
+/** Downloads every vetted study's figures as a spreadsheet. */
+export function SummaryCsvButton() {
+  return (
+    <Button variant="ghost" iconStart={Download01Icon} asChild>
+      <a href={summaryCsvUrl()} download="replenishment_summary.csv">
+        Summary CSV
+      </a>
+    </Button>
+  );
+}
+
+function WaitingForYou() {
+  const [reports, setReports] = useState<Report[] | null>(null);
+  useEffect(() => {
+    listReports({ waiting: true })
+      .then(setReports)
+      .catch(() => setReports([]));
+  }, []);
+  if (!reports) return <Skeleton height={96} />;
+  return (
+    <Table minWidth={640} isEmpty={reports.length === 0} empty="Nothing waits on you.">
+      <THead>
+        <Tr>
+          <Th>Report</Th>
+          <Th>Your step</Th>
+          <Th numeric>Replenished</Th>
+          <Th>Submitted</Th>
+        </Tr>
+      </THead>
+      <TBody>
+        {reports.map((r) => (
+          <Tr key={r.id}>
+            <Td primary>
+              <Link href={`/mm/reports/${r.id}`} className="hover:underline">
+                {r.title}
+              </Link>
+              <span className="caption block text-ink-4">{[r.lease.river, r.lease.district].filter(Boolean).join(" · ")}</span>
+            </Td>
+            <Td>
+              {r.chain[r.current_step]?.label ?? "–"}
+              <span className="caption block text-ink-4">
+                Step {r.current_step + 1} of {r.chain.length}
+              </span>
+            </Td>
+            <Td numeric>{m3(r.analysis.results.adopted_m3)}</Td>
+            <Td>{dateOf(r.submitted_at)}</Td>
+          </Tr>
+        ))}
+      </TBody>
+    </Table>
+  );
+}
 
 function Content() {
   const [reports, setReports] = useState<Report[] | null>(null);
@@ -33,22 +86,12 @@ function Content() {
   const titleOf = (reportId: string) => reports?.find((r) => r.id === reportId)?.title ?? "Report";
 
   return (
-    <Page>
-      <PageHeader
-        eyebrow="Minor minerals"
-        title="Studies"
-        subtitle="Replenishment reports: drafted from an accepted study, vetted by the officials, shared by link."
-        actions={
-          <Button variant="ghost" iconStart={Download01Icon} asChild>
-            <a href={summaryCsvUrl()} download="replenishment_summary.csv">
-              Summary CSV
-            </a>
-          </Button>
-        }
-      />
+    <>
+      <Band first heading="Waiting for you" caption="Reports at a review step you decide.">
+        <WaitingForYou />
+      </Band>
       <Band
-        first
-        heading="Reports"
+        heading="All reports"
         actions={
           <Select
             aria-label="Status"
@@ -147,11 +190,13 @@ function Content() {
           </TBody>
         </Table>
       </Band>
-    </Page>
+    </>
   );
 }
 
-export function MMReportsScreen() {
+/** A minor-minerals workspace's replenishment reports: the ones waiting on the caller first, then all of them, then
+ * every link they were shared by. */
+export function ReplenishmentReports() {
   return (
     <MMGate>
       <Content />

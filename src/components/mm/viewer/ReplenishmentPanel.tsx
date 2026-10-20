@@ -21,7 +21,10 @@ import {
 import { refusalMessage } from "@/lib/api/client";
 import {
   acceptAnalysis,
+  sendForVetting,
+  siteReviewers,
   createAnalysis,
+  getSettings,
   createMask,
   deleteMask,
   getSiteLease,
@@ -34,6 +37,7 @@ import {
   type MaskKind,
   type Station,
   type SurveyTag,
+  type WorkspaceSettings,
 } from "@/lib/api/mm";
 import {
   getProfile,
@@ -49,6 +53,8 @@ import {
   StudyProgress,
   studyRunning,
 } from "../AnalysisSummary";
+import { SendForVettingDialog } from "../SendForVettingDialog";
+import { KeepAwayPlaces } from "./KeepAwayPlaces";
 import { useMmOverlay, useMmPolygonDraw, type Overlay } from "./useMmScene";
 
 const MASK_KINDS: { value: MaskKind; label: string }[] = [
@@ -188,13 +194,18 @@ export function ReplenishmentPanel({
   const [proposed, setProposed] = useState("");
   const [waterTable, setWaterTable] = useState("");
   const [spacing, setSpacing] = useState("50");
+  const [defaults, setDefaults] = useState<
+    WorkspaceSettings["study_defaults"] | null
+  >(null);
   const [maskKind, setMaskKind] = useState<MaskKind>("water");
   const [maskName, setMaskName] = useState("");
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState<Analysis | null>(null);
   const [station, setStation] = useState<Station | null>(null);
+  const [vetting, setVetting] = useState<Analysis | null>(null);
   const mayMask = useMay(projectId, "can_create_measurement");
   const mayRun = useMay(projectId, "can_run_analysis");
+  const mayUpload = useMay(projectId, "can_upload");
 
   const load = useCallback(
     () =>
@@ -209,6 +220,11 @@ export function ReplenishmentPanel({
         listMasks(projectId).catch(() => [] as Mask[]),
       ]).then(([l, s, t, m]) => {
         setLease(l);
+        const study = l?.study;
+        if (study?.proposed_m3 != null)
+          setProposed((v) => v || String(study.proposed_m3));
+        if (study?.water_table_depth_m != null)
+          setWaterTable((v) => v || String(study.water_table_depth_m));
         setSurveys(s);
         setTags(t);
         setMasks(m);
@@ -232,6 +248,20 @@ export function ReplenishmentPanel({
       }),
     [projectId, surveyId],
   );
+
+  useEffect(() => {
+    let live = true;
+    getSettings()
+      .then(({ study_defaults: d }) => {
+        if (!live) return;
+        setDefaults(d);
+        setSpacing((v) => (v === "50" ? String(d.spacing_m) : v));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const running = shown !== null && studyRunning(shown);
   const leaseOf = lease?.id;
@@ -308,7 +338,10 @@ export function ReplenishmentPanel({
     return (
       <Alert tone="info" title="This site has no lease" className="m-3">
         Replenishment is measured inside a lease boundary.{" "}
-        <Link href="/mm/leases/new">Start an application</Link> for this site.
+        <Link href={`/upload?create=lease&site=${encodeURIComponent(projectId)}`}>
+          Start an application
+        </Link>{" "}
+        for this site.
       </Alert>
     );
 
@@ -337,6 +370,8 @@ export function ReplenishmentPanel({
         proposed_m3: Number(proposed) || 0,
         water_table_depth_m: waterTable ? Number(waterTable) : undefined,
         spacing_m: Number(spacing) || 50,
+        vertical_accuracy_m: defaults?.vertical_accuracy_m,
+        max_extraction_pct: defaults?.max_extraction_pct,
       });
       setAnalyses((list) => [a, ...list]);
       setShown(a);
@@ -465,6 +500,8 @@ export function ReplenishmentPanel({
           ))}
       </section>
 
+      <KeepAwayPlaces projectId={projectId} editable={mayUpload} />
+
       {mayRun && lease.boundary && (
         <section className="flex flex-col gap-3">
           <h3 className="small font-semibold text-ink-1">Measure</h3>
@@ -585,17 +622,34 @@ export function ReplenishmentPanel({
                     </Link>
                   </Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => void accept(shown)}
-                  >
-                    Accept and draft the report
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="quiet"
+                      onClick={() => void accept(shown)}
+                    >
+                      Draft only
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setVetting(shown)}
+                    >
+                      Send for vetting
+                    </Button>
+                  </div>
                 ))}
             </>
           )}
         </section>
+      )}
+      {vetting && (
+        <SendForVettingDialog
+          reviewers={() => siteReviewers(projectId)}
+          send={(steps) => sendForVetting(vetting.id, steps)}
+          onClose={() => setVetting(null)}
+          onDone={(r) => router.push(`/mm/reports/${r.id}`)}
+        />
       )}
     </div>
   );

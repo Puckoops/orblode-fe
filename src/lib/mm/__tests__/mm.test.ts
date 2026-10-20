@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { boundaryAreaM2, BoundaryError, parseDxf, parseGeoJson, parsePillarsCsv } from "../boundary.ts";
+import { boundaryAreaM2, BoundaryError, centreOf, parseDxf, parseGeoJson, parsePillarsCsv } from "../boundary.ts";
 import { gcpCsv, litchiCsv, missionPack } from "../exports.ts";
 import { thousands } from "../format.ts";
 import { fromUtm, toUtm } from "../utm.ts";
@@ -111,4 +111,17 @@ test("a ZIP written here reads back, and so does a deflated one", async () => {
   const deflated = Uint8Array.from(atob("UEsDBBQAAAAIACeAU11Xgb7lDgAAANMAAAAHAAAAZG9jLmttbLPJzs2xqxgmwEYf5BsAUEsBAhQDFAAAAAgAJ4BTXVeBvuUOAAAA0wAAAAcAAAAAAAAAAAAAAIABAAAAAGRvYy5rbWxQSwUGAAAAAAEAAQA1AAAAMwAAAAAA"), (c) => c.charCodeAt(0));
   const kmz = await unzip(deflated);
   assert.equal(new TextDecoder().decode(kmz.get("doc.kml")), `<kml>${"x".repeat(200)}</kml>`);
+});
+
+test("a boundary's centre is the mean of its outer corners, the closing corner counted once", () => {
+  const square: [number, number][] = [
+    [85, 20],
+    [85.02, 20],
+    [85.02, 20.02],
+    [85, 20.02],
+    [85, 20],
+  ];
+  const c = centreOf({ type: "Polygon", coordinates: [square] });
+  assert.ok(c && Math.abs(c.lon - 85.01) < 1e-9 && Math.abs(c.lat - 20.01) < 1e-9);
+  assert.equal(centreOf({ type: "MultiPolygon", coordinates: [] }), null);
 });
