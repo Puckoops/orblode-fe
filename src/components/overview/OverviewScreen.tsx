@@ -79,6 +79,8 @@ export function OverviewScreen() {
   const rowOf = (id: string) => overview?.projects.find((p) => p.project_id === id);
   const latest = overview?.projects.map((p) => p.latest_survey?.date).filter((d): d is string => !!d).sort().at(-1);
   const totals = overview?.totals;
+  // Piles weigh only once they have a material; until then the volume is all there is.
+  const byWeight = !totals || totals.tonnage_t > 0 || totals.volume_m3 === 0;
   const mayCreate = workspace?.can_create_project ?? true;
   const newProject = minorMinerals ? "/upload?create=lease" : "/upload?new=1";
 
@@ -120,7 +122,7 @@ export function OverviewScreen() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <FigureCard
               label="Projects"
               value={sites.length}
@@ -135,9 +137,17 @@ export function OverviewScreen() {
             />
             <FigureCard
               label="Stock on hand"
-              value={totals ? totals.tonnage_t : NaN}
-              format={orDash(formatTonnes)}
-              caption={totals && totals.piles > 0 ? [formatCubic(totals.volume_m3), totals.value > 0 ? formatValue(totals.value) : ""].filter(Boolean).join(" · ") : undefined}
+              value={totals ? (byWeight ? totals.tonnage_t : totals.volume_m3) : NaN}
+              format={orDash(byWeight ? formatTonnes : formatCubic)}
+              caption={
+                totals && totals.piles > 0
+                  ? byWeight
+                    ? [formatCubic(totals.volume_m3), totals.value > 0 ? formatValue(totals.value) : ""].filter(Boolean).join(" · ")
+                    : "no tonnage: the piles have no material"
+                  : totals
+                    ? "no stockpiles yet"
+                    : undefined
+              }
             />
             <FigureCard label="Processing" value={running.length} caption={failed.length ? `${failed.length} failed` : "nothing failed"} />
           </div>
@@ -225,7 +235,7 @@ export function OverviewScreen() {
                       </Td>
                       <Td numeric>{row ? row.surveys : "–"}</Td>
                       <Td>{row?.latest_survey ? formatSurveyDate(row.latest_survey.date) : "–"}</Td>
-                      <Td numeric>{row?.stock ? formatTonnes(row.stock.tonnage_t) : "–"}</Td>
+                      <Td numeric>{row?.stock ? (row.stock.tonnage_t > 0 ? formatTonnes(row.stock.tonnage_t) : formatCubic(row.stock.volume_m3)) : "–"}</Td>
                       <Td>{row?.next_depletion ? `${row.next_depletion.material}, ${formatSurveyDate(row.next_depletion.date)}` : "–"}</Td>
                       <Td>{broken ? <StateChip state={PROCESSING_FAILED} /> : processing ? <StateChip state={PROCESSING} /> : null}</Td>
                     </Tr>
