@@ -64,7 +64,7 @@ function Content({ leaseId, onBack }: { leaseId: string | null; onBack: () => vo
           <Skeleton height={160} />
         ) : leases.length === 0 ? (
           <HelperText>
-            No lease here has a boundary yet. <Link href="/upload?create=lease">Start a lease site</Link> first: missions are planned from the boundary.
+            No lease here has a boundary yet. <Link href="/upload?create=lease">Start a lease project</Link> first: missions are planned from the boundary.
           </HelperText>
         ) : (
           <div className="flex flex-col gap-4">

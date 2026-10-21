@@ -58,7 +58,7 @@ export function SignUpForm({ google, googleExpired }: SignUpFormProps) {
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNextPath(params.get("next"));
-  const carry = next !== "/globe" ? next : undefined;
+  const carry = next !== "/overview" ? next : undefined;
   const nextQuery = carry ? `?next=${encodeURIComponent(carry)}` : "";
   const [form, setForm] = useState<Form>({ ...EMPTY, name: google?.name ?? "", email: google?.email ?? params.get("email") ?? "" });
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Form, string>>>({});

@@ -25,7 +25,7 @@ const SUGGESTED = ["Tahasildar", "Sub-Collector", "District Mining Officer"];
  * chain, and offers as reviewers only the people who can vet on the site. */
 export function SendForVettingDialog({
   title = "Send for vetting",
-  description = "Each step is decided by any one of its reviewers, in order. Reviewers are the people who can vet reports on this site.",
+  description = "Each step is decided by any one of its reviewers, in order. Reviewers are the people who can vet reports on this project.",
   initialSteps,
   reviewers,
   send,
@@ -152,10 +152,10 @@ export function SendForVettingDialog({
       {!people || !steps ? (
         <Skeleton height={160} />
       ) : people.length === 0 ? (
-        <Alert tone="warning" title="Nobody can vet reports on this site yet">
+        <Alert tone="warning" title="Nobody can vet reports on this project yet">
           Give the officials a role that can vet, such as the Authority reviewer
           role in <Link href="/settings?tab=roles">Settings → Roles</Link>, on
-          this site or its workspace.
+          this project or its workspace.
         </Alert>
       ) : (
         <div className="flex flex-col gap-4">

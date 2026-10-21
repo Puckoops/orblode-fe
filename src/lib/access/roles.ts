@@ -9,8 +9,8 @@ export interface RoleInfo {
 }
 
 export const ROLES: Record<string, RoleInfo> = {
-  admin: { label: "Admin", description: "Manages the workspace and who has access to it, and is project manager on every site in it." },
-  project_manager: { label: "Project manager", description: "Everything on the site: uploads, measurements, analysis, approvals, exports and who has access." },
+  admin: { label: "Admin", description: "Manages the workspace and who has access to it, and is project manager on every project in it." },
+  project_manager: { label: "Project manager", description: "Everything on the project: uploads, measurements, analysis, approvals, exports and who has access." },
   survey_manager: { label: "Survey manager", description: "Uploads surveys and designs, measures, and sees drafts." },
   gis_analyst: { label: "GIS analyst", description: "Measures, runs analysis, exports, and sees drafts." },
   mining_engineer: { label: "Mining engineer", description: "Measures, runs analysis, exports, and sees drafts." },

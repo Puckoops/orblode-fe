@@ -21,7 +21,7 @@ export const SHORTCUTS = [
   { id: "selection.frame", label: "Frame the selected measurement", group: "Selection", key: "F" },
   { id: "selection.visible", label: "Show or hide the selection", group: "Selection", key: "V" },
   { id: "camera.north", label: "Reset bearing to North", group: "Camera", key: "N" },
-  { id: "camera.dimension", label: "2D flat site or 3D site", group: "Camera", key: "O" },
+  { id: "camera.dimension", label: "2D flat or 3D view", group: "Camera", key: "O" },
   { id: "camera.grid", label: "Grid, spaced by the zoom", group: "Camera", key: "Shift+G" },
   { id: "help.palette", label: "Command palette", group: "Help", key: "Mod+K" },
   { id: "help.sheet", label: "Keyboard shortcuts", group: "Help", key: "?" },

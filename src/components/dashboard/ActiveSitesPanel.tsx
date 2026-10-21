@@ -10,10 +10,10 @@ import { MMSitesHeader } from "@/components/mm/MMSitesHeader";
 import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { getOverview, getRegister, type Overview, type RegisterRow } from "@/lib/api/mm";
 import type { Project } from "@/lib/api/userSvc";
-import { listSurveys } from "@/lib/api/orblodeSvc";
+import { getWorkspaceOverview, listSurveys } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
 import { lifecycleState } from "@/lib/status";
-import { useCurrentWorkspace } from "@/lib/workspaces/store";
+import { useCurrentWorkspace, useWorkspaces } from "@/lib/workspaces/store";
 import { formatSurveyDate } from "@/lib/utils";
 
 interface SurveyStats {
@@ -37,12 +37,13 @@ export function ActiveSitesPanel({
   const mayCreateSite = useCurrentWorkspace()?.can_create_project ?? true;
   const [surveyStats, setSurveyStats] = useState<Record<string, SurveyStats>>({});
   const [filter, setFilter] = useState("");
+  const workspaceId = useWorkspaces((s) => s.currentId);
   const minorMinerals = useMinorMinerals();
   const [register, setRegister] = useState<RegisterRow[] | null>(null);
   const [attention, setAttention] = useState<Overview["attention"]>([]);
   const [stage, setStage] = useState<string | null>(null);
   const leaseOf = (siteId: string) => register?.find((r) => r.lease.project_id === siteId);
-  const newSite = minorMinerals ? { href: "/upload?create=lease", label: "New lease site" } : { href: "/upload?new=1", label: "New site" };
+  const newSite = minorMinerals ? { href: "/upload?create=lease", label: "New lease project" } : { href: "/upload?new=1", label: "New project" };
 
   const q = filter.trim().toLowerCase();
   const visibleProjects = projects
@@ -67,25 +68,36 @@ export function ActiveSitesPanel({
     if (!projects || projects.length === 0) return;
     let cancelled = false;
 
-    Promise.all(
+    const one = (id: string, count: number, date: string | undefined) => ({ id, count, latestDate: date ? formatSurveyDate(date) : "-" });
+    // The workspace overview counts every project in one call; older services without it get a call per project.
+    const fromOverview = workspaceId
+      ? getWorkspaceOverview(workspaceId).then((overview) =>
+          projects.map((project) => {
+            const row = overview.projects.find((r) => r.project_id === project.id);
+            return one(project.id, row?.surveys ?? 0, row?.latest_survey?.date);
+          })
+        )
+      : Promise.reject(new Error("no workspace"));
+    const perProject = () => Promise.all(
       projects.map(async (project) => {
         try {
           const { surveys = [] } = await listSurveys(project.id);
           const latest = [...surveys].sort((a, b) => new Date(b.survey_date).getTime() - new Date(a.survey_date).getTime())[0];
-          return { id: project.id, count: surveys.length, latestDate: latest ? formatSurveyDate(latest.survey_date) : "-" };
+          return one(project.id, surveys.length, latest?.survey_date);
         } catch (err) {
           console.error(`Failed to fetch surveys for project ${project.id}:`, err);
-          return { id: project.id, count: 0, latestDate: "-" };
+          return one(project.id, 0, undefined);
         }
       }),
-    ).then((results) => {
+    );
+    fromOverview.catch(perProject).then((results) => {
       if (!cancelled) setSurveyStats(Object.fromEntries(results.map((r) => [r.id, { count: r.count, latestDate: r.latestDate }])));
     });
 
     return () => {
       cancelled = true;
     };
-  }, [projects]);
+  }, [projects, workspaceId]);
 
   return (
     <div className="flex h-full w-full flex-col bg-surface pt-4 pb-5">
@@ -95,26 +107,26 @@ export function ActiveSitesPanel({
         </div>
       )}
       <div className="mb-5 px-5">
-        <SearchInput value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter sites…" aria-label="Filter sites" />
+        <SearchInput value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter projects…" aria-label="Filter projects" />
       </div>
 
-      <p className="caps text-4 mb-3 px-5">Active sites</p>
+      <p className="caps text-4 mb-3 px-5">Active projects</p>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ul className="flex flex-col gap-1 px-3">
           {visibleProjects === null && (
             <li>
-              <Loader label="Loading sites" />
+              <Loader label="Loading projects" />
             </li>
           )}
           {visibleProjects?.length === 0 && (
             <li>
               {q || stage ? (
-                <EmptyState icon={Location01Icon} title="No sites match your filter." />
+                <EmptyState icon={Location01Icon} title="No projects match your filter." />
               ) : (
                 <EmptyState
                   icon={Location01Icon}
-                  title="No sites yet."
+                  title="No projects yet."
                   action={
                     mayCreateSite ? (
                       <Button asChild variant="ghost" size="sm">

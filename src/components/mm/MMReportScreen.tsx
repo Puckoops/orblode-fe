@@ -209,7 +209,7 @@ function Content({ reportId }: { reportId: string }) {
     return () => window.clearInterval(t);
   }, [rendering, load]);
 
-  if (failed) return <Alert tone="critical" title="This report couldn't load.">It may belong to a site you can’t see.</Alert>;
+  if (failed) return <Alert tone="critical" title="This report couldn't load.">It may belong to a project you can’t see.</Alert>;
   if (!report) return <Skeleton height={400} />;
 
   const editable = report.status === "draft" || report.status === "returned";

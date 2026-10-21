@@ -15,7 +15,7 @@ export function redirectToSignIn() {
  * Moves the session to another of the person's organisations, then loads `to` afresh so nothing of
  * the last one stays in memory. Resolves to why it failed, or never settles once it is navigating.
  */
-export async function switchOrganisation(clientId: string, to = "/globe"): Promise<string> {
+export async function switchOrganisation(clientId: string, to = "/overview"): Promise<string> {
   const res = await fetch("/api/auth/organisation", {
     method: "POST",
     headers: { "content-type": "application/json" },

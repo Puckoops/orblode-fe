@@ -25,7 +25,7 @@ export function MoveSite({ site, onMoved, className }: { site: Project; onMoved:
       await refresh();
       onMoved();
     } catch (err) {
-      toast.error(refusalMessage(err, "Couldn't move the site. Try again."));
+      toast.error(refusalMessage(err, "Couldn't move the project. Try again."));
     } finally {
       setMoving(false);
     }
@@ -35,7 +35,7 @@ export function MoveSite({ site, onMoved, className }: { site: Project; onMoved:
     <Field
       className={className}
       label="Workspace"
-      hint="Roles on the workspace reach the site, so moving it takes them away and brings the new workspace's. Roles given on the site itself stay."
+      hint="Roles on the workspace reach the project, so moving it takes them away and brings the new workspace's. Roles given on the project itself stay."
     >
       <Select
         value={site.workspace_id || undefined}

@@ -126,13 +126,13 @@ export function ReportsScreen() {
             {kindSwitch}
             <SearchSelect
               className="w-64"
-              aria-label="Site"
+              aria-label="Project"
               value={siteId || null}
               onValueChange={setSiteId}
-              placeholder="Select a site…"
-              searchPlaceholder="Find a site"
+              placeholder="Select a project…"
+              searchPlaceholder="Find a project"
               options={projects.map((p) => ({ value: p.id, label: p.name, meta: p.location_name ?? undefined }))}
-              empty={(query) => (query ? `No site matches “${query}”.` : "No sites yet.")}
+              empty={(query) => (query ? `No project matches “${query}”.` : "No projects yet.")}
             />
           </div>
         }

@@ -106,7 +106,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
         <div className="mb-3 flex items-start justify-between gap-3">
           <h2 className="h2">{projectData.name}</h2>
-          <IconButton icon={Cancel01Icon} aria-label="Close site details" variant="bare" size="sm" onClick={onClose} />
+          <IconButton icon={Cancel01Icon} aria-label="Close project details" variant="bare" size="sm" onClick={onClose} />
         </div>
 
         <div className="mb-3 flex flex-wrap items-center gap-2">

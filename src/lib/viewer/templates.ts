@@ -73,7 +73,7 @@ export const MEASUREMENT_TEMPLATES: readonly MeasurementTemplate[] = [
     id: "line.cross-section",
     primitive: "polyline",
     label: "Cross-section",
-    hint: "Section line across the site",
+    hint: "Section line across the project",
     icon: SplineIcon,
     kind: "cross_section",
   },

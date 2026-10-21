@@ -77,12 +77,12 @@ export function LeaseForm({
     <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
       {!hideSite && (
         <Field
-          label="Site"
+          label="Project"
           required
           hint={
             siteLocked
-              ? "The Orblode site this lease belongs to."
-              : "One lease per site; its surveys are the lease's."
+              ? "The Orblode project this lease belongs to."
+              : "One lease per project; its surveys are the lease's."
           }
         >
           {siteLocked ? (
@@ -97,8 +97,8 @@ export function LeaseForm({
             <SearchSelect
               value={value.project_id || null}
               onValueChange={(v) => set("project_id", v)}
-              placeholder="Choose a site"
-              searchPlaceholder="Find a site"
+              placeholder="Choose a project"
+              searchPlaceholder="Find a project"
               options={sites
                 .filter((s) => !takenSites.includes(s.id))
                 .map((s) => ({
@@ -108,8 +108,8 @@ export function LeaseForm({
                 }))}
               empty={(q) =>
                 q
-                  ? `No site matches “${q}”.`
-                  : "Every site of this workspace has a lease."
+                  ? `No project matches “${q}”.`
+                  : "Every project of this workspace has a lease."
               }
             />
           )}

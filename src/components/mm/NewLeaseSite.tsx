@@ -69,7 +69,7 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
       setStep(1);
       return true;
     } catch (err) {
-      setError(refusalMessage(err, "Couldn't make the lease site. Try again."));
+      setError(refusalMessage(err, "Couldn't make the lease project. Try again."));
       return false;
     }
   };
@@ -96,7 +96,7 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
   };
 
   const projectId = lease?.project_id ?? siteId ?? madeSite;
-  const openSite = () => router.push(projectId ? `/globe?site=${encodeURIComponent(projectId)}` : "/globe");
+  const openSite = () => router.push(projectId ? `/projects?site=${encodeURIComponent(projectId)}` : "/projects");
 
   const submit = async () => {
     if (!lease) return;
@@ -104,7 +104,7 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
     setError(null);
     try {
       await submitLease(lease.id);
-      toast.success("Application submitted: the site’s approvers have a notice.");
+      toast.success("Application submitted: the project’s approvers have a notice.");
       openSite();
     } catch (err) {
       setError(refusalMessage(err, "Couldn't submit. Try again."));
@@ -119,20 +119,20 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
     <Page>
       <PageHeader
         eyebrow="Create"
-        title={site ? `A lease on ${site.name}` : "New lease site"}
-        subtitle="The boundary places the site and its lease; the details and documents make the application."
+        title={site ? `A lease on ${site.name}` : "New lease project"}
+        subtitle="The boundary places the project and its lease; the details and documents make the application."
         back={
           <button type="button" className="hover:underline" onClick={onBack}>
             ← Create
           </button>
         }
       />
-      <Stepper steps={STEPS} current={step} onStepClick={(i) => lease && setStep(i)} aria-label="Lease site steps" />
+      <Stepper steps={STEPS} current={step} onStepClick={(i) => lease && setStep(i)} aria-label="Lease project steps" />
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card>
           {step === 0 && (
             <div className="flex flex-col gap-4">
-              <Field label="Ghat or lease block" hint={site ? "The lease's name; the site keeps its own." : "Names the site and its lease."}>
+              <Field label="Ghat or lease block" hint={site ? "The lease's name; the project keeps its own." : "Names the project and its lease."}>
                 <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} disabled={Boolean(lease)} />
               </Field>
               {lease?.boundary && (
@@ -142,7 +142,7 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
               )}
               <BoundaryPicker
                 declaredHa={lease?.declared_area_ha ?? 0}
-                actionLabel={lease || site ? "Use this boundary" : "Create the site"}
+                actionLabel={lease || site ? "Use this boundary" : "Create the project"}
                 onUse={takeBoundary}
               />
               {lease && (
@@ -161,7 +161,7 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
                 <div>
                   <h3 className="small font-medium text-ink-1">Study inputs</h3>
                   <HelperText>
-                    With a proposed extraction, a replenishment study starts on its own once the site has a pre- and a post-monsoon survey.
+                    With a proposed extraction, a replenishment study starts on its own once the project has a pre- and a post-monsoon survey.
                   </HelperText>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -187,7 +187,7 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
             <div className="flex flex-col gap-4">
               <Documents lease={lease} editable onChange={() => void reload()} />
               <Alert tone="info" title="What happens next">
-                Submitting files the application; the site’s approvers are told and register it, which locks the boundary for mission planning.
+                Submitting files the application; the project’s approvers are told and register it, which locks the boundary for mission planning.
               </Alert>
               {missingLoi && <HelperText tone="error">Upload the Letter of Intent before submitting.</HelperText>}
               <div className="flex gap-2">

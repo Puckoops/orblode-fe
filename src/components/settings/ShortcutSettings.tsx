@@ -190,7 +190,7 @@ export function ShortcutSettings() {
     <Band
       first
       heading="Keyboard shortcuts"
-      caption="The keys the site viewer answers to. Pick a key to change it. Applies to this browser."
+      caption="The keys the project viewer answers to. Pick a key to change it. Applies to this browser."
       actions={
         <Button variant="ghost" size="sm" iconStart={Undo02Icon} disabled={!customised} onClick={resetAll}>
           Reset all

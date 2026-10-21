@@ -20,7 +20,7 @@ export default async function VerifyPage({ searchParams }: PageProps<"/verify">)
         <>
           <h1 className="quote">Email confirmed</h1>
           <p className={`small ${styles.lede}`}>
-            {reply.data?.name ? `You're all set, ${reply.data.name}. ` : "You're all set. "}Sign in to open your sites.
+            {reply.data?.name ? `You're all set, ${reply.data.name}. ` : "You're all set. "}Sign in to open your projects.
           </p>
           <div className={styles.form}>
             <Button asChild variant="primary" size="lg" className={styles.submit}>

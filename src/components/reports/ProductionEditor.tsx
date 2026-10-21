@@ -115,7 +115,7 @@ export function ProductionEditor({
   return (
     <Band
       heading="Production records"
-      caption="What the site reports it mined and dispatched. Reconciliation counts the periods that fall between the two surveys."
+      caption="What the project reports it mined and dispatched. Reconciliation counts the periods that fall between the two surveys."
       actions={
         <>
           <input
@@ -136,7 +136,7 @@ export function ProductionEditor({
       }
     >
       {materials && materials.length === 0 ? (
-        <Alert tone="info" title="Add the site's materials first">
+        <Alert tone="info" title="Add the project's materials first">
           Production is recorded per material. Add them on the{" "}
           <TextLink as={Link} href={`/reports?site=${encodeURIComponent(projectId)}&tab=materials`}>
             Materials

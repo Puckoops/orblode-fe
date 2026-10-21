@@ -1,6 +1,7 @@
 import {
   Add01Icon,
   ChartLineData01Icon,
+  DashboardSquare01Icon,
   DroneIcon,
   Files01Icon,
   Globe02Icon,
@@ -15,7 +16,8 @@ export interface NavItem {
 }
 
 export const NAV: NavItem[] = [
-  { href: "/globe", label: "Sites", icon: Globe02Icon, isActive: (p) => p === "/globe" || p.startsWith("/viewer/") },
+  { href: "/overview", label: "Overview", icon: DashboardSquare01Icon, isActive: (p) => p === "/overview" },
+  { href: "/projects", label: "Projects", icon: Globe02Icon, isActive: (p) => p === "/projects" || p.startsWith("/viewer/") },
   { href: "/upload", label: "Create", icon: Add01Icon, isActive: (p) => p === "/upload" },
   { href: "/files", label: "Files", icon: Files01Icon, isActive: (p) => p === "/files" },
   { href: "/reports", label: "Reports", icon: ChartLineData01Icon, isActive: (p) => p === "/reports" },
@@ -33,7 +35,8 @@ export const VENDOR_NAV: NavItem[] = [
 ];
 
 export const TITLES: Record<string, string> = {
-  "/globe": "Sites",
+  "/overview": "Overview",
+  "/projects": "Projects",
   "/upload": "Create",
   "/files": "Files",
   "/reports": "Reports",
@@ -44,8 +47,8 @@ export const TITLES: Record<string, string> = {
 
 /** Minor-minerals records live under the Orblode page their kind folded into. */
 export const FOLDED: Record<string, string> = {
-  "/mm/leases": "/globe",
-  "/mm/register": "/globe",
+  "/mm/leases": "/projects",
+  "/mm/register": "/projects",
   "/mm/reports": "/reports",
   "/mm/registers": "/settings",
 };

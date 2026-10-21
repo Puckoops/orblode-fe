@@ -95,7 +95,7 @@ export function MeasurePalette({
               What to compute
             </p>
             {types.length === 0 ? (
-              <p className="caption text-ink-4">Pick a tool in the toolbar and draw on the site to choose a calculation.</p>
+              <p className="caption text-ink-4">Pick a tool in the toolbar and draw on the survey to choose a calculation.</p>
             ) : (
               <>
                 <RadioGroup
@@ -115,7 +115,7 @@ export function MeasurePalette({
 
           <section aria-label="Live readout" className="flex flex-col gap-1 rounded-md border border-hairline bg-surface-2 p-3">
             <p className="caps mb-1 text-ink-4">Live readout</p>
-            {readout.mode === "idle" && <p className="caption text-ink-4">Pick a tool, then click the site to start.</p>}
+            {readout.mode === "idle" && <p className="caption text-ink-4">Pick a tool, then click the survey to start.</p>}
 
             {readout.mode === "probe" &&
               (readout.point ? (
@@ -128,7 +128,7 @@ export function MeasurePalette({
                   />
                 </>
               ) : (
-                <p className="caption text-ink-4">Click the site to sample a point.</p>
+                <p className="caption text-ink-4">Click the survey to sample a point.</p>
               ))}
 
             {readout.mode === "polyline" && (

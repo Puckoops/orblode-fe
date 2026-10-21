@@ -128,7 +128,7 @@ export function MaterialsTab({ projectId, materials, onChanged }: { projectId: s
       }
       first
     >
-      <Table density="compact" isEmpty={materials.length === 0 && editing !== "new"} empty="No materials yet. Add the ones this site stockpiles.">
+      <Table density="compact" isEmpty={materials.length === 0 && editing !== "new"} empty="No materials yet. Add the ones this project stockpiles.">
         <THead>
           <Tr>
             <Th>Material</Th>

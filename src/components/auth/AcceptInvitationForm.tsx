@@ -78,7 +78,7 @@ export function AcceptInvitationForm() {
       setError(res?.message ?? "We couldn’t set up your account. Try again in a moment.");
       return;
     }
-    router.push("/globe");
+    router.push("/overview");
     router.refresh();
   };
 

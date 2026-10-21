@@ -92,7 +92,7 @@ function MissionTable({ missions, leases, empty }: { missions: Mission[]; leases
         <Tr>
           <Th>Mission</Th>
           <Th>Lease</Th>
-          <Th>Site</Th>
+          <Th>Project</Th>
           <Th>Season</Th>
           <Th numeric>Area</Th>
           <Th>Window</Th>

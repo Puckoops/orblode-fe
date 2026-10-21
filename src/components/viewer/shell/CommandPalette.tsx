@@ -112,7 +112,7 @@ export function CommandPalette({
       { id: "tool-slope", label: "Grade / slope", keywords: "gradient draw tool", section: "Tools", hint: key("tool.grade"), run: () => launchDrawTemplate(actor, store, actions, "slope") },
       { id: "tool-snap", label: s.snapEnabled ? "Turn snapping off" : "Turn snapping on", keywords: "snap magnet vertices", section: "Tools", hint: key("draw.snap"), run: () => toggleSnap(store) },
       { id: "cam-north", label: "Reset camera to North", keywords: "compass bearing heading orient 0 degrees", section: "View", hint: key("camera.north"), run: () => actions.resetNorth() },
-      { id: "cam-view-mode", label: "Toggle 2D / 3D site", keywords: "flat map plan top-down relief terrain mesh perspective", section: "View", hint: key("camera.dimension"), run: () => actions.toggleViewMode() },
+      { id: "cam-view-mode", label: "Toggle 2D / 3D view", keywords: "flat map plan top-down relief terrain mesh perspective", section: "View", hint: key("camera.dimension"), run: () => actions.toggleViewMode() },
       { id: "view-grid", label: s.gridVisible ? "Hide grid" : "Show grid", keywords: "graticule lines coordinates spacing easting northing", section: "View", hint: key("camera.grid"), run: () => s.setGridVisible(!s.gridVisible) },
       { id: "lens-ramp", label: "Toggle elevation ramp", keywords: "colormap terrain viridis lens height", section: "View", hint: key("lens.ramp"), run: () => toggleElevationRamp(store, actions) },
       { id: "lens-hillshade", label: "Toggle hillshade", keywords: "shading relief lens", section: "View", hint: key("lens.hillshade"), run: () => toggleHillshade(store, actions) },

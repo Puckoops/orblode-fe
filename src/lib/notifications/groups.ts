@@ -4,7 +4,7 @@ const GROUPS: { label: string; types: string[] }[] = [
   { label: "Processing", types: ["survey_processed", "survey_failed", "uploads_unfinished"] },
   { label: "Designs", types: ["design_ready", "design_failed"] },
   { label: "Measurements", types: ["measurement_computed", "measurement_failed", "stockpiles_computed"] },
-  { label: "Sites", types: ["reconciliation_red", "stock_anomaly", "site_summary"] },
+  { label: "Projects", types: ["reconciliation_red", "stock_anomaly", "site_summary"] },
   { label: "People", types: ["member_joined", "added_to_organisation", "survey_shared"] },
   {
     label: "Minor minerals",

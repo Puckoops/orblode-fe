@@ -19,8 +19,8 @@ export function NoWorkspace({ className }: { className?: string }) {
         title="You don't have access to a workspace yet."
         description={
           mayCreate
-            ? "Sites live in workspaces. Create one, or ask an owner or admin of your organisation to give you access to theirs."
-            : "Sites live in workspaces. Ask an owner or admin of your organisation to give you access to one."
+            ? "Projects live in workspaces. Create one, or ask an owner or admin of your organisation to give you access to theirs."
+            : "Projects live in workspaces. Ask an owner or admin of your organisation to give you access to one."
         }
         action={
           mayCreate ? (

@@ -124,7 +124,7 @@ function EditSurveySession({
       const updated = await updateSurvey(survey.id, patch);
       setSurvey(updated);
       setForm(surveyDetailsOf(updated));
-      toast.success(dateChanged ? "Survey saved; the site's surveys are re-ordered by the new date" : "Survey saved");
+      toast.success(dateChanged ? "Survey saved; the project's surveys are re-ordered by the new date" : "Survey saved");
       changed();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setConflict(true);
@@ -290,15 +290,15 @@ function DetailsForm({
       )}
       <div className="grid grid-cols-[minmax(0,1fr)_180px] gap-3">
         <Field label="Dataset name" error={nameMissing ? "Name the dataset." : undefined}>
-          <Input value={form.datasetName} onChange={(e) => update({ datasetName: e.target.value })} disabled={disabled} placeholder="Site — date" />
+          <Input value={form.datasetName} onChange={(e) => update({ datasetName: e.target.value })} disabled={disabled} placeholder="Project — date" />
         </Field>
         <Field label="Survey date">
           <DateInput value={form.surveyDate} onChange={(v) => v && update({ surveyDate: v })} disabled={disabled} />
         </Field>
       </div>
       {dateChanged && (
-        <Alert tone="warning" title="A new date re-orders this site's surveys">
-          The Survey V numbers of this site change to follow the new order, and stockpile volumes compared against the previous survey are marked stale
+        <Alert tone="warning" title="A new date re-orders this project's surveys">
+          The Survey V numbers of this project change to follow the new order, and stockpile volumes compared against the previous survey are marked stale
           until they are recomputed.
         </Alert>
       )}

@@ -21,9 +21,9 @@ test("orgLink says when they're not in the organisation", () => {
 });
 
 test("withoutOrg drops only the org parameter", () => {
-  assert.equal(withoutOrg("https://www.orblode.com/globe?org=added"), "/globe");
+  assert.equal(withoutOrg("https://www.orblode.com/projects?org=added"), "/projects");
   assert.equal(withoutOrg("/settings?tab=people&org=added#x"), "/settings?tab=people#x");
-  assert.equal(withoutOrg("/globe"), "/globe");
+  assert.equal(withoutOrg("/projects"), "/projects");
 });
 
 test("unopened points out organisations not yet opened, once", () => {

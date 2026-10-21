@@ -336,12 +336,12 @@ export function ReplenishmentPanel({
   if (lease === undefined) return <Skeleton height={240} className="m-3" />;
   if (lease === null)
     return (
-      <Alert tone="info" title="This site has no lease" className="m-3">
+      <Alert tone="info" title="This project has no lease" className="m-3">
         Replenishment is measured inside a lease boundary.{" "}
         <Link href={`/upload?create=lease&site=${encodeURIComponent(projectId)}`}>
           Start an application
         </Link>{" "}
-        for this site.
+        for this project.
       </Alert>
     );
 

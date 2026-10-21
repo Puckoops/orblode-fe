@@ -20,5 +20,5 @@ export function surveyDenial(err: unknown): SurveyDenial | null {
 
 /** The Sites page, opened on a site's surveys when there is one to open. */
 export function sitesHref(siteId: string | null): string {
-  return siteId ? `/globe?site=${encodeURIComponent(siteId)}` : "/globe";
+  return siteId ? `/projects?site=${encodeURIComponent(siteId)}` : "/projects";
 }

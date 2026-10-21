@@ -460,7 +460,7 @@ export function UploadScreen() {
       //    so a retry cannot create a second site.
       let resolvedProject = destination === "new" ? progress.project : (selectedProject ?? null);
       if (destination === "new" && !resolvedProject) {
-        setStepText("Creating site…");
+        setStepText("Creating project…");
         resolvedProject = await createProject({
           workspace_id: workspace?.id,
           name: newSiteName.trim(),
@@ -471,7 +471,7 @@ export function UploadScreen() {
         progress.project = resolvedProject;
         void useWorkspaces.getState().refresh();
       }
-      if (!resolvedProject) throw new Error("Select a site first");
+      if (!resolvedProject) throw new Error("Select a project first");
       const project = resolvedProject;
 
       // 2) Resolve the survey that hosts the upload. Data uploads are a new
@@ -614,7 +614,7 @@ export function UploadScreen() {
       if (progress.project && !progress.project.crs_epsg && !progress.siteCrsDone) {
         const site = siteCrsFrom(rows);
         if (site) {
-          setStepText("Setting the site's CRS…");
+          setStepText("Setting the project's CRS…");
           try {
             progress.project = await updateProject(progress.project.id, {
               crs_epsg: Number(site.epsg.replace(/^EPSG:/i, "")),
@@ -671,7 +671,7 @@ export function UploadScreen() {
 
   return (
     <Page>
-      <PageHeader title="Create" subtitle="Add survey data or designs to your site" />
+      <PageHeader title="Create" subtitle="Add survey data or designs to your project" />
 
       {phase === "review" && review ? (
         <ReviewCard
@@ -703,7 +703,7 @@ export function UploadScreen() {
             progressRef.current = emptyProgress();
             setResume(null);
           }}
-          onDashboard={() => router.push("/globe")}
+          onDashboard={() => router.push("/projects")}
         />
       ) : (
         <div className="flex max-w-3xl flex-col gap-8">
@@ -714,24 +714,24 @@ export function UploadScreen() {
               value={destination}
               onValueChange={(v) => !working && setDestination(v)}
               options={[
-                { value: "existing", label: "Existing site" },
-                ...(mayCreateSite ? [{ value: "new" as const, label: "New site" }] : []),
+                { value: "existing", label: "Existing project" },
+                ...(mayCreateSite ? [{ value: "new" as const, label: "New project" }] : []),
               ]}
             />
             {destination === "existing" ? (
-              <Field label="Site">
+              <Field label="Project">
                 <SearchSelect
                   value={siteId || null}
                   onValueChange={setSiteId}
                   disabled={working}
-                  placeholder="Select a site…"
-                  searchPlaceholder="Find a site"
+                  placeholder="Select a project…"
+                  searchPlaceholder="Find a project"
                   options={projects.map((p) => ({ value: p.id, label: p.name, meta: p.location_name ?? undefined }))}
-                  empty={(query) => (query ? `No site matches “${query}”.` : "No sites yet. Switch to New site to create one.")}
+                  empty={(query) => (query ? `No project matches “${query}”.` : "No projects yet. Switch to New project to create one.")}
                 />
               </Field>
             ) : (
-              <Field label="New site name" hint={workspace ? `It goes in the ${workspace.name} workspace.` : undefined}>
+              <Field label="New project name" hint={workspace ? `It goes in the ${workspace.name} workspace.` : undefined}>
                 <Input value={newSiteName} onChange={(e) => setNewSiteName(e.target.value)} disabled={working} placeholder="e.g. Bandalkop pit" />
               </Field>
             )}
@@ -799,7 +799,7 @@ export function UploadScreen() {
                   setDatasetName(e.target.value);
                 }}
                 disabled={working}
-                placeholder="Site — date"
+                placeholder="Project — date"
               />
             </Field>
             <Field label="Survey date">
@@ -827,7 +827,7 @@ export function UploadScreen() {
           </section>
 
           <FormFooter note={footerNote}>
-            <Button variant="quiet" disabled={working} onClick={() => router.push("/globe")}>
+            <Button variant="quiet" disabled={working} onClick={() => router.push("/projects")}>
               Cancel
             </Button>
             <Button variant="primary" disabled={!canSubmit} loading={working} onClick={run}>
@@ -1078,11 +1078,11 @@ function DoneSummary({
 
       {result.siteCrs &&
         (result.siteCrs.error ? (
-          <Alert tone="warning" title="The new site has no CRS yet" className="mb-4">
+          <Alert tone="warning" title="The new project has no CRS yet" className="mb-4">
             Setting it to {result.siteCrs.label}, the one most of its files use, failed: {result.siteCrs.error}
           </Alert>
         ) : (
-          <p className="small text-ink-3 mb-4">The new site&apos;s CRS is now {result.siteCrs.label}, the one most of its files use.</p>
+          <p className="small text-ink-3 mb-4">The new project&apos;s CRS is now {result.siteCrs.label}, the one most of its files use.</p>
         ))}
 
       <div className="mt-6 flex flex-wrap gap-3">

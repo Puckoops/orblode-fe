@@ -10,7 +10,7 @@ import { toast } from "@/lib/toast";
 import { useWorkspaces } from "@/lib/workspaces/store";
 
 export const WORKSPACE_TYPES: { value: WorkspaceType; label: string; description: string }[] = [
-  { value: "general", label: "General", description: "Sites, surveys, measurements and stockpile reports." },
+  { value: "general", label: "General", description: "Projects, surveys, measurements and stockpile reports." },
   {
     value: "minor_minerals",
     label: "River sand and minor minerals",
@@ -68,7 +68,7 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
       open={open}
       onOpenChange={close}
       title="New workspace"
-      description="A group of sites. You're its admin; the people and teams you give a role here have it on every site in it."
+      description="A group of projects. You're its admin; the people and teams you give a role here have it on every project in it."
       footer={
         <>
           <Button variant="quiet" disabled={busy} onClick={() => close(false)}>
@@ -82,7 +82,7 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
     >
       <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <Field label="Name" error={error}>
-          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="e.g. Pilbara sites" autoFocus />
+          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="e.g. Pilbara projects" autoFocus />
         </Field>
         <Field label="Description" hint="Optional.">
           <Input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} />

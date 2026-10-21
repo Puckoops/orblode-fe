@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "orblode_session";
-const PROTECTED = ["/globe", "/viewer", "/upload", "/files", "/reports", "/settings", "/mm"];
+const PROTECTED = ["/overview", "/projects", "/globe", "/viewer", "/upload", "/files", "/reports", "/settings", "/mm"];
 const SIGNED_OUT_ONLY = ["/sign-in", "/sign-up"];
 const FILES_PREFIX = "/files/";
 const SHOWCASE_FILES_PREFIX = "/showcase/files/";
@@ -49,7 +49,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (pathname === "/") {
-    return token ? NextResponse.redirect(new URL("/globe", request.url)) : NextResponse.next();
+    return token ? NextResponse.redirect(new URL("/overview", request.url)) : NextResponse.next();
   }
 
   if (matches(pathname, PROTECTED) && !token) {
@@ -60,12 +60,12 @@ export function proxy(request: NextRequest) {
   }
 
   if (matches(pathname, SIGNED_OUT_ONLY) && token) {
-    return NextResponse.redirect(new URL("/globe", request.url));
+    return NextResponse.redirect(new URL("/overview", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/globe", "/viewer/:path*", "/upload", "/files", "/files/:path*", "/showcase/files/:path*", "/reports", "/settings", "/mm", "/mm/:path*", "/sign-in", "/sign-up"],
+  matcher: ["/", "/overview", "/projects", "/globe", "/viewer/:path*", "/upload", "/files", "/files/:path*", "/showcase/files/:path*", "/reports", "/settings", "/mm", "/mm/:path*", "/sign-in", "/sign-up"],
 };

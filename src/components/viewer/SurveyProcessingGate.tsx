@@ -59,7 +59,7 @@ export function SurveyProcessingGate({ surveyId, children }: { surveyId: string;
           description="It opens here by itself as soon as processing finishes."
           action={
             <Button asChild variant="ghost" size="sm">
-              <Link href={sitesHref(current.project_id || null)}>See the site&apos;s surveys</Link>
+              <Link href={sitesHref(current.project_id || null)}>See the project&apos;s surveys</Link>
             </Button>
           }
         />

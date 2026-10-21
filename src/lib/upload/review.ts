@@ -10,14 +10,14 @@ export const DETECTION_POLL_INTERVAL_MS = 1_500;
 export const DETECTION_POLL_WINDOW_MS = 90_000;
 export const DETECTION_STALE_AFTER_MS = 120_000;
 
-export type CrsSourceLabel = "from file" | "from other files" | "from earlier surveys" | "from the site's location" | "assumed" | "you";
+export type CrsSourceLabel = "from file" | "from other files" | "from earlier surveys" | "from the project's location" | "assumed" | "you";
 
 const SOURCE_LABELS: Record<CrsSource, CrsSourceLabel> = {
   header: "from file",
   format: "from file",
   sibling: "from other files",
   previous: "from earlier surveys",
-  site: "from the site's location",
+  site: "from the project's location",
   declared: "assumed",
   range: "assumed",
   user: "you",

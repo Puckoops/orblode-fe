@@ -190,7 +190,7 @@ export function FilesScreen() {
               ? "Loading uploaded source data…"
               : `${totals.files} uploaded file${totals.files === 1 ? "" : "s"}${
                   totals.designs ? ` · ${totals.designs} design${totals.designs === 1 ? "" : "s"}` : ""
-                } across ${workspace ? `the sites in ${workspace.name}` : "your sites"}`
+                } across ${workspace ? `the projects in ${workspace.name}` : "your projects"}`
           }
           actions={<IconButton icon={RefreshIcon} aria-label="Refresh" disabled={loading} onClick={refresh} />}
         />
@@ -273,8 +273,8 @@ function SiteSection({ site, view, onEditSurvey }: { site: SiteGroup; view: View
         })}
         {site.designs.length > 0 && (
           <FolderCard
-            title="Site designs"
-            caption="Registered for the whole site"
+            title="Project designs"
+            caption="Registered for the whole project"
             collapsed={collapsed.has(designsCardKey(site.project.id))}
             onToggle={() => toggle(designsCardKey(site.project.id))}
           >

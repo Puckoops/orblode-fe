@@ -72,7 +72,7 @@ export function KeepAwayPlaces({ projectId, editable }: { projectId: string; edi
   return (
     <section className="flex flex-col gap-2">
       <h3 className="small font-semibold text-ink-1">Keep-away places</h3>
-      {features.length === 0 && <HelperText>None on this site.</HelperText>}
+      {features.length === 0 && <HelperText>None on this project.</HelperText>}
       {features.map((f) => (
         <div key={f.id} className="flex items-center justify-between gap-2">
           <span className="min-w-0">

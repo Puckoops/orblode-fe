@@ -69,7 +69,7 @@ function RoleEditor({ draft, catalogue, onClose, onSaved }: { draft: Draft; cata
       open
       onOpenChange={(next) => !next && !busy && onClose()}
       title={draft.id ? `Edit ${draft.name}` : "New role"}
-      description="Tick what the role allows. It is given on a workspace or a site, like a built-in role, and changes there for everyone who holds it."
+      description="Tick what the role allows. It is given on a workspace or a project, like a built-in role, and changes there for everyone who holds it."
       width={600}
       footer={
         <>
@@ -134,7 +134,7 @@ export function RolesSettings() {
   const remove = (role: CustomRole) =>
     confirm({
       title: `Delete ${role.name}?`,
-      description: "Everyone who holds it, on every workspace and site, loses what it allowed. Roles they hold besides stay.",
+      description: "Everyone who holds it, on every workspace and project, loses what it allowed. Roles they hold besides stay.",
       confirmLabel: "Delete role",
       onConfirm: async () => {
         try {
@@ -223,7 +223,7 @@ export function RolesSettings() {
         </Band>
       )}
 
-      <Band heading="Built-in roles" caption="Fixed. Give them on a workspace or a site from its Access list.">
+      <Band heading="Built-in roles" caption="Fixed. Give them on a workspace or a project from its Access list.">
         <Table minWidth={520} density="compact">
           <THead>
             <Tr>

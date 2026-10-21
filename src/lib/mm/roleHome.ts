@@ -23,7 +23,7 @@ export function modeOf(
 }
 
 export const MODE_HOME: Record<MMMode, string> = {
-  planner: "/globe",
+  planner: "/overview",
   official: "/reports",
   vendor: "/mm/missions",
 };

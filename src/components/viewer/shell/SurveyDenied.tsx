@@ -18,12 +18,12 @@ export function SurveyDenied({ denial }: { denial: SurveyDenial }) {
         title={unpublished ? "This survey isn't published yet." : "You don't have access to this survey."}
         description={
           unpublished
-            ? "It opens here once it's published. Until then, the site's published surveys are on its page."
+            ? "It opens here once it's published. Until then, the project's published surveys are on its page."
             : "Ask whoever sent you the link to share the survey with you."
         }
         action={
           <Button asChild variant="ghost" size="sm">
-            <Link href={sitesHref(denial.siteId)}>{denial.siteId ? "See the site's surveys" : "Back to sites"}</Link>
+            <Link href={sitesHref(denial.siteId)}>{denial.siteId ? "See the project's surveys" : "Back to projects"}</Link>
           </Button>
         }
       />
