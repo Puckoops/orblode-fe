@@ -55,8 +55,10 @@ import {
   type SurveyTag,
 } from "@/lib/api/mm";
 import { listSurveys, type Survey } from "@/lib/api/orblodeSvc";
+import { ProcessingDialog } from "@/components/processing/ProcessingDialog";
 import { useMay } from "@/lib/access/sitePermissions";
 import { dateOf, ha, MINERALS, WORKFLOWS } from "@/lib/mm/format";
+import { useSurveyProcessing } from "@/lib/processing/store";
 import { toast } from "@/lib/toast";
 import { useWorkspaceSites } from "@/lib/workspaces/store";
 import { AnalysisSummary, StudyProgress, studyRunning } from "./AnalysisSummary";
@@ -449,9 +451,7 @@ function Content({ leaseId }: { leaseId: string }) {
                       />
                     </Td>
                     <Td className="text-right">
-                      <Button variant="quiet" size="sm" iconStart={ViewIcon} asChild>
-                        <Link href={`/viewer/${s.id}?module=replenishment`}>Viewer</Link>
-                      </Button>
+                      <SurveyViewerButton surveyId={s.id} missionId={tags.find((t) => t.survey_id === s.id)?.mission_id} />
                     </Td>
                   </Tr>
                 ))}
@@ -613,5 +613,25 @@ export function LeaseScreen({ leaseId }: { leaseId: string }) {
     <MMGate anyWorkspace>
       <Content leaseId={leaseId} />
     </MMGate>
+  );
+}
+
+/** Opens the survey in the viewer, or while it still processes, its progress. */
+function SurveyViewerButton({ surveyId, missionId }: { surveyId: string; missionId?: string }) {
+  const processing = useSurveyProcessing(surveyId);
+  const [open, setOpen] = useState(false);
+  if (!processing)
+    return (
+      <Button variant="quiet" size="sm" iconStart={ViewIcon} asChild>
+        <Link href={`/viewer/${surveyId}?module=replenishment`}>Viewer</Link>
+      </Button>
+    );
+  return (
+    <>
+      <Button variant="quiet" size="sm" onClick={() => setOpen(true)}>
+        Processing · See progress
+      </Button>
+      {open && <ProcessingDialog surveyId={surveyId} missionId={missionId} open onClose={() => setOpen(false)} />}
+    </>
   );
 }
