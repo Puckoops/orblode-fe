@@ -53,6 +53,7 @@ import {
   type MissionGeometry,
   type MissionSettings,
   type Vendor,
+  type ControlMethod,
 } from "@/lib/api/mm";
 import { useMay } from "@/lib/access/sitePermissions";
 import { flightPlanKml, gcpCsv, litchiCsv, missionPack, preflightChecklist, saveFile } from "@/lib/mm/exports";
@@ -60,12 +61,20 @@ import { dateTimeOf, WORKFLOWS } from "@/lib/mm/format";
 import { toUtm } from "@/lib/mm/utm";
 import { toast } from "@/lib/toast";
 import { CHECK_STATE, MISSION_STATUS, MMGate, StatusChip, useFollowSite, useSitePermissionsLoad } from "./common";
+import { ProcessingLink } from "@/components/processing/ProcessingLink";
 import { FlightUpload } from "./FlightUpload";
 import { GroundControlCard } from "./GroundControlCard";
 import { LazyMap } from "./LazyMap";
 import type { MapArea, MapPoint } from "./MMMap";
 
 const REASON_LIMIT_M = 20;
+
+const CONTROL_HINTS: Record<ControlMethod, string> = {
+  targets: "The vendor marks each target in the photos",
+  smart: "The vendor marks each smart GCP in the photos",
+  coded: "Each GCP gets an ArUco marker, found in the photos automatically",
+  rtk: "The drone's own positions place the photos; every point checks the result",
+};
 const APPROVAL_LIMIT_M = 50;
 
 function metresBetween(a: LonLat, b: LonLat): number {
@@ -178,17 +187,32 @@ function SettingsPanel({ mission, editable, onChange }: { mission: Mission; edit
           ]}
         />
       </Field>
-      <Field label="Ground control">
-        <SegmentedControl
-          aria-label="Ground control"
+      <Field label="Ground control" hint={CONTROL_HINTS[s.control_method]}>
+        <Select
           value={s.control_method}
-          onValueChange={(v) => editable && commit({ ...s, control_method: v })}
+          onValueChange={(v) => commit({ ...s, control_method: v as ControlMethod })}
           options={[
             { value: "targets", label: "Painted targets" },
             { value: "smart", label: "Smart GCPs" },
+            { value: "coded", label: "Coded targets" },
+            { value: "rtk", label: "RTK/PPK drone" },
           ]}
+          disabled={!editable}
         />
       </Field>
+      {s.control_method === "rtk" && (
+        <Field label="Photo heights" hint="What the drone writes in its photos; ellipsoidal heights are moved onto EGM2008">
+          <SegmentedControl
+            aria-label="Photo heights"
+            value={s.photo_heights ?? "ellipsoidal"}
+            onValueChange={(v) => editable && commit({ ...s, photo_heights: v })}
+            options={[
+              { value: "ellipsoidal", label: "Ellipsoidal" },
+              { value: "msl", label: "Mean sea level" },
+            ]}
+          />
+        </Field>
+      )}
     </div>
   );
 }
@@ -217,6 +241,7 @@ function ControlPanel({
             <span className="small min-w-12 font-semibold text-ink-1">{p.id}</span>
             <span className="caption flex-1 text-ink-3">
               {p.role === "gcp" ? "GCP" : "Check"} · {p.where}
+              {p.marker_id !== undefined && mission.settings.control_method === "coded" && ` · marker ${p.marker_id}`}
               {p.moved_m >= 0.5 && ` · moved ${p.moved_m.toFixed(1)} m ${p.bearing ?? ""}${p.reason ? ` · ${p.reason}` : ""}`}
             </span>
             {p.approval === "pending" && (
@@ -539,9 +564,9 @@ function Content({ missionId }: { missionId: string }) {
                 <ul className="small flex flex-col gap-1">
                   {mission.survey_ids.map((id) => (
                     <li key={id}>
-                      <Link href={`/viewer/${id}`} className="text-accent hover:underline">
+                      <ProcessingLink surveyId={id} missionId={mission.id} className="text-accent hover:underline">
                         Survey {id.slice(-6)}
-                      </Link>
+                      </ProcessingLink>
                     </li>
                   ))}
                 </ul>

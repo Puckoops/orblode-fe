@@ -1,11 +1,12 @@
 "use client";
 
 import { ArrowRight01Icon, Cancel01Icon, PencilEdit02Icon, SatelliteIcon, Upload01Icon } from "@hugeicons/core-free-icons";
-import { Alert, Badge, Button, EmptyState, Icon, IconButton, Tooltip } from "@puckoops/camelot";
+import { Alert, Badge, Button, EmptyState, Icon, IconButton } from "@puckoops/camelot";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { StateChip } from "@/components/common/StateChip";
 import { EditSurveyDrawer } from "@/components/survey/EditSurveyDrawer";
+import { ProcessingDialog } from "@/components/processing/ProcessingDialog";
 import { SiteAccess } from "@/components/access/SiteAccess";
 import { LeaseCard } from "@/components/mm/LeaseCard";
 import { MoveSite } from "@/components/workspaces/MoveSite";
@@ -23,6 +24,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [stockpiles, setStockpiles] = useState<{ surveyId: string; count: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [progressId, setProgressId] = useState<string | null>(null);
   const [surveysTick, setSurveysTick] = useState(0);
   const failed = useProcessing((s) => s.failed);
   const retry = useProcessing((s) => s.retry);
@@ -190,15 +192,14 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
               return (
                 <li key={survey.id} className="flex items-center gap-1">
                   {processing ? (
-                    <Tooltip content="Opens in the viewer once processing finishes">
-                      <div
-                        aria-disabled="true"
-                        tabIndex={0}
-                        className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 opacity-70"
-                      >
-                        {body}
-                      </div>
-                    </Tooltip>
+                    <button
+                      type="button"
+                      onClick={() => setProgressId(survey.id)}
+                      className="group flex min-w-0 flex-1 items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 text-left hover:border-hairline-strong hover:bg-surface-3"
+                    >
+                      {body}
+                      <span className="caption ml-2 shrink-0 text-ink-3 group-hover:text-ink-2">See progress</span>
+                    </button>
                   ) : (
                     <Link
                       href={`/viewer/${survey.id}`}
@@ -223,6 +224,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
       </div>
 
       <EditSurveyDrawer surveyId={editingId} onClose={() => setEditingId(null)} onChanged={() => setSurveysTick((t) => t + 1)} />
+      {progressId && <ProcessingDialog surveyId={progressId} open onClose={() => setProgressId(null)} />}
 
       <div className="flex items-center gap-4 border-t border-hairline p-6">
         <Button asChild variant="ghost">

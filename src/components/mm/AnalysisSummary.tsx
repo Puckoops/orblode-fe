@@ -61,6 +61,15 @@ export function AnalysisSummary({
     !r.coverage_pct && r.dtm_diff.area_m2 > 0 ? r.effective_m2 : c.measuredM2;
   return (
     <div className="flex flex-col gap-4">
+      {(a.warnings?.length ?? 0) > 0 && (
+        <Alert tone="warning" title="Check the surveys before relying on this study">
+          {a.warnings!.map((w) => (
+            <span key={w} className="block">
+              {w}
+            </span>
+          ))}
+        </Alert>
+      )}
       {c.short && (
         <Alert tone="warning" title="Part of the lease wasn’t measured">
           Only {ha(c.measuredM2)} of {ha(r.effective_m2)} ({c.pct.toFixed(0)} %)
@@ -152,7 +161,8 @@ export function AnalysisSummary({
               <Tr>
                 <Td>
                   Uncertainty ({(a.inputs.vertical_accuracy_m * 100).toFixed(0)}{" "}
-                  cm over {ha(uncertainOverM2)})
+                  cm{a.inputs.accuracy_basis === "measured" ? " measured at the check points" : a.inputs.accuracy_basis === "assumed" ? " assumed" : ""} over{" "}
+                  {ha(uncertainOverM2)})
                 </Td>
                 <Td numeric>± {m3(r.uncertainty_m3)}</Td>
               </Tr>

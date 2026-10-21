@@ -2,6 +2,7 @@
 
 import { Alert, Button, Progress } from "@puckoops/camelot";
 import { useEffect, useState } from "react";
+import { ProcessingDialog } from "@/components/processing/ProcessingDialog";
 import type { ProcessingRun } from "@/lib/api/orblodeSvc";
 import { failureLines, failureTitle, notRetryableLines, runStatus } from "@/lib/processing/summary";
 import { useProcessing } from "@/lib/processing/store";
@@ -20,6 +21,7 @@ export function ProcessingBanner({ surveyId }: { surveyId: string }) {
   const retry = useProcessing((s) => s.retry);
   const [busy, setBusy] = useState(false);
   const [dismissedRuns, setDismissedRuns] = useState<string | null>(null);
+  const [details, setDetails] = useState(false);
   const open = (current?.open ?? 0) > 0;
   const runs = current?.running ?? [];
   const runsKey = runs.map((r) => r.workflow_id).join(",");
@@ -81,13 +83,14 @@ export function ProcessingBanner({ surveyId }: { surveyId: string }) {
           {open && runs.length === 0 && <span className="block">Other processors are still running.</span>}
         </Alert>
       )}
-      {showRuns && <RunningRuns runs={runs} onDismiss={() => setDismissedRuns(runsKey)} />}
+      {showRuns && <RunningRuns runs={runs} onDetails={() => setDetails(true)} onDismiss={() => setDismissedRuns(runsKey)} />}
+      {details && <ProcessingDialog surveyId={surveyId} open onClose={() => setDetails(false)} />}
     </div>
   );
 }
 
 /** Hidden until the set of open runs changes. */
-function RunningRuns({ runs, onDismiss }: { runs: ProcessingRun[]; onDismiss: () => void }) {
+function RunningRuns({ runs, onDetails, onDismiss }: { runs: ProcessingRun[]; onDetails: () => void; onDismiss: () => void }) {
   return (
     // A group, not a live region: the percents change every few seconds.
     <Alert
@@ -97,6 +100,11 @@ function RunningRuns({ runs, onDismiss }: { runs: ProcessingRun[]; onDismiss: ()
       title={runsTitle(runs)}
       onDismiss={onDismiss}
       dismissLabel="Hide processing"
+      action={
+        <Button variant="ghost" size="sm" onClick={onDetails}>
+          Details
+        </Button>
+      }
       className="pointer-events-auto w-full max-w-xl"
     >
       <RunProgress runs={runs} />

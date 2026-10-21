@@ -6,7 +6,9 @@ import { HourglassIcon } from "@hugeicons/core-free-icons";
 import { Button, EmptyState } from "@puckoops/camelot";
 
 import { Loader } from "@/components/brand/Loader";
+import { ProcessingDialog } from "@/components/processing/ProcessingDialog";
 import { RunProgress } from "@/components/viewer/shell/ProcessingBanner";
+import { surveyFlight, type FlightProcessing } from "@/lib/api/mm";
 import { failureLines } from "@/lib/processing/summary";
 import { useProcessing } from "@/lib/processing/store";
 import { sitesHref } from "@/lib/viewer/surveyAccess";
@@ -16,14 +18,22 @@ const POLL_MS = 5_000;
 /**
  * A survey doesn't open in the viewer while it processes: this stands in front of it with where each run has got to, and
  * lets the viewer in once the last run ends. Once in, a run started from the viewer keeps it open. A survey whose
- * processing can't be read opens, so the viewer can say why it can't be shown.
+ * processing can't be read opens, so the viewer can say why it can't be shown. A survey made from raw photos whose
+ * photogrammetry failed has no layers to show, so it stays shut with the reason and Retry.
  */
 export function SurveyProcessingGate({ surveyId, children }: { surveyId: string; children: ReactNode }) {
   const current = useProcessing((s) => (s.current?.survey_id === surveyId ? s.current : null));
   const loadCurrent = useProcessing((s) => s.loadCurrent);
   const [checked, setChecked] = useState(false);
   const [opened, setOpened] = useState(false);
-  const processing = checked && !opened && (current?.open ?? 0) > 0;
+  const [details, setDetails] = useState(false);
+  const [flight, setFlight] = useState<FlightProcessing | null | undefined>(undefined);
+  const [flightTick, setFlightTick] = useState(0);
+  const photosFailed = !!current?.failures.some((f) => f.processor_type === "photogrammetry");
+  const projectId = current?.project_id;
+  const flightKnown = !photosFailed || flight !== undefined;
+  const flightFailed = photosFailed && flight?.status === "failed";
+  const processing = checked && !opened && ((current?.open ?? 0) > 0 || flightFailed);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,17 +46,35 @@ export function SurveyProcessingGate({ surveyId, children }: { surveyId: string;
   }, [surveyId, loadCurrent]);
 
   useEffect(() => {
-    if (!processing) return;
+    if (!checked || !photosFailed || !projectId) return;
+    let live = true;
+    surveyFlight(surveyId, projectId).then(
+      (f) => live && setFlight(f),
+      () => live && setFlight(null)
+    );
+    return () => {
+      live = false;
+    };
+  }, [checked, photosFailed, projectId, surveyId, flightTick]);
+
+  useEffect(() => {
+    if (!processing || flightFailed) return;
     const timer = setInterval(() => {
       if (!document.hidden) void loadCurrent(surveyId);
     }, POLL_MS);
     return () => clearInterval(timer);
-  }, [processing, surveyId, loadCurrent]);
+  }, [processing, flightFailed, surveyId, loadCurrent]);
 
-  if (checked && !opened && !processing) setOpened(true);
+  if (checked && flightKnown && !opened && !processing) setOpened(true);
 
-  if (!checked) return <Loader variant="fill" label="Loading the viewer" />;
+  if (!checked || (!opened && !flightKnown)) return <Loader variant="fill" label="Loading the viewer" />;
   if (!processing || !current) return children;
+
+  const closeDetails = () => {
+    setDetails(false);
+    void loadCurrent(surveyId);
+    setFlightTick((t) => t + 1);
+  };
 
   const failures = failureLines(current);
   return (
@@ -55,12 +83,17 @@ export function SurveyProcessingGate({ surveyId, children }: { surveyId: string;
         <EmptyState
           framed
           icon={HourglassIcon}
-          title="This survey is still processing."
-          description="It opens here by itself as soon as processing finishes."
+          title={flightFailed ? "This survey's photos couldn't be processed." : "This survey is still processing."}
+          description={flightFailed ? flight?.error || "Photogrammetry stopped without a reason." : "It opens here by itself as soon as processing finishes."}
           action={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={sitesHref(current.project_id || null)}>See the site&apos;s surveys</Link>
-            </Button>
+            <span className="flex flex-wrap justify-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setDetails(true)}>
+                {flightFailed ? "Details and Retry" : "Details"}
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link href={sitesHref(current.project_id || null)}>See the site&apos;s surveys</Link>
+              </Button>
+            </span>
           }
         />
         {(current.running?.length ?? 0) > 0 && (
@@ -68,12 +101,13 @@ export function SurveyProcessingGate({ surveyId, children }: { surveyId: string;
             <RunProgress runs={current.running!} />
           </div>
         )}
-        {failures.length > 0 && (
+        {failures.length > 0 && !flightFailed && (
           <p className="caption text-ink-3">
             Already failed: {failures.join(" · ")}
           </p>
         )}
       </div>
+      {details && <ProcessingDialog surveyId={surveyId} missionId={flight?.mission_id} open onClose={closeDetails} />}
     </div>
   );
 }

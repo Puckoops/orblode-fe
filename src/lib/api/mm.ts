@@ -231,6 +231,23 @@ export async function deleteNogo(projectId: string, featureId: string): Promise<
 
 export type Season = "pre" | "post";
 
+export interface AccuracyPoint {
+  id: string;
+  role: "gcp" | "check";
+  dz?: number;
+}
+
+/** How far the survey's DTM sits from the mission's surveyed points; dz is DTM minus MSL height. */
+export interface SurveyAccuracy {
+  rmse_z_m?: number;
+  mean_dz_m?: number;
+  n: number;
+  points: AccuracyPoint[];
+  /** A mean offset too large to be noise, as a DTM in another height datum shows. */
+  datum_suspect: boolean;
+  checked_at: number;
+}
+
 export interface SurveyTag {
   id: string;
   project_id: string;
@@ -238,6 +255,9 @@ export interface SurveyTag {
   season: Season;
   season_label: string;
   mission_id?: string;
+  /** Whether Orblode processed the flight's raw photos or the vendor uploaded processed files. */
+  source?: FlightSource;
+  accuracy?: SurveyAccuracy;
 }
 
 export function listSurveyTags(projectId?: string): Promise<SurveyTag[]> {
@@ -289,6 +309,8 @@ export interface Analysis {
     proposed_m3: number;
     water_table_depth_m?: number;
     vertical_accuracy_m: number;
+    /** measured: from both surveys' check points; assumed: the lease's study default. */
+    accuracy_basis?: "measured" | "assumed";
     max_extraction_pct: number;
   };
   results: {
@@ -306,6 +328,7 @@ export interface Analysis {
   };
   rules: RuleResults;
   verdict: Verdict;
+  warnings?: string[];
   /** queued and computing while the daemon measures it; draft once it can be accepted. */
   status: "queued" | "computing" | "failed" | "draft" | "accepted";
   progress?: { stage: string; percent: number; error?: string; started_at?: number; finished_at?: number };
@@ -498,9 +521,17 @@ export interface MissionSettings {
   pattern: "single" | "double";
   buffer_m: number;
   safety_zone_m: number;
-  control_method: "targets" | "smart";
+  control_method: ControlMethod;
+  /** The height datum an RTK or PPK drone writes in its photos. */
+  photo_heights?: "ellipsoidal" | "msl";
   line_azimuth_deg: number;
 }
+
+/** How a flight is tied to the ground: targets and smart GCPs are marked by hand in the photos, coded targets are
+ * found automatically, and an RTK or PPK drone's own positions are used with every point kept as a check. */
+export type ControlMethod = "targets" | "smart" | "coded" | "rtk";
+
+export const marksPhotos = (method: ControlMethod | undefined) => !method || method === "targets" || method === "smart";
 
 export interface GCP {
   id: string;
@@ -513,6 +544,8 @@ export interface GCP {
   reason?: string;
   approval?: "" | "pending" | "approved";
   approver?: Person;
+  /** The coded target laid on the point, for missions using coded targets. */
+  marker_id?: number;
 }
 
 export interface Check {
@@ -647,9 +680,116 @@ export function returnMission(missionId: string, note: string): Promise<Mission>
   return apiFetch<Mission>(BASE, `/mm/missions/${id(missionId)}/return`, { method: "POST", body: { note } });
 }
 
-/** Starts a flight of an issued mission: a new survey of the site, tagged with the mission's season, and its upload slots. */
-export function createFlight(missionId: string, input: { survey_date: string; season_label: string; files: UploadInitFile[] }): Promise<{ survey_id: string; uploads: { uploads: InitiatedUpload[] } }> {
+export type FlightSource = "photos" | "processed";
+
+/** Starts a flight of an issued mission: a new survey of the site, tagged with the mission's season. Processed files
+ * get their upload slots; raw photos get a flight record and go up through photoUploads. */
+export function createFlight(
+  missionId: string,
+  input: { survey_date: string; season_label: string; source?: FlightSource; files?: UploadInitFile[] }
+): Promise<{ survey_id: string; uploads?: { uploads: InitiatedUpload[] }; processing?: FlightProcessing }> {
   return apiFetch(BASE, `/mm/missions/${id(missionId)}/flights`, { method: "POST", body: input });
+}
+
+/** What the browser reads from a photo as it is added. */
+export interface PhotoExif {
+  lat?: number;
+  lon?: number;
+  altitude_m?: number;
+  rel_alt_m?: number;
+  yaw_deg?: number;
+  focal_mm?: number;
+  focal_35mm?: number;
+  width?: number;
+  height?: number;
+  make?: string;
+  model?: string;
+  taken_at?: string;
+  rtk?: boolean;
+}
+
+/** A control point's target as clicked in one photo, in that photo's pixels. */
+export interface PhotoMark {
+  point_id: string;
+  photo: string;
+  x: number;
+  y: number;
+}
+
+export type FlightStatus = "uploading" | "queued" | "running" | "layers" | "done" | "failed";
+
+export interface FlightOptions {
+  preset: PhotogrammetryPreset;
+  dsm: boolean;
+  orthophoto: boolean;
+  pointcloud: boolean;
+}
+
+export type PhotogrammetryPreset = "fast" | "standard" | "high";
+
+/** A flight uploaded as raw photos and how far Orblode has got turning them into the survey's layers. */
+export interface FlightProcessing {
+  id: string;
+  project_id: string;
+  mission_id: string;
+  survey_id: string;
+  method: ControlMethod;
+  photos: { count: number; bytes: number };
+  marks: PhotoMark[] | null;
+  options: FlightOptions;
+  status: FlightStatus;
+  error?: string;
+  warnings?: string[];
+  workflow_id?: string;
+  epsg?: number;
+  outputs?: { role: string; url: string; workflow_id?: string }[];
+  odx_version?: string;
+  gsd_cm?: number;
+  gcp_rmse_m?: number;
+  gcps_used?: string[];
+  photos_used?: number;
+  started_at?: number;
+  finished_at?: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Signs uploads for at most 500 of the flight's photos, and records what the browser read from them. */
+export function photoUploads(
+  missionId: string,
+  surveyId: string,
+  photos: { name: string; size: number; exif: PhotoExif }[]
+): Promise<{ urls: Record<string, string>; count: number; bytes: number }> {
+  return apiFetch(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/photos/uploads`, { method: "POST", body: { photos } });
+}
+
+/** The photos storage has, for resuming an upload. */
+export function flightPhotos(missionId: string, surveyId: string): Promise<{ uploaded: string[] | null; count: number; bytes: number; expected: number }> {
+  return apiFetch(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/photos`);
+}
+
+export function saveMarks(missionId: string, surveyId: string, marks: PhotoMark[]): Promise<FlightProcessing> {
+  return apiFetch<FlightProcessing>(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/marks`, { method: "PUT", body: { marks } });
+}
+
+export function getFlightProcessing(missionId: string, surveyId: string): Promise<FlightProcessing> {
+  return apiFetch<FlightProcessing>(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/processing`);
+}
+
+/** The raw-photo flight a survey was made from, or null for one made from processed files. */
+export async function surveyFlight(surveyId: string, projectId: string): Promise<FlightProcessing | null> {
+  const tag = (await listSurveyTags(projectId)).find((t) => t.survey_id === surveyId);
+  if (!tag?.mission_id || tag.source !== "photos") return null;
+  return getFlightProcessing(tag.mission_id, surveyId).catch(() => null);
+}
+
+/** Starts photogrammetry; the DTM is always made. Refused with the reasons while photos, DGPS or marks are missing. */
+export function processFlight(
+  missionId: string,
+  surveyId: string,
+  input: { preset: PhotogrammetryPreset; layers: { dsm: boolean; orthophoto: boolean; pointcloud: boolean } }
+): Promise<FlightProcessing> {
+  return apiFetch<FlightProcessing>(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/process`, { method: "POST", body: input });
 }
 
 export function flightUploaded(missionId: string, surveyId: string, assetId: string): Promise<SourceAsset> {
