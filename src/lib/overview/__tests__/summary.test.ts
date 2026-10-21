@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ProjectOverview } from "../../api/orblodeSvc.ts";
-import { attentionItems, surveyedWithin } from "../summary.ts";
+import { attentionItems, freshnessOf, stockAsOf, surveyedWithin } from "../summary.ts";
 
 const project = (id: string, change: Partial<ProjectOverview> = {}): ProjectOverview => ({
   project_id: id,
@@ -11,6 +11,21 @@ const project = (id: string, change: Partial<ProjectOverview> = {}): ProjectOver
   survey_gap: false,
   stock: null,
   next_depletion: null,
+  ...change,
+});
+
+const stock = (date: string, change: Partial<NonNullable<ProjectOverview["stock"]>> = {}): ProjectOverview["stock"] => ({
+  survey: { id: `s-${date}`, date },
+  piles: 2,
+  volume_m3: 100,
+  tonnage_t: 150,
+  value: 0,
+  previous_survey: null,
+  delta_volume_m3: null,
+  delta_tonnage_t: null,
+  stale: 0,
+  failed: 0,
+  uncomputed: 0,
   ...change,
 });
 
@@ -45,4 +60,42 @@ test("attention lists failures and red reconciliations first, then stock running
 test("stock running out more than 90 days away needs no attention yet", () => {
   const items = attentionItems({ failed: [], alerts: [], projects: [project("a", { next_depletion: { material_id: "m", material: "Sand", date: "2027-03-01" } })] }, "2026-10-21");
   assert.deepEqual(items, []);
+});
+
+test("stockpiles that failed to compute need action; edited or never computed ones need a compute", () => {
+  const items = attentionItems(
+    {
+      failed: [],
+      alerts: [],
+      projects: [
+        project("a", { stock: stock("2026-10-01", { failed: 2 }) }),
+        project("b", { stock: stock("2026-10-01", { stale: 1 }) }),
+        project("c", { stock: stock("2026-10-01", { stale: 1, uncomputed: 2 }) }),
+      ],
+    },
+    "2026-10-21",
+  );
+  assert.deepEqual(
+    items.map((i) => [i.tone, i.text, i.href]),
+    [
+      ["bad", "2 stockpiles failed to compute", "/reports?site=a&tab=inventory"],
+      ["warn", "1 stockpile changed since computed", "/reports?site=b&tab=inventory"],
+      ["warn", "3 stockpiles to compute", "/reports?site=c&tab=inventory"],
+    ],
+  );
+});
+
+test("freshness is recent to 30 days, due to 90 and dormant after", () => {
+  assert.equal(freshnessOf(null), null);
+  assert.equal(freshnessOf(0), "recent");
+  assert.equal(freshnessOf(30), "recent");
+  assert.equal(freshnessOf(31), "due");
+  assert.equal(freshnessOf(90), "due");
+  assert.equal(freshnessOf(91), "dormant");
+});
+
+test("stock has one as-of date only when every project's stock is from the same day", () => {
+  assert.equal(stockAsOf([project("a", { stock: stock("2026-10-13") }), project("b")]), "2026-10-13");
+  assert.equal(stockAsOf([project("a", { stock: stock("2026-10-13") }), project("b", { stock: stock("2026-09-01") })]), null);
+  assert.equal(stockAsOf([project("a")]), null);
 });

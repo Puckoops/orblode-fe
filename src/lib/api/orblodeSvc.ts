@@ -1194,14 +1194,49 @@ export interface ProjectOverview {
   days_since_survey: number | null;
   /** No survey for more than 30 days. */
   survey_gap: boolean;
-  stock: { survey: { id: string; date: string }; piles: number; volume_m3: number; tonnage_t: number; value: number } | null;
+  /** The latest survey with stockpiles, its change since the previous one with stockpiles, and how many of its piles
+   * were edited since their compute (stale), failed it, or were never computed. */
+  stock: {
+    survey: { id: string; date: string };
+    piles: number;
+    volume_m3: number;
+    tonnage_t: number;
+    value: number;
+    previous_survey: { id: string; date: string } | null;
+    delta_volume_m3: number | null;
+    delta_tonnage_t: number | null;
+    stale: number;
+    failed: number;
+    uncomputed: number;
+  } | null;
   next_depletion: { material_id: string; material: string; date: string } | null;
+}
+
+/** A material's stock across the workspace, matched by name; an empty name is the piles with no material. */
+export interface OverviewMaterial {
+  name: string;
+  projects: number;
+  piles: number;
+  volume_m3: number;
+  tonnage_t: number;
+  value: number;
 }
 
 export interface WorkspaceOverview {
   workspace_id: string;
   projects: ProjectOverview[];
-  totals: { projects: number; surveys: number; piles: number; volume_m3: number; tonnage_t: number; value: number };
+  materials: OverviewMaterial[];
+  /** The change sums the projects that have a previous survey with stockpiles; null when none has. */
+  totals: {
+    projects: number;
+    surveys: number;
+    piles: number;
+    volume_m3: number;
+    tonnage_t: number;
+    value: number;
+    delta_volume_m3: number | null;
+    delta_tonnage_t: number | null;
+  };
 }
 
 /** Each project of the workspace the caller can see; one call instead of one per project. */
