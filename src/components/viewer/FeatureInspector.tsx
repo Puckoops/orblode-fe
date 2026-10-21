@@ -813,7 +813,7 @@ export function FeatureInspector({
 
               {pinnable && measurement.pinned && (
                 <p className="caption text-ink-4">
-                  Pinned: this pile is in every survey of the site, and new surveys get it once their terrain is in. Each survey keeps its
+                  Pinned: this pile is in every survey of the project, and new surveys get it once their terrain is in. Each survey keeps its
                   own outline.
                 </p>
               )}

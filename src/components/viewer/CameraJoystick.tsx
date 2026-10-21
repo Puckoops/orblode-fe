@@ -451,8 +451,8 @@ export function CameraJoystick({
         <button
           type="button"
           onClick={onToggleViewMode}
-          aria-label={viewMode === "2d" ? "Show the site in 3D" : "Show the site flat, in 2D"}
-          title={`${viewMode === "2d" ? "3D site" : "2D flat site"}${viewModeKey}`}
+          aria-label={viewMode === "2d" ? "Show the survey in 3D" : "Show the survey flat, in 2D"}
+          title={`${viewMode === "2d" ? "3D view" : "2D flat view"}${viewModeKey}`}
           className="caps flex size-6 items-center justify-center rounded-full border border-hairline bg-surface/90 tracking-normal text-ink-3 backdrop-blur-xl hover:bg-surface-2 hover:text-ink-1 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
         >
           {viewMode === "2d" ? "3D" : "2D"}

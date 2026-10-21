@@ -113,7 +113,7 @@ export function InventoryTab({ surveys }: { surveys: Survey[] | null }) {
   };
 
   if (surveys === null) return <Loader label="Loading surveys" />;
-  if (surveys.length === 0) return <EmptyState icon={Layers01Icon} title="This site has no surveys yet." framed />;
+  if (surveys.length === 0) return <EmptyState icon={Layers01Icon} title="This project has no surveys yet." framed />;
 
   const survey = surveys.find((s) => s.id === surveyId);
   const totals = report?.totals;

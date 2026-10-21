@@ -128,7 +128,7 @@ function TeamList({ onOpen }: { onOpen: (id: string) => void }) {
     <Band
       first
       heading="Teams"
-      caption="Groups of people. Give a team a role on a workspace or a site and everyone in it has that role; whoever joins later has it too."
+      caption="Groups of people. Give a team a role on a workspace or a project and everyone in it has that role; whoever joins later has it too."
       actions={
         mayCreate ? (
           <Button variant="primary" iconStart={Add01Icon} onClick={() => setCreating(true)}>
@@ -144,7 +144,7 @@ function TeamList({ onOpen }: { onOpen: (id: string) => void }) {
           framed
           icon={UserGroupIcon}
           title="No teams yet."
-          description={mayCreate ? "Make one for each group that works the same sites, such as a survey crew." : "Owners and admins can make teams."}
+          description={mayCreate ? "Make one for each group that works the same projects, such as a survey crew." : "Owners and admins can make teams."}
         />
       ) : (
         <Table minWidth={420}>
@@ -425,7 +425,7 @@ function TeamPage({ id, onBack }: { id: string; onBack: () => void }) {
         </Band>
       )}
 
-      <Band heading="Access" caption="Where the team holds roles. Give or take them away in each workspace's settings or each site's panel.">
+      <Band heading="Access" caption="Where the team holds roles. Give or take them away in each workspace's settings or each project's panel.">
         {team.access.length === 0 ? (
           <HelperText>The team holds no roles yet.</HelperText>
         ) : (
@@ -442,7 +442,7 @@ function TeamPage({ id, onBack }: { id: string; onBack: () => void }) {
                   <Td primary>
                     <span className="inline-flex flex-wrap items-center gap-2">
                       {a.name}
-                      <Badge variant="tag">{a.type === "workspace" ? "Workspace" : "Site"}</Badge>
+                      <Badge variant="tag">{a.type === "workspace" ? "Workspace" : "Project"}</Badge>
                     </span>
                   </Td>
                   <Td>{describeRoles(a.roles, a.type)}</Td>

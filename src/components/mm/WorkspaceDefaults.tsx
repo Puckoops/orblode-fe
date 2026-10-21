@@ -213,7 +213,7 @@ export function WorkspaceDefaults({ workspace }: { workspace: Workspace }) {
             <HelperText>
               Studies sent for vetting start from this chain, in order. Each
               step is decided by any one of its reviewers; the person sending
-              can change it, and only reviewers who can vet on the site are
+              can change it, and only reviewers who can vet on the project are
               kept.
             </HelperText>
           </div>

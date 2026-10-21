@@ -306,7 +306,7 @@ export function SurveyShareCard({ surveyId, surveyLabel, site }: { surveyId: str
           !canManage && (
             <div className="flex items-center gap-3 rounded-md bg-surface-2 px-3 py-2.5">
               <span className="small flex-1 text-ink-1">You can only view this survey&apos;s sharing</span>
-              <span className="caption shrink-0 text-ink-4">The site&apos;s managers change it</span>
+              <span className="caption shrink-0 text-ink-4">The project&apos;s managers change it</span>
             </div>
           )
         )}
@@ -342,7 +342,7 @@ export function SurveyShareCard({ surveyId, surveyLabel, site }: { surveyId: str
             <>
               <Row
                 lead={<Tile icon={Building03Icon} />}
-                name={site.name ?? "The site"}
+                name={site.name ?? "The project"}
                 detail={siteAccessDetail(siteSummary, orgName)}
                 access={
                   <button type="button" className={accessButton} aria-expanded={siteOpen} onClick={() => setSiteOpen((o) => !o)}>
@@ -394,7 +394,7 @@ export function SurveyShareCard({ surveyId, surveyLabel, site }: { surveyId: str
                   "Only people invited"
                 )
               }
-              detail={everyone ? undefined : "and whoever has a role on the site"}
+              detail={everyone ? undefined : "and whoever has a role on the project"}
               access={everyone ? <span className="caption shrink-0 px-1.5 text-ink-3">Can view</span> : null}
             />
           </ul>

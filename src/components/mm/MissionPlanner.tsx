@@ -114,7 +114,7 @@ function MoveDialog({ point, to, onCancel, onMove }: { point: GCP; to: LonLat; o
         <div className="flex flex-col gap-4">
           {needsApproval && (
             <Alert tone="warning" title={`Over ${REASON_LIMIT_M} m: a reviewer must approve it`}>
-              Someone with approval rights on the site, other than you, approves the move before the mission can be issued.
+              Someone with approval rights on the project, other than you, approves the move before the mission can be issued.
             </Alert>
           )}
           <Field label="Why it moves" required>
@@ -327,7 +327,7 @@ function Content({ missionId }: { missionId: string }) {
     [mission, moving]
   );
 
-  if (failed) return <Alert tone="critical" title="This mission couldn't load.">It may belong to a site you can’t see.</Alert>;
+  if (failed) return <Alert tone="critical" title="This mission couldn't load.">It may belong to a project you can’t see.</Alert>;
   if (!mission || !geometry) return <Skeleton height={520} />;
 
   const editable = canPlan && (mission.status === "draft" || mission.status === "returned");

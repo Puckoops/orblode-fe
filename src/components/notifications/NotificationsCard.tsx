@@ -203,7 +203,7 @@ export function NotificationsCard({ onClose }: { onClose: () => void }) {
             className={styles.empty}
             icon={Notification03Icon}
             title={filter === "unread" ? "You’ve read everything." : "Nothing here yet."}
-            description={filter === "unread" ? undefined : "Survey results, failures, site alerts and people joining will show up here."}
+            description={filter === "unread" ? undefined : "Survey results, failures, project alerts and people joining will show up here."}
           />
         ) : (
           groups.map((g) => (

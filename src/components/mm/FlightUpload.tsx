@@ -161,7 +161,7 @@ export function FlightUpload({ mission, onClose, onDone }: { mission: Mission; o
       open
       onOpenChange={(o) => !o && !busy && onClose()}
       title={`Upload a flight of ${mission.code}`}
-      description={`Processed outputs: DTM and DSM GeoTIFFs, the orthomosaic and the point cloud, which become a new survey of the site.${
+      description={`Processed outputs: DTM and DSM GeoTIFFs, the orthomosaic and the point cloud, which become a new survey of the project.${
         job ? " Add the ground control logs too: they go to the mission's DGPS job." : ""
       }`}
       width={720}

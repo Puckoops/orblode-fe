@@ -129,6 +129,6 @@ test("the site's roles read as one role, or mixed access, with who holds them", 
     entry("team", "t1", ["survey_manager"]),
   ]);
   assert.deepEqual(mixed, { everyone: true, people: 2, teams: 1, access: "Mixed access" });
-  assert.equal(siteAccessDetail(mixed, "Acme"), "Site · everyone at Acme · 2 people · 1 team");
-  assert.equal(siteAccessDetail({ everyone: false, people: 1, teams: 0 }, "Acme"), "Site · 1 person");
+  assert.equal(siteAccessDetail(mixed, "Acme"), "Project · everyone at Acme · 2 people · 1 team");
+  assert.equal(siteAccessDetail({ everyone: false, people: 1, teams: 0 }, "Acme"), "Project · 1 person");
 });

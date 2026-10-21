@@ -81,7 +81,7 @@ function NewJob({ leases, onClose, onCreated }: { leases: Lease[]; onClose: () =
     const lon = num(ref.lon);
     const h = num(ref.h);
     if (!projectId || !ref.name.trim() || [lat, lon, h].some(Number.isNaN)) {
-      setError("Choose the site and give the reference station's name and known coordinates.");
+      setError("Choose the project and give the reference station's name and known coordinates.");
       return;
     }
     if (!base.on && rovers.length === 0) {
@@ -130,17 +130,17 @@ function NewJob({ leases, onClose, onCreated }: { leases: Lease[]; onClose: () =
     >
       <div className="flex flex-col gap-5">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Site">
+          <Field label="Project">
             <SearchSelect
               value={projectId}
               onValueChange={(v) => {
                 setMissionId("");
                 setProjectId(v);
               }}
-              placeholder="Choose a site"
-              searchPlaceholder="Find a site"
+              placeholder="Choose a project"
+              searchPlaceholder="Find a project"
               options={leaseSites.map((s) => ({ value: s.id, label: s.name }))}
-              empty={() => "No site has a lease yet."}
+              empty={() => "No project has a lease yet."}
             />
           </Field>
           <Field label="Mission" hint="Fills the rovers with its ground control">
@@ -391,7 +391,7 @@ function Content() {
               <THead>
                 <Tr>
                   <Th>Job</Th>
-                  <Th>Site</Th>
+                  <Th>Project</Th>
                   <Th>Reference</Th>
                   <Th numeric>Points</Th>
                   <Th>Created</Th>
@@ -419,7 +419,7 @@ function Content() {
       </Band>
       <Band
         heading="Control points"
-        caption="Easting and northing in the site's UTM zone; heights above mean sea level where EGM2008 was applied."
+        caption="Easting and northing in the project's UTM zone; heights above mean sea level where EGM2008 was applied."
         actions={
           <Button variant="ghost" iconStart={Download01Icon} disabled={points.length === 0} asChild>
             <a href={CONTROL_POINTS_CSV_URL({})} download="control_points.csv">
@@ -432,7 +432,7 @@ function Content() {
           <THead>
             <Tr>
               <Th>Point</Th>
-              <Th>Site</Th>
+              <Th>Project</Th>
               <Th numeric>Easting</Th>
               <Th numeric>Northing</Th>
               <Th numeric>Height</Th>

@@ -51,19 +51,19 @@ export function CreateScreen() {
   if (asked.start === "mission") return <PlanMission leaseId={asked.lease} onBack={() => choose(null)} />;
   return (
     <Page>
-      <PageHeader title="Create" subtitle="Start a lease site, plan a drone mission, or add survey data to a site" />
+      <PageHeader title="Create" subtitle="Start a lease project, plan a drone mission, or add survey data to a project" />
       <div className="grid gap-4 sm:grid-cols-3">
         <ActionCard
           icon={MapsLocation01Icon}
-          title="New lease site"
-          caption="Drop the lease boundary: it places the site and starts the application."
+          title="New lease project"
+          caption="Drop the lease boundary: it places the project and starts the application."
           onClick={() => choose("lease")}
         />
         <ActionCard icon={DroneIcon} title="Plan a mission" caption="Lay out a pre- or post-monsoon flight over a lease." onClick={() => choose("mission")} />
         <ActionCard
           icon={Upload01Icon}
           title="Upload survey data"
-          caption="Add a flight’s outputs to a site; outside the monsoon its season follows its date."
+          caption="Add a flight’s outputs to a project; outside the monsoon its season follows its date."
           onClick={() => choose("survey")}
         />
       </div>

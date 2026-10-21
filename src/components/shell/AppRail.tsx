@@ -37,7 +37,7 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
     const count = countOf(item);
     if (count === 0) return item.label;
     return item.href === "/reports"
-      ? `${item.label}, ${count} ${count === 1 ? "site reconciles" : "sites reconcile"} red`
+      ? `${item.label}, ${count} ${count === 1 ? "project reconciles" : "projects reconcile"} red`
       : `${item.label}, ${count} failed to process`;
   };
 

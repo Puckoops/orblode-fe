@@ -128,7 +128,7 @@ test("each CRS source reads as its chip", () => {
   const cases: [Partial<SourceAsset>, string | null][] = [
     [{ crs: "EPSG:4326", detection: detection({ crs: { epsg: "EPSG:4326", source: "format", confidence: "high" } }) }, "from file"],
     [{ crs: "EPSG:28356", detection: detection({ crs: { epsg: "EPSG:28356", source: "previous", confidence: "high" } }) }, "from earlier surveys"],
-    [{ crs: "EPSG:28356", detection: detection({ crs: { epsg: "EPSG:28356", source: "site", confidence: "medium" } }) }, "from the site's location"],
+    [{ crs: "EPSG:28356", detection: detection({ crs: { epsg: "EPSG:28356", source: "site", confidence: "medium" } }) }, "from the project's location"],
     [{ crs: "EPSG:4326", detection: detection({ crs: { epsg: "EPSG:4326", source: "range", confidence: "medium" } }) }, "assumed"],
     [{ crs: "EPSG:4326", declared_crs: "EPSG:4326", detection: detection({ crs: { epsg: "EPSG:4326", source: "declared", confidence: "low" } }) }, "assumed"],
     [{ crs: "EPSG:7856", detection: detection({ crs: { epsg: "EPSG:7856", source: "user", confidence: "high" } }) }, "you"],

@@ -167,7 +167,7 @@ export function parseProductionCsv(text: string, materials: Material[]): ParsedP
     const key = (r[iMaterial] ?? "").trim();
     const material = byKey.get(key) ?? byKey.get(key.toLowerCase());
     if (!material) {
-      errors.push(`Row ${line}: "${key}" is not a material of this site.`);
+      errors.push(`Row ${line}: "${key}" is not a material of this project.`);
       return;
     }
     const mined = iMined < 0 ? 0 : tonnes(r[iMined], line, "mined");

@@ -103,7 +103,7 @@ export function LeaseCard({ projectId, surveys, className }: { projectId: string
     return (
       <div className={`flex flex-col gap-2 rounded-md border border-hairline p-4 ${className ?? ""}`}>
         <h3 className="h3">Lease</h3>
-        <HelperText>This site has no lease yet. Its application starts from the lease boundary.</HelperText>
+        <HelperText>This project has no lease yet. Its application starts from the lease boundary.</HelperText>
         {mayUpload && (
           <div>
             <Button asChild variant="ghost" size="sm">

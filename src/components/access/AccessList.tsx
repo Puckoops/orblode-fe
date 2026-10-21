@@ -106,8 +106,8 @@ export function AccessList({
       title: `Take away ${who} access to ${objectName}?`,
       description:
         scope === "workspace"
-          ? "Their roles here go, on every site in the workspace. Roles given on a site itself, through a team, or as an owner or admin of the organisation stay."
-          : "Their roles on this site go. Roles that reach it from its workspace or the organisation stay.",
+          ? "Their roles here go, on every project in the workspace. Roles given on a project itself, through a team, or as an owner or admin of the organisation stay."
+          : "Their roles on this project go. Roles that reach it from its workspace or the organisation stay.",
       confirmLabel: "Take away",
       onConfirm: async () => {
         try {

@@ -286,7 +286,7 @@ function Content({ leaseId }: { leaseId: string }) {
     [lease, masks]
   );
 
-  if (failed) return <Alert tone="critical" title="This lease couldn't load.">It may belong to a site you can’t see.</Alert>;
+  if (failed) return <Alert tone="critical" title="This lease couldn't load.">It may belong to a project you can’t see.</Alert>;
   if (!lease) return <Skeleton height={400} />;
   const site = sites.find((s) => s.id === lease.project_id);
   const editable = lease.status !== "registered";
@@ -420,8 +420,8 @@ function Content({ leaseId }: { leaseId: string }) {
         </TabsContent>
 
         <TabsContent value="studies" className="flex flex-col gap-6 pt-6">
-          <Band heading="Surveys of the site" caption="Mark which survey is the pre-monsoon and which the post-monsoon one.">
-            <Table minWidth={520} isEmpty={surveys.length === 0} empty="The site has no surveys yet.">
+          <Band heading="Surveys of the project" caption="Mark which survey is the pre-monsoon and which the post-monsoon one.">
+            <Table minWidth={520} isEmpty={surveys.length === 0} empty="The project has no surveys yet.">
               <THead>
                 <Tr>
                   <Th>Survey date</Th>
@@ -471,7 +471,7 @@ function Content({ leaseId }: { leaseId: string }) {
             }
           >
             {analyses.length === 0 ? (
-              <HelperText>No study yet{!lease.boundary ? ": set the boundary first" : surveys.length < 2 ? ": the site needs two surveys" : ""}.</HelperText>
+              <HelperText>No study yet{!lease.boundary ? ": set the boundary first" : surveys.length < 2 ? ": the project needs two surveys" : ""}.</HelperText>
             ) : (
               <div className="flex flex-col gap-6">
                 {analyses.map((a) => (
@@ -566,7 +566,7 @@ function Content({ leaseId }: { leaseId: string }) {
         </TabsContent>
 
         <TabsContent value="access" className="pt-6">
-          {site ? <SiteAccess site={site} /> : <HelperText>This site is in another workspace: switch to it to see who has access.</HelperText>}
+          {site ? <SiteAccess site={site} /> : <HelperText>This project is in another workspace: switch to it to see who has access.</HelperText>}
           <HelperText className="mt-3">
             Give officials a custom role that can vet, and vendors one that uploads mission data. Make the roles in <Link href="/settings?tab=roles">Settings → Roles</Link>.
           </HelperText>

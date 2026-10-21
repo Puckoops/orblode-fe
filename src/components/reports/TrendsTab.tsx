@@ -39,7 +39,7 @@ export function TrendsTab({ projectId }: { projectId: string }) {
     return (
       <EmptyState
         icon={ChartLineData01Icon}
-        title="No survey of this site has computed stockpiles yet."
+        title="No survey of this project has computed stockpiles yet."
         description="Trends follow each material's stock from survey to survey."
         framed
       />

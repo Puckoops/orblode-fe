@@ -105,7 +105,7 @@ export function GrantDialog({
       title={editing ? `${editing.subject.name}’s roles` : "Give access"}
       description={
         scope === "workspace"
-          ? `Roles on ${objectName} reach every site in it.`
+          ? `Roles on ${objectName} reach every project in it.`
           : `Roles on ${objectName} only. Roles from its workspace show separately and change there.`
       }
       width={520}

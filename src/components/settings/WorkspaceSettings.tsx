@@ -78,7 +78,7 @@ function Details({ workspace }: { workspace: Workspace }) {
           <Field label="Name" error={error}>
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} disabled={!workspace.can_manage} />
           </Field>
-          <Field label="Description" hint="Optional. What the workspace's sites have in common.">
+          <Field label="Description" hint="Optional. What the workspace's projects have in common.">
             <Input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} disabled={!workspace.can_manage} />
           </Field>
           {mayType && (
@@ -102,11 +102,11 @@ function Details({ workspace }: { workspace: Workspace }) {
         <DescriptionList
           items={[
             { label: "Organisation", value: client?.company_name || client?.name || "—" },
-            { label: "Sites", value: String(workspace.project_count) },
+            { label: "Projects", value: String(workspace.project_count) },
             ...(licensed ? [{ label: "What it’s for", value: WORKSPACE_TYPES.find((t) => t.value === savedType)?.label ?? "General" }] : []),
             {
               label: "Default",
-              value: workspace.is_default ? "Yes: sites made without a workspace land here, and everyone in the organisation can view it" : "No",
+              value: workspace.is_default ? "Yes: projects made without a workspace land here, and everyone in the organisation can view it" : "No",
             },
             { label: "Created", value: formatIsoDate(workspace.created_at.slice(0, 10) as IsoDate, true) },
           ]}
@@ -127,7 +127,7 @@ function AllWorkspaces({ onNew }: { onNew: (() => void) | null }) {
       <THead>
         <Tr>
           <Th>Workspace</Th>
-          <Th>Sites</Th>
+          <Th>Projects</Th>
           <Th>
             {onNew && (
               <Button variant="quiet" size="sm" iconStart={Add01Icon} onClick={onNew}>
@@ -173,13 +173,13 @@ function DeleteWorkspace({ workspace, confirm }: { workspace: Workspace; confirm
     : workspace.is_default
     ? "Every organisation keeps its default workspace."
     : workspace.project_count > 0
-      ? `Move its ${plural(workspace.project_count, "site", "sites")} to another workspace first, from each site's panel.`
+      ? `Move its ${plural(workspace.project_count, "project", "projects")} to another workspace first, from each project's panel.`
       : null;
 
   const remove = () =>
     confirm({
       title: `Delete ${workspace.name}?`,
-      description: "It has no sites. Everyone with access to it keeps their account and their other workspaces; you'll be taken to another workspace.",
+      description: "It has no projects. Everyone with access to it keeps their account and their other workspaces; you'll be taken to another workspace.",
       onConfirm: async () => {
         try {
           await deleteWorkspace(workspace.id);
@@ -194,7 +194,7 @@ function DeleteWorkspace({ workspace, confirm }: { workspace: Workspace; confirm
   return (
     <Card>
       <div className="flex flex-col items-start gap-3">
-        <p className="small text-ink-2">{keptBecause ?? "The workspace goes for everyone with access to it. Only a workspace with no sites can be deleted."}</p>
+        <p className="small text-ink-2">{keptBecause ?? "The workspace goes for everyone with access to it. Only a workspace with no projects can be deleted."}</p>
         <Button variant="ghost" disabled={keptBecause !== null} onClick={remove}>
           Delete workspace
         </Button>
@@ -220,7 +220,7 @@ export function WorkspaceSettings() {
     return (
       <Band first heading="Workspace">
         <Alert tone="warning" title="Workspaces couldn't load">
-          Every site of the organisation shows meanwhile. Reload the page to try again.
+          Every project of the organisation shows meanwhile. Reload the page to try again.
         </Alert>
       </Band>
     );
@@ -241,7 +241,7 @@ export function WorkspaceSettings() {
           framed
           icon={Briefcase01Icon}
           title="You don't have access to a workspace yet."
-          description="Sites live in workspaces. Ask an owner or admin of your organisation to give you access to one."
+          description="Projects live in workspaces. Ask an owner or admin of your organisation to give you access to one."
           action={
             mayCreate ? (
               <Button variant="ghost" onClick={() => setCreating(true)}>
@@ -267,7 +267,7 @@ export function WorkspaceSettings() {
       </Band>
       <Band
         heading="Access"
-        caption="People and teams with a role here have it on every site in the workspace. A site can give more roles of its own, from its panel."
+        caption="People and teams with a role here have it on every project in the workspace. A project can give more roles of its own, from its panel."
       >
         <AccessList
           key={current.id}
@@ -282,7 +282,7 @@ export function WorkspaceSettings() {
       {minorMinerals && (
         <Band
           heading="Minor minerals defaults"
-          caption="The review chain, reference station and study settings every lease site in this workspace starts from."
+          caption="The review chain, reference station and study settings every lease project in this workspace starts from."
         >
           <WorkspaceDefaults key={current.id} workspace={current} />
         </Band>

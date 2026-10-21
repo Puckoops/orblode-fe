@@ -83,7 +83,7 @@ export function ReconciliationTab({
 
   if (surveys === null) return <Loader label="Loading surveys" />;
   if (oldestFirst.length < 2) {
-    return <EmptyState icon={Layers01Icon} title="Reconciliation needs two surveys of this site." framed />;
+    return <EmptyState icon={Layers01Icon} title="Reconciliation needs two surveys of this project." framed />;
   }
 
   const options = oldestFirst.map((s) => ({ value: s.id, label: formatSurveyDate(s.survey_date) }));

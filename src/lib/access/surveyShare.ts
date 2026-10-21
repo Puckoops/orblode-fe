@@ -117,9 +117,9 @@ export function siteAccessSummary(entries: AccessEntry[]): { everyone: boolean; 
   };
 }
 
-/** "Site · everyone at Acme · 3 people · 1 team". */
+/** "Project · everyone at Acme · 3 people · 1 team". */
 export function siteAccessDetail(summary: { everyone: boolean; people: number; teams: number }, orgName: string): string {
-  const parts = ["Site"];
+  const parts = ["Project"];
   if (summary.everyone) parts.push(`everyone at ${orgName}`);
   if (summary.people > 0) parts.push(`${summary.people} ${summary.people === 1 ? "person" : "people"}`);
   if (summary.teams > 0) parts.push(`${summary.teams} ${summary.teams === 1 ? "team" : "teams"}`);

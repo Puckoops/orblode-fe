@@ -43,7 +43,7 @@ export function ActiveSitesPanel({
   const [attention, setAttention] = useState<Overview["attention"]>([]);
   const [stage, setStage] = useState<string | null>(null);
   const leaseOf = (siteId: string) => register?.find((r) => r.lease.project_id === siteId);
-  const newSite = minorMinerals ? { href: "/upload?create=lease", label: "New lease site" } : { href: "/upload?new=1", label: "New site" };
+  const newSite = minorMinerals ? { href: "/upload?create=lease", label: "New lease project" } : { href: "/upload?new=1", label: "New project" };
 
   const q = filter.trim().toLowerCase();
   const visibleProjects = projects
@@ -107,26 +107,26 @@ export function ActiveSitesPanel({
         </div>
       )}
       <div className="mb-5 px-5">
-        <SearchInput value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter sites…" aria-label="Filter sites" />
+        <SearchInput value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter projects…" aria-label="Filter projects" />
       </div>
 
-      <p className="caps text-4 mb-3 px-5">Active sites</p>
+      <p className="caps text-4 mb-3 px-5">Active projects</p>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ul className="flex flex-col gap-1 px-3">
           {visibleProjects === null && (
             <li>
-              <Loader label="Loading sites" />
+              <Loader label="Loading projects" />
             </li>
           )}
           {visibleProjects?.length === 0 && (
             <li>
               {q || stage ? (
-                <EmptyState icon={Location01Icon} title="No sites match your filter." />
+                <EmptyState icon={Location01Icon} title="No projects match your filter." />
               ) : (
                 <EmptyState
                   icon={Location01Icon}
-                  title="No sites yet."
+                  title="No projects yet."
                   action={
                     mayCreateSite ? (
                       <Button asChild variant="ghost" size="sm">

@@ -91,7 +91,7 @@ export function CalcConfig({
             options={REF_MODES.map((m) => ({ value: m.id, label: m.label }))}
           />
           {value.refMode === "custom" && (
-            <Field label="Elevation (m, site datum)">
+            <Field label="Elevation (m, project datum)">
               <Input
                 type="number"
                 step="0.01"

@@ -358,7 +358,7 @@ export function StatusBar() {
           )
         ) : (
           <span className="truncate text-ink-4">
-            Move the cursor over the site for coordinates
+            Move the cursor over the survey for coordinates
           </span>
         )}
       </div>
