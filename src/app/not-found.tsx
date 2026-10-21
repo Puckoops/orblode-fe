@@ -10,7 +10,7 @@ export default function NotFound() {
         title="This page doesn't exist."
         action={
           <Button asChild variant="ghost">
-            <Link href="/globe">Back to your sites</Link>
+            <Link href="/projects">Back to your projects</Link>
           </Button>
         }
       />

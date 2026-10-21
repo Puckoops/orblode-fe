@@ -143,7 +143,7 @@ export function TreePanel() {
             title={`${MODULE_TITLES[activeModule as keyof typeof MODULE_TITLES]} arrives in a later phase.`}
             action={
               <Button asChild variant="ghost" size="sm">
-                <Link href="/globe">Back to globe</Link>
+                <Link href="/projects">Back to projects</Link>
               </Button>
             }
           />

@@ -32,7 +32,7 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
   const alerts = useSiteAlerts((s) => s.sites);
   const failedSurveys = useMemo(() => inSites(failed, workspaceSites).length, [failed, workspaceSites]);
   const redSites = useMemo(() => inSites(alerts, workspaceSites).length, [alerts, workspaceSites]);
-  const countOf = (item: NavItem) => (item.href === "/globe" ? failedSurveys : item.href === "/reports" ? redSites : 0);
+  const countOf = (item: NavItem) => (item.href === "/projects" ? failedSurveys : item.href === "/reports" ? redSites : 0);
   const labelOf = (item: NavItem) => {
     const count = countOf(item);
     if (count === 0) return item.label;
@@ -45,7 +45,7 @@ export function AppRail({ expanded, onToggle }: { expanded: boolean; onToggle: (
     return (
       <Sidebar aria-label="Primary">
         <div className={styles.brandRow}>
-          <Link href="/globe" className={styles.brand}>
+          <Link href="/overview" className={styles.brand}>
             <OrblodeLogo size={26} wordmarkClassName={styles.brandName} />
           </Link>
           <Tooltip content="Collapse the side panel" side="bottom">

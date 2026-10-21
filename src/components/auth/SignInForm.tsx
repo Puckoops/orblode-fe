@@ -18,7 +18,7 @@ export function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNextPath(params.get("next"));
-  const carry = next !== "/globe" ? next : undefined;
+  const carry = next !== "/overview" ? next : undefined;
   const nextQuery = carry ? `?next=${encodeURIComponent(carry)}` : "";
   const [email, setEmail] = useState(params.get("email") ?? "");
   const [step, setStep] = useState<"email" | "password">(() => (looksLikeEmail(email) ? "password" : "email"));

@@ -96,7 +96,7 @@ function Content({ siteId, onBack }: { siteId: string | null; onBack: () => void
   };
 
   const projectId = lease?.project_id ?? siteId ?? madeSite;
-  const openSite = () => router.push(projectId ? `/globe?site=${encodeURIComponent(projectId)}` : "/globe");
+  const openSite = () => router.push(projectId ? `/projects?site=${encodeURIComponent(projectId)}` : "/projects");
 
   const submit = async () => {
     if (!lease) return;

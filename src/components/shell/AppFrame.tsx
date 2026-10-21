@@ -20,7 +20,7 @@ function Crumbs() {
   const folded = Object.keys(FOLDED).find((p) => under(raw, p));
   const pathname = folded ? FOLDED[folded] : raw;
   const base = Object.keys(TITLES).find((p) => under(pathname, p));
-  const items = [{ label: "ORBLODE", href: "/globe" }];
+  const items = [{ label: "ORBLODE", href: "/overview" }];
   if (base) items.push({ label: TITLES[base], href: base });
   return <Breadcrumbs items={items} linkAs={Link} />;
 }

@@ -703,7 +703,7 @@ export function UploadScreen() {
             progressRef.current = emptyProgress();
             setResume(null);
           }}
-          onDashboard={() => router.push("/globe")}
+          onDashboard={() => router.push("/projects")}
         />
       ) : (
         <div className="flex max-w-3xl flex-col gap-8">
@@ -827,7 +827,7 @@ export function UploadScreen() {
           </section>
 
           <FormFooter note={footerNote}>
-            <Button variant="quiet" disabled={working} onClick={() => router.push("/globe")}>
+            <Button variant="quiet" disabled={working} onClick={() => router.push("/projects")}>
               Cancel
             </Button>
             <Button variant="primary" disabled={!canSubmit} loading={working} onClick={run}>

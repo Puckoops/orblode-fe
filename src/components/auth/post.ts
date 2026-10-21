@@ -17,7 +17,7 @@ export function googleSignUpPath(next?: string) {
 }
 
 /** A same-site path to continue to after signing in, or the fallback. */
-export function safeNextPath(value: string | null, fallback = "/globe") {
+export function safeNextPath(value: string | null, fallback = "/overview") {
   return value && value.startsWith("/") && !value.startsWith("//") && !value.includes("\\") && !value.startsWith("/api/") && !value.startsWith("/files/")
     ? value
     : fallback;

@@ -47,7 +47,7 @@ export function WorkspaceMenu({ compact = false }: { compact?: boolean }) {
     if (w.id === current?.id) return;
     void select(w.id);
     if (isMM(w)) router.push("/mm");
-    else if (pathname.startsWith("/mm")) router.push("/globe");
+    else if (pathname.startsWith("/mm")) router.push("/overview");
   };
   const classes = `${styles.workspaceTrigger} ${compact ? styles.workspaceCompact : ""}`;
 

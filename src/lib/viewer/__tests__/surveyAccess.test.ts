@@ -31,6 +31,6 @@ test("only a 403 ApiError is a denial", () => {
 });
 
 test("sitesHref opens the named site, or the Sites page", () => {
-  assert.equal(sitesHref(SITE), `/globe?site=${SITE}`);
-  assert.equal(sitesHref(null), "/globe");
+  assert.equal(sitesHref(SITE), `/projects?site=${SITE}`);
+  assert.equal(sitesHref(null), "/projects");
 });

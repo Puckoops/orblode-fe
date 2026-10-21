@@ -1184,3 +1184,27 @@ export async function putProductionRecords(
   });
   return res.records ?? [];
 }
+
+/** A project of a workspace at a glance: its readable surveys, the stock of its latest survey with stockpiles and the
+ * material it runs out of first at the current rate. */
+export interface ProjectOverview {
+  project_id: string;
+  surveys: number;
+  latest_survey: { id: string; date: string } | null;
+  days_since_survey: number | null;
+  /** No survey for more than 30 days. */
+  survey_gap: boolean;
+  stock: { survey: { id: string; date: string }; piles: number; volume_m3: number; tonnage_t: number; value: number } | null;
+  next_depletion: { material_id: string; material: string; date: string } | null;
+}
+
+export interface WorkspaceOverview {
+  workspace_id: string;
+  projects: ProjectOverview[];
+  totals: { projects: number; surveys: number; piles: number; volume_m3: number; tonnage_t: number; value: number };
+}
+
+/** Each project of the workspace the caller can see; one call instead of one per project. */
+export function getWorkspaceOverview(workspaceId: string): Promise<WorkspaceOverview> {
+  return apiFetch<WorkspaceOverview>(BASE, `/overview?workspace_id=${encodeURIComponent(workspaceId)}`);
+}

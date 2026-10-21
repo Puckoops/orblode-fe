@@ -81,7 +81,7 @@ export function ModuleRail() {
   return (
     <nav aria-label="Viewer modules" className="flex h-full w-12 shrink-0 flex-col items-center border-r border-hairline bg-surface py-3">
       <Tooltip content="Back to globe" side="right">
-        <Link href="/globe" aria-label="Back to globe" className="flex size-9 items-center justify-center rounded-sm text-ink-1 hover:bg-surface-2">
+        <Link href="/projects" aria-label="Back to projects" className="flex size-9 items-center justify-center rounded-sm text-ink-1 hover:bg-surface-2">
           <OrblodeMark size={18} />
         </Link>
       </Tooltip>
