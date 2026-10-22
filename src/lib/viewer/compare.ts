@@ -9,6 +9,7 @@
 import type { Measurement, PileState, Survey } from "@/lib/api/orblodeSvc";
 
 import { metricsOf, resultForKind } from "./calc.ts";
+import { resultStateOf } from "./resultState.ts";
 
 /** Chronological (oldest → newest) so "before"/"after" reads naturally; drops
  * undated surveys (they can't be placed on the timeline). Copies before sort. */
@@ -89,14 +90,15 @@ export function findPile(measurements: Measurement[], pileId: string): Measureme
 }
 
 /** The inventory's pile state, worked out the way orblode-svc does: a pile
- * edited after its last compute is stale but keeps its numbers. */
+ * whose inputs changed after its last compute is stale, and one whose last
+ * compute failed is failed; either way it keeps its previous numbers. */
 export function pileStateOf(m: Measurement): PileState {
   const hasResult = "volume_m3" in metricsOf(resultForKind(m));
-  if (m.status === "computing") return "computing";
-  if (hasResult && (m.updated_at ?? 0) > (m.computed_at ?? 0)) return "stale";
-  if (hasResult) return "computed";
-  if (m.status === "failed") return "failed";
-  return "not_computed";
+  const state = resultStateOf(m);
+  if (state === "computing") return "computing";
+  if (state === "failed") return "failed";
+  if (state === "fresh" && hasResult) return "computed";
+  return hasResult ? "stale" : "not_computed";
 }
 
 const PILE_DIFF_METRICS: [key: string, label: string][] = [
