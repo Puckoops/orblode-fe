@@ -564,7 +564,7 @@ function Content({ missionId }: { missionId: string }) {
                 <ul className="small flex flex-col gap-1">
                   {mission.survey_ids.map((id) => (
                     <li key={id}>
-                      <ProcessingLink surveyId={id} missionId={mission.id} className="text-accent hover:underline">
+                      <ProcessingLink surveyId={id} className="text-accent hover:underline">
                         Survey {id.slice(-6)}
                       </ProcessingLink>
                     </li>

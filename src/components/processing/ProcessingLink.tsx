@@ -9,13 +9,11 @@ import { ProcessingDialog } from "./ProcessingDialog";
 /** A way into the viewer that, while the survey still processes, opens its progress instead. */
 export function ProcessingLink({
   surveyId,
-  missionId,
   href = `/viewer/${surveyId}`,
   children,
   className,
 }: {
   surveyId: string;
-  missionId?: string;
   href?: string;
   children: ReactNode;
   className?: string;
@@ -33,7 +31,7 @@ export function ProcessingLink({
       <Button variant="quiet" size="sm" onClick={() => setOpen(true)}>
         Processing · See progress
       </Button>
-      {open && <ProcessingDialog surveyId={surveyId} missionId={missionId} open onClose={() => setOpen(false)} />}
+      {open && <ProcessingDialog surveyId={surveyId} open onClose={() => setOpen(false)} />}
     </>
   );
 }

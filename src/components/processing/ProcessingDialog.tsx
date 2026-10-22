@@ -5,18 +5,28 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { RunProgress, runsTitle } from "@/components/viewer/shell/ProcessingBanner";
 import { refusalMessage } from "@/lib/api/client";
-import { getFlightProcessing, processFlight, surveyFlight, type ControlMethod, type FlightProcessing } from "@/lib/api/mm";
-import { getSurveyProcessing, retryProcessing, type SurveyProcessing } from "@/lib/api/orblodeSvc";
+import { processFlight } from "@/lib/api/mm";
+import {
+  getPhotoFlight,
+  getSurveyProcessing,
+  processSurveyPhotos,
+  retryProcessing,
+  type FlightMethod,
+  type FlightProcessing,
+  type SurveyProcessing,
+} from "@/lib/api/orblodeSvc";
 import { failureLines, failureTitle, notRetryableLines } from "@/lib/processing/summary";
 import { toast } from "@/lib/toast";
 
 const POLL_MS = 5_000;
 
-export const CONTROL_METHOD_LABELS: Record<ControlMethod, string> = {
+export const CONTROL_METHOD_LABELS: Record<FlightMethod, string> = {
   targets: "GCP targets, marked by hand",
   smart: "Smart GCPs, marked by hand",
   coded: "Coded targets, found automatically",
   rtk: "RTK/PPK drone, every point a check",
+  gcp_file: "GCP file",
+  gps: "Drone GPS only, metres off",
 };
 
 const flightStatus: Record<FlightProcessing["status"], string> = {
@@ -28,9 +38,8 @@ const flightStatus: Record<FlightProcessing["status"], string> = {
   failed: "Photogrammetry failed",
 };
 
-async function readProcessing(surveyId: string, missionId?: string) {
-  const processing = await getSurveyProcessing(surveyId);
-  const flight = missionId ? await getFlightProcessing(missionId, surveyId).catch(() => null) : await surveyFlight(surveyId, processing.project_id).catch(() => null);
+async function readProcessing(surveyId: string) {
+  const [processing, flight] = await Promise.all([getSurveyProcessing(surveyId), getPhotoFlight(surveyId).catch(() => null)]);
   return { processing, flight };
 }
 
@@ -40,10 +49,9 @@ export const keepsViewerShut = (processing: SurveyProcessing | null, flight: Fli
 
 /**
  * Where a survey's processing has got to, opened from wherever the survey shows as processing: each run's stage, what
- * failed and Retry, and for a flight uploaded as raw photos, its photogrammetry. Pass missionId when it is known; else
- * the flight is found through the survey's season tag.
+ * failed and Retry, and for a flight uploaded as raw photos, its photogrammetry.
  */
-export function ProcessingDialog({ surveyId, missionId, open, onClose }: { surveyId: string; missionId?: string; open: boolean; onClose: () => void }) {
+export function ProcessingDialog({ surveyId, open, onClose }: { surveyId: string; open: boolean; onClose: () => void }) {
   const [processing, setProcessing] = useState<SurveyProcessing | null>(null);
   const [flight, setFlight] = useState<FlightProcessing | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +59,7 @@ export function ProcessingDialog({ surveyId, missionId, open, onClose }: { surve
 
   const load = useCallback(
     () =>
-      readProcessing(surveyId, missionId).then(
+      readProcessing(surveyId).then(
         (r) => {
           setProcessing(r.processing);
           setFlight(r.flight);
@@ -59,14 +67,14 @@ export function ProcessingDialog({ surveyId, missionId, open, onClose }: { surve
         },
         (err) => setError(refusalMessage(err, "Couldn't read the survey's processing."))
       ),
-    [surveyId, missionId]
+    [surveyId]
   );
 
   const running = (processing?.open ?? 0) > 0;
   useEffect(() => {
     if (!open) return;
     let live = true;
-    readProcessing(surveyId, missionId).then(
+    readProcessing(surveyId).then(
       (r) => {
         if (!live) return;
         setProcessing(r.processing);
@@ -78,7 +86,7 @@ export function ProcessingDialog({ surveyId, missionId, open, onClose }: { surve
     return () => {
       live = false;
     };
-  }, [open, surveyId, missionId]);
+  }, [open, surveyId]);
   useEffect(() => {
     if (!open || !running) return;
     const timer = setInterval(() => {
@@ -97,7 +105,8 @@ export function ProcessingDialog({ surveyId, missionId, open, onClose }: { surve
     try {
       if (flightFailed && flight) {
         const o = flight.options;
-        await processFlight(flight.mission_id, surveyId, { preset: o.preset || "standard", layers: { dsm: o.dsm, orthophoto: o.orthophoto, pointcloud: o.pointcloud } });
+        const again = { preset: o.preset || "standard", layers: { dsm: o.dsm, orthophoto: o.orthophoto, pointcloud: o.pointcloud } };
+        await (flight.mission_id ? processFlight(flight.mission_id, surveyId, again) : processSurveyPhotos(surveyId, again));
       }
       const results = await Promise.allSettled(retryable.map((f) => retryProcessing(surveyId, f.workflow_id)));
       if (results.some((r) => r.status === "rejected")) toast.error("Some processors couldn't be started again. Try again in a moment.");

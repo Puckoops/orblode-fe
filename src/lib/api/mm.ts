@@ -1,6 +1,6 @@
 import { apiFetch, ORBLODE_API } from "@/lib/api/client";
 import { useWorkspaces } from "@/lib/workspaces/store";
-import type { GenerateRequest, InitiatedUpload, SourceAsset, UploadInitFile } from "@/lib/api/orblodeSvc";
+import type { FlightProcessing, GenerateRequest, InitiatedUpload, PhotoExif, PhotoMark, PhotogrammetryPreset, SourceAsset, UploadInitFile } from "@/lib/api/orblodeSvc";
 
 // The minor-minerals extension's API in orblode-svc, under /mm. Ids are opaque strings; *_at fields are
 // epoch milliseconds unless they are ISO strings from PostGIS (masks and no-go places).
@@ -691,68 +691,7 @@ export function createFlight(
   return apiFetch(BASE, `/mm/missions/${id(missionId)}/flights`, { method: "POST", body: input });
 }
 
-/** What the browser reads from a photo as it is added. */
-export interface PhotoExif {
-  lat?: number;
-  lon?: number;
-  altitude_m?: number;
-  rel_alt_m?: number;
-  yaw_deg?: number;
-  focal_mm?: number;
-  focal_35mm?: number;
-  width?: number;
-  height?: number;
-  make?: string;
-  model?: string;
-  taken_at?: string;
-  rtk?: boolean;
-}
-
-/** A control point's target as clicked in one photo, in that photo's pixels. */
-export interface PhotoMark {
-  point_id: string;
-  photo: string;
-  x: number;
-  y: number;
-}
-
-export type FlightStatus = "uploading" | "queued" | "running" | "layers" | "done" | "failed";
-
-export interface FlightOptions {
-  preset: PhotogrammetryPreset;
-  dsm: boolean;
-  orthophoto: boolean;
-  pointcloud: boolean;
-}
-
-export type PhotogrammetryPreset = "fast" | "standard" | "high";
-
-/** A flight uploaded as raw photos and how far Orblode has got turning them into the survey's layers. */
-export interface FlightProcessing {
-  id: string;
-  project_id: string;
-  mission_id: string;
-  survey_id: string;
-  method: ControlMethod;
-  photos: { count: number; bytes: number };
-  marks: PhotoMark[] | null;
-  options: FlightOptions;
-  status: FlightStatus;
-  error?: string;
-  warnings?: string[];
-  workflow_id?: string;
-  epsg?: number;
-  outputs?: { role: string; url: string; workflow_id?: string }[];
-  odx_version?: string;
-  gsd_cm?: number;
-  gcp_rmse_m?: number;
-  gcps_used?: string[];
-  photos_used?: number;
-  started_at?: number;
-  finished_at?: number;
-  created_at: number;
-  updated_at: number;
-}
+export type { FlightMethod, FlightOptions, FlightProcessing, FlightStatus, PhotoExif, PhotoMark, PhotogrammetryPreset } from "./orblodeSvc";
 
 /** Signs uploads for at most 500 of the flight's photos, and records what the browser read from them. */
 export function photoUploads(
@@ -774,13 +713,6 @@ export function saveMarks(missionId: string, surveyId: string, marks: PhotoMark[
 
 export function getFlightProcessing(missionId: string, surveyId: string): Promise<FlightProcessing> {
   return apiFetch<FlightProcessing>(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/processing`);
-}
-
-/** The raw-photo flight a survey was made from, or null for one made from processed files. */
-export async function surveyFlight(surveyId: string, projectId: string): Promise<FlightProcessing | null> {
-  const tag = (await listSurveyTags(projectId)).find((t) => t.survey_id === surveyId);
-  if (!tag?.mission_id || tag.source !== "photos") return null;
-  return getFlightProcessing(tag.mission_id, surveyId).catch(() => null);
 }
 
 /** Starts photogrammetry; the DTM is always made. Refused with the reasons while photos, DGPS or marks are missing. */
