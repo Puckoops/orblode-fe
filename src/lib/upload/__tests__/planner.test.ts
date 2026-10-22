@@ -364,3 +364,20 @@ test("a file its caller knows can't be read is stored with that reason, unless i
     { filename: "site.obj", reason: "3D mesh stored — no processor turns meshes into viewer tiles yet" },
   ]);
 });
+
+test("the site's vector files go in their own site-wide call, apart from the survey's", () => {
+  const plan = buildProcessorPlan(
+    [
+      { name: "toe.dxf", role: "contours", url: "gs://b/toe.dxf", crs: "EPSG:28356" },
+      { name: "haul-roads.dxf", role: "vector", url: "gs://b/haul-roads.dxf", crs: "EPSG:28356", siteWide: true },
+    ],
+    { epsg: "" }
+  );
+  assert.equal(plan.dispatches.length, 2);
+  const [own, site] = plan.dispatches;
+  assert.equal(own.label, "Vector features (toe.dxf)");
+  assert.equal(own.request.site_wide, undefined);
+  assert.equal(site.label, "Site vectors (haul-roads.dxf)");
+  assert.equal(site.request.site_wide, true);
+  assert.equal((site.request.payload as { files: { role: string }[] }).files[0].role, "overlay");
+});

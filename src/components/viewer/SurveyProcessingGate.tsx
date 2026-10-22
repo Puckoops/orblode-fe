@@ -8,7 +8,7 @@ import { Button, EmptyState } from "@puckoops/camelot";
 import { Loader } from "@/components/brand/Loader";
 import { ProcessingDialog } from "@/components/processing/ProcessingDialog";
 import { RunProgress } from "@/components/viewer/shell/ProcessingBanner";
-import { surveyFlight, type FlightProcessing } from "@/lib/api/mm";
+import { getPhotoFlight, type FlightProcessing } from "@/lib/api/orblodeSvc";
 import { failureLines } from "@/lib/processing/summary";
 import { useProcessing } from "@/lib/processing/store";
 import { sitesHref } from "@/lib/viewer/surveyAccess";
@@ -30,7 +30,6 @@ export function SurveyProcessingGate({ surveyId, children }: { surveyId: string;
   const [flight, setFlight] = useState<FlightProcessing | null | undefined>(undefined);
   const [flightTick, setFlightTick] = useState(0);
   const photosFailed = !!current?.failures.some((f) => f.processor_type === "photogrammetry");
-  const projectId = current?.project_id;
   const flightKnown = !photosFailed || flight !== undefined;
   const flightFailed = photosFailed && flight?.status === "failed";
   const processing = checked && !opened && ((current?.open ?? 0) > 0 || flightFailed);
@@ -46,16 +45,16 @@ export function SurveyProcessingGate({ surveyId, children }: { surveyId: string;
   }, [surveyId, loadCurrent]);
 
   useEffect(() => {
-    if (!checked || !photosFailed || !projectId) return;
+    if (!checked || !photosFailed) return;
     let live = true;
-    surveyFlight(surveyId, projectId).then(
+    getPhotoFlight(surveyId).then(
       (f) => live && setFlight(f),
       () => live && setFlight(null)
     );
     return () => {
       live = false;
     };
-  }, [checked, photosFailed, projectId, surveyId, flightTick]);
+  }, [checked, photosFailed, surveyId, flightTick]);
 
   useEffect(() => {
     if (!processing || flightFailed) return;
@@ -107,7 +106,7 @@ export function SurveyProcessingGate({ surveyId, children }: { surveyId: string;
           </p>
         )}
       </div>
-      {details && <ProcessingDialog surveyId={surveyId} missionId={flight?.mission_id} open onClose={closeDetails} />}
+      {details && <ProcessingDialog surveyId={surveyId} open onClose={closeDetails} />}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTROL_METHOD_LABELS, ProcessingDialog } from "@/components/processing/ProcessingDialog";
+import { PipelineGraph } from "@/components/upload/PipelineGraph";
 import { refusalMessage } from "@/lib/api/client";
 import {
   createFlight,
@@ -54,6 +55,7 @@ import { epsgOf, zoneOf } from "@/lib/mm/utm";
 import { uploadFiles, type AssetSlot, type UploadApi } from "@/lib/upload/pipeline";
 import { buildProcessorPlan, guessRole, roleNeedsHeader, roleToAssetKind, ROLE_LABELS, type FileRole } from "@/lib/upload/planner";
 import { putToSignedUrl } from "@/lib/upload/putToSignedUrl";
+import { flightGraph, NOT_UPLOADED, type FlightGraphInput, type Upload } from "@/lib/upload/pipelineGraph";
 import { readRasterHeader } from "@/lib/upload/rasterRole";
 import { GcpMarking, markCounts, MARKS_PER_GCP, type MarkablePhoto, type MarkablePoint } from "./GcpMarking";
 
@@ -382,6 +384,28 @@ export function FlightUpload({ mission, onClose, onDone }: { mission: Mission; o
   const counts = markCounts(marks);
   const markedGcps = gcpPoints.filter((p) => (counts.get(p.id) ?? 0) >= MARKS_PER_GCP).length;
   const allUploaded = photos.length > 0 ? stillToUpload(photos, uploaded).length === 0 : (flight?.photos.count ?? 0) > 0;
+  const dataUpload: Upload =
+    source === "photos"
+      ? uploading && progress
+        ? { state: "uploading", percent: progress.fraction * 100 }
+        : allUploaded
+          ? { state: "done", label: `${photos.length || flight?.photos.count} photos` }
+          : NOT_UPLOADED
+      : rows.some((r) => r.status === "uploading")
+        ? { state: "uploading", percent: rows.reduce((sum, r) => sum + r.progress, 0) / rows.length }
+        : rows.length > 0 && rows.every((r) => r.status === "done")
+          ? { state: "done", label: `${rows.length} file${rows.length === 1 ? "" : "s"}` }
+          : NOT_UPLOADED;
+  const graphInput: FlightGraphInput = {
+    source: source === "photos" ? "photos" : "processed",
+    data: dataUpload,
+    logs: logs.length > 0 && logs.every((l) => l.uploaded) ? { state: "done", label: `${logs.length} log${logs.length === 1 ? "" : "s"}` } : NOT_UPLOADED,
+    layers:
+      source === "photos"
+        ? layers
+        : { dsm: rows.some((r) => r.role === "dsm"), orthophoto: rows.some((r) => r.role === "ortho"), pointcloud: rows.some((r) => r.role === "pointcloud") },
+    season: mission.season,
+  };
   const locked = !!flight && flight.status !== "uploading" && flight.status !== "failed";
 
   return (
@@ -391,7 +415,7 @@ export function FlightUpload({ mission, onClose, onDone }: { mission: Mission; o
         onOpenChange={(o) => !o && !busy && !uploading && onClose()}
         title={`Upload a flight of ${mission.code}`}
         description="The drone's photos for Orblode to process, or files you processed yourself. Each flight becomes a new survey of the site."
-        width={860}
+        width={1040}
         footer={
           done ? (
             <Button variant="primary" onClick={onClose}>
@@ -472,26 +496,45 @@ export function FlightUpload({ mission, onClose, onDone }: { mission: Mission; o
                 </div>
               )}
 
-              {step === 1 &&
-                (source === "photos" ? (
-                  <PhotosStep
-                    photos={photos}
-                    reading={reading}
-                    uploaded={uploaded}
-                    expected={flight?.photos.count ?? 0}
-                    progress={progress}
-                    uploading={uploading}
-                    locked={locked}
-                    onDrop={(files) => void addPhotos(files)}
-                    onRemove={(name) => setPhotos((list) => list.filter((p) => p.name !== name))}
-                    onUpload={() => void sendPhotos()}
-                    acceptLogs={!!job}
-                  />
-                ) : (
-                  <FilesStep rows={rows} busy={busy} acceptLogs={!!job} onDrop={addFiles} onPatch={patch} onRemove={(r) => setRows((list) => list.filter((x) => x !== r))} />
-                ))}
               {step === 1 && (
-                <LogsList job={job} logs={logs} refused={refused} busy={busy} onTarget={(l, target) => setLogs((list) => list.map((x) => (x === l ? { ...x, target } : x)))} />
+                <div className="flex flex-wrap gap-5">
+                  <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-4">
+                    {source === "photos" ? (
+                      <PhotosStep
+                        photos={photos}
+                        reading={reading}
+                        uploaded={uploaded}
+                        expected={flight?.photos.count ?? 0}
+                        progress={progress}
+                        uploading={uploading}
+                        locked={locked}
+                        onDrop={(files) => void addPhotos(files)}
+                        onRemove={(name) => setPhotos((list) => list.filter((p) => p.name !== name))}
+                        onUpload={() => void sendPhotos()}
+                        acceptLogs={!!job}
+                      />
+                    ) : (
+                      <FilesStep rows={rows} busy={busy} acceptLogs={!!job} onDrop={addFiles} onPatch={patch} onRemove={(r) => setRows((list) => list.filter((x) => x !== r))} />
+                    )}
+                    {source === "photos" && (
+                      <div className="flex flex-col gap-2">
+                        <span className="caption font-mono font-medium tracking-wider text-ink-3">LAYERS TO BUILD</span>
+                        <Checkbox checked disabled label="DTM · always made, for the study" />
+                        <Checkbox checked={layers.dsm} onCheckedChange={(v) => setLayers((l) => ({ ...l, dsm: v }))} label="DSM · surface heights, for 3D and cross-sections" disabled={locked} />
+                        <Checkbox checked={layers.orthophoto} onCheckedChange={(v) => setLayers((l) => ({ ...l, orthophoto: v }))} label="Orthomosaic · the map image" disabled={locked} />
+                        <Checkbox checked={layers.pointcloud} onCheckedChange={(v) => setLayers((l) => ({ ...l, pointcloud: v }))} label="Point cloud · 3D tiles in the viewer" disabled={locked} />
+                      </div>
+                    )}
+                    <LogsList job={job} logs={logs} refused={refused} busy={busy} onTarget={(l, target) => setLogs((list) => list.map((x) => (x === l ? { ...x, target } : x)))} />
+                  </div>
+                  <div className="min-w-0 flex-[0_1_522px]">
+                    <PipelineGraph graph={flightGraph(graphInput)} label="Pipeline for this flight" siteLabel="From the lease">
+                      {source === "photos"
+                        ? "Orblode solves the GNSS logs first, then processes the photos with those GCPs, so the DTM is tied to surveyed ground and every season shares one datum."
+                        : "Your DTM is taken as it is. Orblode only checks it against the DGPS check points, and the report says it was processed by the vendor."}
+                    </PipelineGraph>
+                  </div>
+                </div>
               )}
 
               {step === 2 && (
@@ -546,13 +589,11 @@ export function FlightUpload({ mission, onClose, onDone }: { mission: Mission; o
                     <Field label="Quality" hint="The DEM and orthomosaic resolution; higher takes longer">
                       <ChoiceGroup look="outline" value={preset} onValueChange={setPreset} options={PRESETS} />
                     </Field>
-                    <div className="flex flex-col gap-2">
-                      <span className="small font-medium text-ink-1">Layers</span>
-                      <Checkbox checked disabled label="DTM · always made, for the study" />
-                      <Checkbox checked={layers.dsm} onCheckedChange={(v) => setLayers((l) => ({ ...l, dsm: v }))} label="DSM" />
-                      <Checkbox checked={layers.orthophoto} onCheckedChange={(v) => setLayers((l) => ({ ...l, orthophoto: v }))} label="Orthomosaic" />
-                      <Checkbox checked={layers.pointcloud} onCheckedChange={(v) => setLayers((l) => ({ ...l, pointcloud: v }))} label="Point cloud" />
-                    </div>
+                    <p className="small text-ink-2">
+                      Builds the DTM{layers.dsm ? ", DSM" : ""}
+                      {layers.orthophoto ? ", orthomosaic" : ""}
+                      {layers.pointcloud ? " and point cloud" : ""}. Change the layers in Your data.
+                    </p>
                     <p className="caption text-ink-3">
                       {CONTROL_METHOD_LABELS[method] ?? method}. The survey stays closed in the viewer until every layer is ready; the progress shows here and on
                       the mission.
@@ -574,7 +615,7 @@ export function FlightUpload({ mission, onClose, onDone }: { mission: Mission; o
           )}
         </div>
       </Dialog>
-      {watching && started && <ProcessingDialog surveyId={started} missionId={mission.id} open onClose={onClose} />}
+      {watching && started && <ProcessingDialog surveyId={started} open onClose={onClose} />}
     </>
   );
 }

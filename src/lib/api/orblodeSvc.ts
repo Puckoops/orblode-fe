@@ -299,6 +299,8 @@ export interface GenerateRequest {
   version?: string;
   payload?: Record<string, unknown>;
   inputs?: GenerateArtifactRef[];
+  /** vector-features only: the layers are the site's, shown with every survey of it. */
+  site_wide?: boolean;
 }
 
 export function generateSurvey(
@@ -1183,4 +1185,134 @@ export async function putProductionRecords(
     body: { project_id: projectId, period_start: periodStart, period_end: periodEnd, records },
   });
   return res.records ?? [];
+}
+
+/** What the browser reads from a photo as it is added. */
+export interface PhotoExif {
+  lat?: number;
+  lon?: number;
+  altitude_m?: number;
+  rel_alt_m?: number;
+  yaw_deg?: number;
+  focal_mm?: number;
+  focal_35mm?: number;
+  width?: number;
+  height?: number;
+  make?: string;
+  model?: string;
+  taken_at?: string;
+  rtk?: boolean;
+}
+
+/** A control point's target as clicked in one photo, in that photo's pixels. */
+export interface PhotoMark {
+  point_id: string;
+  photo: string;
+  x: number;
+  y: number;
+}
+
+export type FlightStatus = "uploading" | "queued" | "running" | "layers" | "done" | "failed";
+
+export interface FlightOptions {
+  preset: PhotogrammetryPreset;
+  dsm: boolean;
+  orthophoto: boolean;
+  pointcloud: boolean;
+}
+
+export type PhotogrammetryPreset = "fast" | "standard" | "high";
+
+/** How a flight's photos are tied to the ground: a mission's targets, smart GCPs, coded targets or RTK positions,
+ * or for any other survey a GCP file, RTK positions or the drone's GPS alone. */
+export type FlightMethod = "targets" | "smart" | "coded" | "rtk" | "gcp_file" | "gps";
+
+export type PhotoHeights = "ellipsoidal" | "msl";
+
+export interface FlightGcpFile {
+  name: string;
+  epsg: number;
+  points: { id: string; photos: number }[];
+  warnings?: string[];
+}
+
+/** A flight uploaded as raw photos and how far Orblode has got turning them into the survey's layers. */
+export interface FlightProcessing {
+  id: string;
+  project_id: string;
+  mission_id: string;
+  survey_id: string;
+  method: FlightMethod;
+  photos: { count: number; bytes: number };
+  marks: PhotoMark[] | null;
+  options: FlightOptions;
+  status: FlightStatus;
+  error?: string;
+  warnings?: string[];
+  workflow_id?: string;
+  epsg?: number;
+  /** A survey's own flight: the GCP file as read. */
+  gcp_file?: FlightGcpFile;
+  /** RTK or GPS flights: what the photos' heights are; ellipsoidal ones are moved onto EGM2008. */
+  heights?: PhotoHeights;
+  /** The vertical datum the outputs are in, when the flight says. */
+  heights_datum?: string;
+  outputs?: { role: string; url: string; workflow_id?: string }[];
+  odx_version?: string;
+  gsd_cm?: number;
+  gcp_rmse_m?: number;
+  gcps_used?: string[];
+  photos_used?: number;
+  started_at?: number;
+  finished_at?: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Makes a survey a flight of raw photos, or changes how one not yet processing is tied to the ground. */
+export function beginPhotoFlight(surveyId: string, input: { method: "gcp_file" | "rtk" | "gps"; heights?: PhotoHeights }): Promise<FlightProcessing> {
+  return apiFetch<FlightProcessing>(BASE, `/surveys/${encodeURIComponent(surveyId)}/photogrammetry`, { method: "POST", body: input });
+}
+
+/** A survey's photo flight, a mission's included; rejects with 404 for a survey made from files. */
+export function getPhotoFlight(surveyId: string): Promise<FlightProcessing> {
+  return apiFetch<FlightProcessing>(BASE, `/surveys/${encodeURIComponent(surveyId)}/photogrammetry`);
+}
+
+/** Signs uploads for at most 500 of the flight's photos, and records what the browser read from them. */
+export function signSurveyPhotos(surveyId: string, photos: { name: string; size: number; exif: PhotoExif }[]): Promise<{ urls: Record<string, string>; count: number; bytes: number }> {
+  return apiFetch(BASE, `/surveys/${encodeURIComponent(surveyId)}/photogrammetry/photos`, { method: "POST", body: { photos } });
+}
+
+/** The photos storage has, for resuming an upload. */
+export function surveyPhotos(surveyId: string): Promise<{ uploaded: string[] | null; count: number; bytes: number; expected: number }> {
+  return apiFetch(BASE, `/surveys/${encodeURIComponent(surveyId)}/photogrammetry/photos`);
+}
+
+/** Keeps an ODM GCP file, read against the photos signed so far; refused with the reason when it names no CRS or
+ * ties too few GCPs. */
+export function saveGcpFile(surveyId: string, input: { name: string; text: string; heights_datum?: string }): Promise<FlightProcessing> {
+  return apiFetch<FlightProcessing>(BASE, `/surveys/${encodeURIComponent(surveyId)}/photogrammetry/gcp`, { method: "PUT", body: input });
+}
+
+/** Starts photogrammetry once every photo has arrived; the DTM is always made. */
+export function processSurveyPhotos(
+  surveyId: string,
+  input: { preset: PhotogrammetryPreset; layers: { dsm: boolean; orthophoto: boolean; pointcloud: boolean } }
+): Promise<FlightProcessing> {
+  return apiFetch<FlightProcessing>(BASE, `/surveys/${encodeURIComponent(surveyId)}/photogrammetry/process`, { method: "POST", body: input });
+}
+
+/** One of a site's site-wide vector layers. */
+export interface SiteVector {
+  survey_id: string;
+  role: string;
+  source_name: string;
+  feature_count: number;
+  created_at: EpochMs;
+}
+
+/** The site's site-wide vector layers, newest first. */
+export async function listSiteVectors(projectId: string): Promise<SiteVector[]> {
+  return (await apiFetch<SiteVector[] | null>(BASE, `/site-vectors?project_id=${encodeURIComponent(projectId)}`)) ?? [];
 }

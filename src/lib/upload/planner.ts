@@ -197,6 +197,8 @@ export interface PlannedFile {
   crs?: string;
   /** Why the file is stored, not processed, when its name and role don't show it, e.g. UNREADABLE_SKIP. */
   skip?: string;
+  /** A vector or contour file of the site's, which every survey of the site shows. */
+  siteWide?: boolean;
 }
 
 /** A file GDAL couldn't open when it was checked; a Detect again that reads it lifts this. */
@@ -301,20 +303,24 @@ export function buildProcessorPlan(files: PlannedFile[], opts: PlannerOptions): 
     }
   }
 
-  if (vectorFiles.length > 0) {
+  // The survey's own vector files and the site's go in separate calls: the site's are site-wide.
+  for (const siteWide of [false, true]) {
+    const batch = vectorFiles.filter((v) => !!v.siteWide === siteWide);
+    if (batch.length === 0) continue;
     dispatches.push({
-      label: `Vector features (${vectorFiles.map((v) => v.name).join(", ")})`,
+      label: `${siteWide ? "Site vectors" : "Vector features"} (${batch.map((v) => v.name).join(", ")})`,
       request: {
         processor_type: "vector-features",
         payload: {
-          files: vectorFiles.map((v) => ({
+          files: batch.map((v) => ({
             source: { url: v.url, kind: "vector", crs: v.crs },
             source_crs: v.crs,
             role: v.role === "contours" ? "contours" : "overlay",
             format: v.role === "contours" ? "contour" : "",
           })),
         },
-        inputs: vectorFiles.map((v) => ({ url: v.url, kind: "vector", crs: v.crs })),
+        inputs: batch.map((v) => ({ url: v.url, kind: "vector", crs: v.crs })),
+        ...(siteWide ? { site_wide: true } : {}),
       },
     });
   }

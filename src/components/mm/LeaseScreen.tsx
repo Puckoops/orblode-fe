@@ -451,7 +451,7 @@ function Content({ leaseId }: { leaseId: string }) {
                       />
                     </Td>
                     <Td className="text-right">
-                      <SurveyViewerButton surveyId={s.id} missionId={tags.find((t) => t.survey_id === s.id)?.mission_id} />
+                      <SurveyViewerButton surveyId={s.id} />
                     </Td>
                   </Tr>
                 ))}
@@ -617,7 +617,7 @@ export function LeaseScreen({ leaseId }: { leaseId: string }) {
 }
 
 /** Opens the survey in the viewer, or while it still processes, its progress. */
-function SurveyViewerButton({ surveyId, missionId }: { surveyId: string; missionId?: string }) {
+function SurveyViewerButton({ surveyId }: { surveyId: string }) {
   const processing = useSurveyProcessing(surveyId);
   const [open, setOpen] = useState(false);
   if (!processing)
@@ -631,7 +631,7 @@ function SurveyViewerButton({ surveyId, missionId }: { surveyId: string; mission
       <Button variant="quiet" size="sm" onClick={() => setOpen(true)}>
         Processing · See progress
       </Button>
-      {open && <ProcessingDialog surveyId={surveyId} missionId={missionId} open onClose={() => setOpen(false)} />}
+      {open && <ProcessingDialog surveyId={surveyId} open onClose={() => setOpen(false)} />}
     </>
   );
 }
