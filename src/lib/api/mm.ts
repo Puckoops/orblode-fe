@@ -724,6 +724,14 @@ export function processFlight(
   return apiFetch<FlightProcessing>(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/process`, { method: "POST", body: input });
 }
 
+/** resignUpload for a flight's file, which a field vendor may call. */
+export function resignFlightUpload(missionId: string, surveyId: string, assetId: string, contentType: string): Promise<{ upload_url: string }> {
+  return apiFetch(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/assets/${id(assetId)}/upload-url`, {
+    method: "POST",
+    body: { content_type: contentType },
+  });
+}
+
 export function flightUploaded(missionId: string, surveyId: string, assetId: string): Promise<SourceAsset> {
   return apiFetch<SourceAsset>(BASE, `/mm/missions/${id(missionId)}/flights/${id(surveyId)}/assets/${id(assetId)}/uploaded`, { method: "PUT" });
 }

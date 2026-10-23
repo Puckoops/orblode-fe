@@ -34,6 +34,7 @@ import {
   missionGeometry,
   photoUploads,
   processFlight,
+  resignFlightUpload,
   runGnssJob,
   saveMarks,
   uploadGnssFiles,
@@ -307,6 +308,7 @@ export function FlightUpload({ mission, onClose, onDone }: { mission: Mission; o
           const created = await startFlight({ source: "processed", files });
           return created.uploads ?? { uploads: [] };
         },
+        resignUpload: (_survey, assetId, contentType) => resignFlightUpload(mission.id, surveyId.current, assetId, contentType),
         putToSignedUrl,
         markAssetUploaded: (_survey, assetId) => flightUploaded(mission.id, surveyId.current, assetId),
       };
