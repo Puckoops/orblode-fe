@@ -241,6 +241,15 @@ export function initUploads(
   });
 }
 
+/** Signs a pending asset's object again for a PUT carrying contentType, for one its first URL would reach too late.
+ * Records nothing: the asset keeps its id and url. */
+export function resignUpload(surveyId: string, assetId: string, contentType: string): Promise<{ upload_url: string }> {
+  return apiFetch<{ upload_url: string }>(BASE, `/surveys/${surveyId}/assets/${assetId}/upload-url`, {
+    method: "POST",
+    body: { content_type: contentType },
+  });
+}
+
 export function markAssetUploaded(surveyId: string, assetId: string): Promise<SourceAsset> {
   return apiFetch<SourceAsset>(BASE, `/surveys/${surveyId}/assets/${assetId}/uploaded`, {
     method: "PUT",

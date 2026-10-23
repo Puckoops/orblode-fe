@@ -9,7 +9,7 @@ const MINUTE = 60_000;
 const atZero = { now: () => 0 };
 
 function fakeApi(overrides: Partial<UploadApi> = {}) {
-  const calls = { init: [] as UploadInitFile[][], put: [] as string[], mark: [] as string[], remove: [] as string[] };
+  const calls = { init: [] as UploadInitFile[][], resign: [] as [string, string][], put: [] as string[], mark: [] as string[] };
   const api: UploadApi = {
     initUploads: async (surveyId, files) => {
       calls.init.push(files);
@@ -22,6 +22,10 @@ function fakeApi(overrides: Partial<UploadApi> = {}) {
         ),
       };
     },
+    resignUpload: async (_surveyId, assetId, contentType) => {
+      calls.resign.push([assetId, contentType]);
+      return { upload_url: `https://signed/${assetId}?again` };
+    },
     putToSignedUrl: async (signedUrl, _file, _contentType, onProgress) => {
       calls.put.push(signedUrl);
       onProgress(1);
@@ -29,9 +33,6 @@ function fakeApi(overrides: Partial<UploadApi> = {}) {
     markAssetUploaded: async (_surveyId, assetId) => {
       calls.mark.push(assetId);
       return { id: assetId, detection: { status: "inspecting" } } as SourceAsset;
-    },
-    removeAsset: async (_surveyId, assetId) => {
-      calls.remove.push(assetId);
     },
     ...overrides,
   };
@@ -141,6 +142,7 @@ test("a retry resumes: no second slot, no re-sent bytes, only the missing mark, 
     calls.init.map((files) => files.map((f) => f.filename)),
     [["c.tif"]]
   );
+  assert.deepEqual(calls.resign, []);
   assert.deepEqual(calls.put, ["https://signed/c.tif"]);
   assert.deepEqual(calls.mark, ["asset-b.tif", "asset-c.tif"]);
   assert.deepEqual(slots["b.tif"], markedSlot("b.tif"));
@@ -188,24 +190,29 @@ test("marking uploaded is retried through a transient failure", async () => {
 
 /** The server and the bucket on one clock. Signatures last 30 minutes and storage refuses a PUT that arrives after
  * its signature lapsed, as GCS does. Each PUT takes `putMinutes`; the first `stalls` of them die after that long. A
- * replacement is a new asset each time it is signed (orblode-svc keys it by the new asset's id); any other file keeps
- * its asset, since the svc upserts by object URL. */
+ * replacement's asset is named for the signing that made it, as orblode-svc keys a replacement by its new asset id. */
 function clockedApi({ putMinutes, stalls = 0 }: { putMinutes: number; stalls?: number }) {
   const clock = { now: 0 };
   const signedAt = new Map<string, number>();
   let signings = 0;
+  const sign = (assetId: string) => {
+    const uploadUrl = `https://signed/${assetId}?X-Goog-Expires=1800&n=${++signings}`;
+    signedAt.set(uploadUrl, clock.now);
+    return uploadUrl;
+  };
   const fake = fakeApi({
     initUploads: async (_surveyId, files) => {
       fake.calls.init.push(files);
       return {
         uploads: files.map((f): InitiatedUpload => {
-          const n = ++signings;
-          const id = f.replaces ? `asset-${f.filename}-${n}` : `asset-${f.filename}`;
-          const uploadUrl = `https://signed/${f.filename}?X-Goog-Expires=1800&n=${n}`;
-          signedAt.set(uploadUrl, clock.now);
-          return { asset: { id, filename: f.filename, url: `gs://b/${id}` } as SourceAsset, upload_url: uploadUrl };
+          const id = f.replaces ? `asset-${f.filename}-${signings + 1}` : `asset-${f.filename}`;
+          return { asset: { id, filename: f.filename, url: `gs://b/${id}` } as SourceAsset, upload_url: sign(id) };
         }),
       };
+    },
+    resignUpload: async (_surveyId, assetId, contentType) => {
+      fake.calls.resign.push([assetId, contentType]);
+      return { upload_url: sign(assetId) };
     },
     putToSignedUrl: async (signedUrl) => {
       fake.calls.put.push(signedUrl);
@@ -217,7 +224,7 @@ function clockedApi({ putMinutes, stalls = 0 }: { putMinutes: number; stalls?: n
   return { ...fake, clock, opts: { now: () => clock.now } };
 }
 
-test("a long batch signs again a file whose URL would lapse before its turn", async () => {
+test("a long batch signs again a file whose URL would lapse before its turn, and never inits twice (a flight's init starts the flight)", async () => {
   const { api, calls, opts } = clockedApi({ putMinutes: 20 });
   const slots: Record<string, AssetSlot> = {};
   await uploadFiles(
@@ -235,15 +242,15 @@ test("a long batch signs again a file whose URL would lapse before its turn", as
   );
   assert.deepEqual(
     calls.init.map((files) => files.map((f) => f.filename)),
-    [["a.tif", "b.tif", "c.tif"], ["c.tif"]]
+    [["a.tif", "b.tif", "c.tif"]]
   );
+  assert.deepEqual(calls.resign, [["asset-c.tif", "image/tiff"]]);
   assert.deepEqual(calls.put, [
-    "https://signed/a.tif?X-Goog-Expires=1800&n=1",
-    "https://signed/b.tif?X-Goog-Expires=1800&n=2",
-    "https://signed/c.tif?X-Goog-Expires=1800&n=4",
+    "https://signed/asset-a.tif?X-Goog-Expires=1800&n=1",
+    "https://signed/asset-b.tif?X-Goog-Expires=1800&n=2",
+    "https://signed/asset-c.tif?X-Goog-Expires=1800&n=4",
   ]);
   assert.deepEqual(calls.mark, ["asset-a.tif", "asset-b.tif", "asset-c.tif"]);
-  assert.deepEqual(calls.remove, []);
 });
 
 test("a URL with under five minutes left is signed again too, not sent to lapse mid-request", async () => {
@@ -254,16 +261,13 @@ test("a URL with under five minutes left is signed again too, not sent to lapse 
       surveyId: "s1",
       files: [
         { file: file("a.tif"), kind: "terrain", role: "dsm" },
-        { file: file("b.tif"), kind: "terrain", role: "dtm" },
+        { file: file("b.laz"), kind: "pointcloud", role: "pointcloud" },
       ],
       slots: {},
     },
     opts
   );
-  assert.deepEqual(
-    calls.init.map((files) => files.map((f) => f.filename)),
-    [["a.tif", "b.tif"], ["b.tif"]]
-  );
+  assert.deepEqual(calls.resign, [["asset-b.laz", "application/octet-stream"]]);
 });
 
 test("a retry after the URL lapsed signs the slot again instead of resending the dead URL", async () => {
@@ -272,69 +276,41 @@ test("a retry after the URL lapsed signs the slot again instead of resending the
   await assert.rejects(uploadFiles(api, run, opts), /upload stalled/);
 
   await uploadFiles(api, run, opts);
-  assert.equal(calls.init.length, 2);
-  assert.deepEqual(calls.put, ["https://signed/a.tif?X-Goog-Expires=1800&n=1", "https://signed/a.tif?X-Goog-Expires=1800&n=2"]);
-  assert.deepEqual(calls.mark, ["asset-a.tif"]);
-  assert.deepEqual(calls.remove, []);
-  assert.equal(run.slots["a.tif"].marked, true);
-});
-
-test("a replacement signed again comes back as a new asset, and the pending one it leaves is retired", async () => {
-  const { api, calls, opts } = clockedApi({ putMinutes: 35, stalls: 1 });
-  const run = {
-    surveyId: "s1",
-    files: [{ file: file("dsm-v2.tif"), kind: "terrain", role: "dsm", replaces: "old-dsm" }],
-    slots: {} as Record<string, AssetSlot>,
-  };
-  await assert.rejects(uploadFiles(api, run, opts), /upload stalled/);
-  assert.equal(run.slots["dsm-v2.tif"].assetId, "asset-dsm-v2.tif-1");
-
-  await uploadFiles(api, run, opts);
-  assert.deepEqual(
-    calls.init.map((files) => files.map((f) => f.replaces)),
-    [["old-dsm"], ["old-dsm"]]
-  );
-  assert.deepEqual(calls.remove, ["asset-dsm-v2.tif-1"]);
-  assert.deepEqual(calls.mark, ["asset-dsm-v2.tif-2"]);
-  assert.equal(run.slots["dsm-v2.tif"].assetId, "asset-dsm-v2.tif-2");
-  assert.equal(run.slots["dsm-v2.tif"].url, "gs://b/asset-dsm-v2.tif-2");
-});
-
-test("failing to retire the stale pending asset does not fail the upload", async () => {
-  const { api, calls, opts } = clockedApi({ putMinutes: 35, stalls: 1 });
-  api.removeAsset = async () => {
-    throw new Error("http 409");
-  };
-  const run = {
-    surveyId: "s1",
-    files: [{ file: file("dsm-v2.tif"), kind: "terrain", role: "dsm", replaces: "old-dsm" }],
-    slots: {} as Record<string, AssetSlot>,
-  };
-  await assert.rejects(uploadFiles(api, run, opts), /upload stalled/);
-  await uploadFiles(api, run, opts);
-  assert.deepEqual(calls.mark, ["asset-dsm-v2.tif-2"]);
-});
-
-test("an api that cannot retire assets never asks for a slot twice (a flight's init starts the flight)", async () => {
-  const { api, calls, opts } = clockedApi({ putMinutes: 20 });
-  const flight: UploadApi = { initUploads: api.initUploads, putToSignedUrl: api.putToSignedUrl, markAssetUploaded: api.markAssetUploaded };
-  await assert.rejects(
-    uploadFiles(
-      flight,
-      {
-        surveyId: "s1",
-        files: [
-          { file: file("a.tif"), kind: "terrain", role: "dsm" },
-          { file: file("b.tif"), kind: "terrain", role: "dtm" },
-          { file: file("c.tif"), kind: "ortho", role: "ortho" },
-        ],
-        slots: {},
-      },
-      opts
-    ),
-    /ExpiredToken/
-  );
   assert.equal(calls.init.length, 1);
+  assert.deepEqual(calls.put, ["https://signed/asset-a.tif?X-Goog-Expires=1800&n=1", "https://signed/asset-a.tif?X-Goog-Expires=1800&n=2"]);
+  assert.deepEqual(calls.mark, ["asset-a.tif"]);
+  assert.equal(run.slots["a.tif"].marked, true);
+  assert.equal(run.slots["a.tif"].expiresAt, (35 + 30) * MINUTE);
+});
+
+test("a replacement signed again keeps its asset, so no pending row is left behind", async () => {
+  const { api, calls, opts } = clockedApi({ putMinutes: 35, stalls: 1 });
+  const run = {
+    surveyId: "s1",
+    files: [{ file: file("dsm-v2.tif"), kind: "terrain", role: "dsm", replaces: "old-dsm" }],
+    slots: {} as Record<string, AssetSlot>,
+  };
+  await assert.rejects(uploadFiles(api, run, opts), /upload stalled/);
+  await uploadFiles(api, run, opts);
+  assert.equal(calls.init.length, 1);
+  assert.deepEqual(calls.resign, [["asset-dsm-v2.tif-1", "image/tiff"]]);
+  assert.deepEqual(calls.mark, ["asset-dsm-v2.tif-1"]);
+  assert.equal(run.slots["dsm-v2.tif"].url, "gs://b/asset-dsm-v2.tif-1");
+});
+
+test("signing again is retried through a transient failure", async () => {
+  const { api, calls, opts } = clockedApi({ putMinutes: 35, stalls: 1 });
+  const resign = api.resignUpload;
+  let attempts = 0;
+  api.resignUpload = async (...args) => {
+    if (++attempts < 2) throw Object.assign(new Error("http 503"), { status: 503 });
+    return resign(...args);
+  };
+  const run = { surveyId: "s1", files: [{ file: file("a.tif"), kind: "terrain", role: "dsm" }], slots: {} as Record<string, AssetSlot> };
+  await assert.rejects(uploadFiles(api, run, opts), /upload stalled/);
+  await uploadFiles(api, run, { ...opts, retry: { sleep: noSleep } });
+  assert.equal(attempts, 2);
+  assert.deepEqual(calls.mark, ["asset-a.tif"]);
 });
 
 test("a slot lasts as long as its URL's own X-Goog-Expires says", async () => {

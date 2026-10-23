@@ -1,5 +1,5 @@
-import { initUploads, markAssetUploaded, removeSurveyAsset } from "@/lib/api/orblodeSvc";
+import { initUploads, markAssetUploaded, resignUpload } from "@/lib/api/orblodeSvc";
 import type { UploadApi } from "@/lib/upload/pipeline";
 import { putToSignedUrl } from "@/lib/upload/putToSignedUrl";
 
-export const uploadApi: UploadApi = { initUploads, putToSignedUrl, markAssetUploaded, removeAsset: removeSurveyAsset };
+export const uploadApi: UploadApi = { initUploads, resignUpload, putToSignedUrl, markAssetUploaded };

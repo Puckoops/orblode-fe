@@ -5,8 +5,9 @@
 // and every step records itself there. Calling again after a failure picks up where the last call
 // died instead of minting a second asset row for the same file or re-sending finished bytes.
 //
-// Signed URLs lapse, so a slot is signed again right before a PUT that would otherwise go out on a
-// dead or dying signature: late in a long batch, or on a retry long after the first attempt.
+// Signed URLs lapse, so a slot's object is signed again right before a PUT that would otherwise go
+// out on a dead or dying signature: late in a long batch, or on a retry long after the first attempt.
+// Signing again keeps the slot's asset; only the URL changes.
 
 import type { InitiatedUpload, SourceAsset, UploadInitFile } from "@/lib/api/orblodeSvc";
 import { contentTypeFor } from "./planner.ts";
@@ -24,7 +25,7 @@ export interface AssetSlot {
   assetId: string;
   /** Canonical object URL, handed to the processors / design registration. */
   url: string;
-  /** Signed PUT URL from initUploads. */
+  /** Signed PUT URL from initUploads, or from resignUpload once it neared expiry. */
   uploadUrl: string;
   /** When uploadUrl's signature lapses, by this client's clock (ms). */
   expiresAt: number;
@@ -36,12 +37,10 @@ export interface AssetSlot {
 
 export interface UploadApi {
   initUploads(surveyId: string, files: UploadInitFile[]): Promise<{ uploads: InitiatedUpload[] }>;
+  /** A fresh signed PUT URL for a pending asset's own object; records nothing. */
+  resignUpload(surveyId: string, assetId: string, contentType: string): Promise<{ upload_url: string }>;
   putToSignedUrl(signedUrl: string, file: File, contentType: string, onProgress: (fraction: number) => void): Promise<void>;
   markAssetUploaded(surveyId: string, assetId: string): Promise<SourceAsset>;
-  /** Retires an asset. Signing a slot again repeats initUploads, which gives a replacement (or a file whose usual key
-   * a retired asset holds) a new pending asset; this retires the stale one. An api without it never signs a slot
-   * twice: its initUploads may not be safe to repeat (a flight's starts the flight). */
-  removeAsset?(surveyId: string, assetId: string): Promise<unknown>;
 }
 
 export interface UploadFile {
@@ -73,41 +72,10 @@ export interface UploadOptions {
   now?: () => number;
 }
 
-const initFile = (f: UploadFile): UploadInitFile => ({
-  filename: f.file.name,
-  kind: f.kind,
-  role: f.role,
-  content_type: contentTypeFor(f.file.name),
-  ...(f.crs ? { crs: f.crs } : {}),
-  ...(f.declaredCrs ? { declared_crs: f.declaredCrs } : {}),
-  ...(f.declaredVerticalDatum ? { declared_vertical_datum: f.declaredVerticalDatum } : {}),
-  ...(f.replaces ? { replaces: f.replaces } : {}),
-});
-
-/** Asks for a slot per file, keyed by filename. Lifetimes run from before the request, since the server signs after it. */
-async function signSlots(api: UploadApi, surveyId: string, files: UploadFile[], now: () => number): Promise<Map<string, AssetSlot>> {
-  const requestedAt = now();
-  const { uploads } = await api.initUploads(surveyId, files.map(initFile));
-  return new Map(
-    uploads.map((u) => {
-      const lifetimeS = Number(new URL(u.upload_url).searchParams.get("X-Goog-Expires"));
-      const slot: AssetSlot = {
-        assetId: u.asset.id,
-        url: u.asset.url,
-        uploadUrl: u.upload_url,
-        expiresAt: requestedAt + (lifetimeS > 0 ? lifetimeS * 1000 : FALLBACK_URL_TTL_MS),
-        uploaded: false,
-        marked: false,
-      };
-      return [u.asset.filename || "", slot];
-    })
-  );
-}
-
-function slotFor(signed: Map<string, AssetSlot>, name: string): AssetSlot {
-  const slot = signed.get(name);
-  if (!slot) throw new Error(`No upload slot returned for ${name}`);
-  return slot;
+/** Lifetimes run from before the request, since the server signs after it. */
+function expiresAt(uploadUrl: string, requestedAt: number): number {
+  const lifetimeS = Number(new URL(uploadUrl).searchParams.get("X-Goog-Expires"));
+  return requestedAt + (lifetimeS > 0 ? lifetimeS * 1000 : FALLBACK_URL_TTL_MS);
 }
 
 /** Uploads every file of the run that is not uploaded and marked yet, sequentially, which keeps
@@ -122,8 +90,33 @@ export async function uploadFiles(api: UploadApi, run: UploadRun, opts: UploadOp
   const needSlots = files.filter((f) => !slots[f.file.name]);
   if (needSlots.length > 0) {
     run.onStep?.("Requesting upload URLs…");
-    const signed = await signSlots(api, surveyId, needSlots, now);
-    for (const f of needSlots) slots[f.file.name] = slotFor(signed, f.file.name);
+    const requestedAt = now();
+    const { uploads } = await api.initUploads(
+      surveyId,
+      needSlots.map((f) => ({
+        filename: f.file.name,
+        kind: f.kind,
+        role: f.role,
+        content_type: contentTypeFor(f.file.name),
+        ...(f.crs ? { crs: f.crs } : {}),
+        ...(f.declaredCrs ? { declared_crs: f.declaredCrs } : {}),
+        ...(f.declaredVerticalDatum ? { declared_vertical_datum: f.declaredVerticalDatum } : {}),
+        ...(f.replaces ? { replaces: f.replaces } : {}),
+      }))
+    );
+    const uploadByName = new Map(uploads.map((u) => [u.asset.filename || "", u]));
+    for (const f of needSlots) {
+      const slot = uploadByName.get(f.file.name);
+      if (!slot) throw new Error(`No upload slot returned for ${f.file.name}`);
+      slots[f.file.name] = {
+        assetId: slot.asset.id,
+        url: slot.asset.url,
+        uploadUrl: slot.upload_url,
+        expiresAt: expiresAt(slot.upload_url, requestedAt),
+        uploaded: false,
+        marked: false,
+      };
+    }
   }
 
   for (const f of files) {
@@ -138,12 +131,14 @@ export async function uploadFiles(api: UploadApi, run: UploadRun, opts: UploadOp
     run.onStatus?.(name, "uploading");
     try {
       if (!slot.uploaded) {
-        if (api.removeAsset && now() >= slot.expiresAt - RESIGN_MARGIN_MS) {
-          const stale = slot.assetId;
-          Object.assign(slot, slotFor(await signSlots(api, surveyId, [f], now), name));
-          if (slot.assetId !== stale) await api.removeAsset(surveyId, stale).catch(() => {});
+        const contentType = contentTypeFor(name);
+        if (now() >= slot.expiresAt - RESIGN_MARGIN_MS) {
+          const requestedAt = now();
+          const { upload_url } = await withRetry(() => api.resignUpload(surveyId, slot.assetId, contentType), opts.retry);
+          slot.uploadUrl = upload_url;
+          slot.expiresAt = expiresAt(upload_url, requestedAt);
         }
-        await api.putToSignedUrl(slot.uploadUrl, f.file, contentTypeFor(name), (frac) => run.onProgress?.(name, frac));
+        await api.putToSignedUrl(slot.uploadUrl, f.file, contentType, (frac) => run.onProgress?.(name, frac));
         slot.uploaded = true;
       }
       // Only GETs auto-retry in lib/api/client.ts, and a single blip here would strand uploaded
