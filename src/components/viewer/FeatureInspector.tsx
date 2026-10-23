@@ -43,7 +43,9 @@ import {
 } from "@puckoops/camelot";
 import { useConfirm } from "@/components/common/confirm";
 import { measurementDeleteRequest } from "@/components/viewer/deleteConfirm";
-import type { StateStyle } from "@/lib/status";
+import { pileState, type StateStyle } from "@/lib/status";
+import { StateChip } from "@/components/common/StateChip";
+import { resultStateOf } from "@/lib/viewer/resultState";
 import { toast } from "@/lib/toast";
 import type { EstimateResult, Measurement } from "@/lib/api/orblodeSvc";
 import { geometryLocalStats } from "@/lib/viewer/measure";
@@ -573,7 +575,10 @@ export function FeatureInspector({
   // Chip reflects the SELECTED kind: computing (row-level) → this kind's doc →
   // last-run failure → not computed yet.
   const chipStatus = computing ? "computing" : doc ? "completed" : showFailure ? "failed" : "draft";
-  const calcStamp = formatTimestamp(measurement.updated_at);
+  const calcStamp = formatTimestamp(measurement.computed_at || measurement.updated_at);
+  // Inputs (outline, kind, base, material) changed or a surface was re-run
+  // since the stored numbers; a rename or move never stales them.
+  const outOfDate = !computing && !!doc && resultStateOf(measurement) === "stale";
 
   // Type dropdown: the geometry's calc types; the stored kind rides along even
   // if it predates the catalog (legacy "volume") so the select never lies.
@@ -713,6 +718,7 @@ export function FeatureInspector({
                   </Chip>
                 )}
                 <StatusChip status={chipStatus} />
+                {outOfDate && <StateChip state={pileState("stale")} />}
                 {pinnable && measurement.pinned && (
                   <Chip tone="blue" glyph="diamond">
                     Pinned

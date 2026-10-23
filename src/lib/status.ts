@@ -94,7 +94,7 @@ export function pileState(state: string | null | undefined): StateStyle {
     case "computed":
       return { label: "Computed", tone: "teal", glyph: "check" };
     case "stale":
-      return { label: "Edited since", tone: "amber", glyph: "circle-half" };
+      return { label: "Out of date", tone: "amber", glyph: "circle-half" };
     case "computing":
       return { label: "Computing", tone: "blue", glyph: "circle-half" };
     case "failed":

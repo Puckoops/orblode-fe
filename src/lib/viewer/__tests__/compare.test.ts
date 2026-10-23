@@ -118,6 +118,14 @@ test("pileStateOf mirrors the inventory's states", () => {
   assert.equal(pileStateOf(pile({ status: "draft" })), "not_computed");
 });
 
+test("pileStateOf: a rename keeps a pile computed, a failed recompute is failed", () => {
+  const computed = { results: { stockpile: { metrics: { volume_m3: 10 } } }, computed_at: 5 };
+  assert.equal(pileStateOf(pile({ ...computed, updated_at: 9, inputs_updated_at: 5 })), "computed");
+  assert.equal(pileStateOf(pile({ ...computed, updated_at: 9, inputs_updated_at: 8 })), "stale");
+  assert.equal(pileStateOf(pile({ ...computed, status: "failed", computed_at: 9, updated_at: 9 })), "failed");
+  assert.equal(pileStateOf(pile({ ...computed, updated_at: 9, result_state: "fresh" })), "computed", "the server's state wins");
+});
+
 test("pileDiff takes B minus A with the change as a share of A", () => {
   const rows = pileDiff({ volume_m3: 200, tonnage_t: 300, area_m2: 50 }, { volume_m3: 250, tonnage_t: 270, area_m2: 50 });
   assert.deepEqual(rows, [
