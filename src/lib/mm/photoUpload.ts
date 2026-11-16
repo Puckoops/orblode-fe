@@ -3,7 +3,8 @@ import type { PhotoExif } from "../api/mm.ts";
 // A flight's photos uploaded straight to storage: each gets a name unique within the flight, they are signed in batches
 // and PUT a few at a time with retries, and an upload that stopped picks up with what storage does not have yet.
 
-export const PHOTO_BATCH = 500;
+// The server takes up to 500, but it signs each photo with its own IAM call, so 500 outlasts the 20 s request timeout.
+export const PHOTO_BATCH = 50;
 export const PHOTO_CONCURRENCY = 5;
 const PUT_ATTEMPTS = 3;
 
