@@ -21,7 +21,7 @@ import { useProcessing } from "@/lib/processing/store";
 import { failuresByAsset } from "@/lib/processing/summary";
 import { assetName, assetRole, canReprocess, reprocessPlan, surveySourceCrs, type ReprocessPlan } from "@/lib/survey/edit";
 import { toast } from "@/lib/toast";
-import { uploadFiles, type AssetSlot, type UploadFileStatus } from "@/lib/upload/pipeline";
+import { uploadFiles, waitingSlot, type AssetSlot, type UploadFileStatus } from "@/lib/upload/pipeline";
 import { guessRole, roleNeedsHeader, roleToAssetKind, settleRole, type DataType, type FileRole } from "@/lib/upload/planner";
 import { refineRoles } from "@/lib/upload/rasterRole";
 import { UploadTimeoutError } from "@/lib/upload/putToSignedUrl";
@@ -32,6 +32,8 @@ export interface ReplaceState {
   file: File;
   progress: number;
   status: "uploading" | "error";
+  /** Sending the file of an asset still waiting for its upload, rather than replacing one. */
+  finishing?: boolean;
 }
 
 export interface QueuedFile {
@@ -88,6 +90,7 @@ export function useSurveyFiles({
   const [dispatched, setDispatched] = useState<DispatchOutcome | null>(null);
   // Upload slots per run, kept across a failure so the retry resumes (ORB-38).
   const replaceRuns = useRef<Record<string, { file: File; slots: Record<string, AssetSlot> }>>({});
+  const finishRuns = useRef<Record<string, { file: File; slots: Record<string, AssetSlot> }>>({});
   const queueSlots = useRef<Record<string, AssetSlot>>({});
 
   const showAndWatch = useCallback((list: SourceAsset[]) => {
@@ -216,6 +219,46 @@ export function useSurveyFiles({
       delete next[asset.id];
       return next;
     });
+  };
+
+  const clearReplacing = (assetId: string) =>
+    setReplacing((prev) => {
+      const next = { ...prev };
+      delete next[assetId];
+      return next;
+    });
+
+  const finishUpload = async (asset: SourceAsset, file: File) => {
+    const name = assetName(asset);
+    if (file.name !== name) {
+      toast.error(`This row is waiting for ${name}. Pick that file, or remove the row and add ${file.name} below.`);
+      return;
+    }
+    if (finishRuns.current[asset.id]?.file !== file) finishRuns.current[asset.id] = { file, slots: { [file.name]: waitingSlot(asset) } };
+    const { slots } = finishRuns.current[asset.id];
+    setReplacing((prev) => ({ ...prev, [asset.id]: { file, progress: 0, status: "uploading", finishing: true } }));
+    try {
+      await uploadFiles(uploadApi, {
+        surveyId,
+        files: [{ file, kind: asset.kind, role: asset.role || assetRole(asset) || "" }],
+        slots,
+        onProgress: (_name, progress) =>
+          setReplacing((prev) => (prev[asset.id] ? { ...prev, [asset.id]: { ...prev[asset.id], progress } } : prev)),
+      });
+      delete finishRuns.current[asset.id];
+      clearReplacing(asset.id);
+      setAddedIds((prev) => new Set([...prev, asset.id]));
+      toast.success(`${name} uploaded; reprocess to build its layer`);
+      await changed();
+    } catch (err) {
+      setReplacing((prev) => ({ ...prev, [asset.id]: { file, progress: 0, status: "error", finishing: true } }));
+      toast.error(errorText(err, `${name} couldn't upload.`));
+    }
+  };
+
+  const cancelFinish = (asset: SourceAsset) => {
+    delete finishRuns.current[asset.id];
+    clearReplacing(asset.id);
   };
 
   /** Rejects with the server's reason, so the caller's form can stay open. */
@@ -361,6 +404,8 @@ export function useSurveyFiles({
     replacing,
     replace,
     cancelReplace,
+    finishUpload,
+    cancelFinish,
     saveAsset,
     remove,
     queue,

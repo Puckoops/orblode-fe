@@ -72,6 +72,12 @@ export interface UploadOptions {
   now?: () => number;
 }
 
+/** The slot of an asset still waiting for its upload, such as one whose tab closed mid-upload. It is signed again before
+ * the PUT, so the file lands in the asset's own object and keeps its role and CRS. */
+export function waitingSlot(asset: Pick<SourceAsset, "id" | "url">): AssetSlot {
+  return { assetId: asset.id, url: asset.url, uploadUrl: "", expiresAt: 0, uploaded: false, marked: false };
+}
+
 /** Lifetimes run from before the request, since the server signs after it. */
 function expiresAt(uploadUrl: string, requestedAt: number): number {
   const lifetimeS = Number(new URL(uploadUrl).searchParams.get("X-Goog-Expires"));

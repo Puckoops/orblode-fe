@@ -1,6 +1,6 @@
 "use client";
 
-import { Cancel01Icon, Delete02Icon, File01Icon, FileScanIcon, FileSyncIcon, PencilEdit02Icon, RedoIcon, UndoIcon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, CloudUploadIcon, Delete02Icon, File01Icon, FileScanIcon, FileSyncIcon, PencilEdit02Icon, RedoIcon, UndoIcon } from "@hugeicons/core-free-icons";
 import {
   Alert,
   Button,
@@ -63,6 +63,8 @@ export function SurveyFilesTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
   const replaceTarget = useRef<SourceAsset | null>(null);
+  const finishPickerRef = useRef<HTMLInputElement>(null);
+  const finishTarget = useRef<SourceAsset | null>(null);
 
   if (files.loadError) {
     return (
@@ -76,6 +78,11 @@ export function SurveyFilesTab({
   const pickReplacement = (asset: SourceAsset) => {
     replaceTarget.current = asset;
     pickerRef.current?.click();
+  };
+
+  const pickWaitingFile = (asset: SourceAsset) => {
+    finishTarget.current = asset;
+    finishPickerRef.current?.click();
   };
 
   const confirmRemove = (asset: SourceAsset) => {
@@ -117,6 +124,17 @@ export function SurveyFilesTab({
           const target = replaceTarget.current;
           e.target.value = "";
           if (file && target) void files.replace(target, file);
+        }}
+      />
+      <input
+        ref={finishPickerRef}
+        type="file"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const target = finishTarget.current;
+          e.target.value = "";
+          if (file && target) void files.finishUpload(target, file);
         }}
       />
 
@@ -163,6 +181,7 @@ export function SurveyFilesTab({
                   onEdit={() => setEditingId(a.id)}
                   onEditDone={() => setEditingId(null)}
                   onReplace={() => pickReplacement(a)}
+                  onUploadAgain={() => pickWaitingFile(a)}
                   onRemove={() => confirmRemove(a)}
                 />
               ))}
@@ -249,6 +268,7 @@ function AssetRow({
   onEdit,
   onEditDone,
   onReplace,
+  onUploadAgain,
   onRemove,
 }: {
   asset: SourceAsset;
@@ -259,6 +279,7 @@ function AssetRow({
   onEdit: () => void;
   onEditDone: () => void;
   onReplace: () => void;
+  onUploadAgain: () => void;
   onRemove: () => void;
 }) {
   const name = assetName(asset);
@@ -292,7 +313,7 @@ function AssetRow({
         <div className="min-w-0 flex-1">
           <p className="small truncate text-ink-1">{name}</p>
           <p className="num-sm truncate text-ink-4">
-            {replacement ? `Replacing with ${replacement.file.name}` : meta || "—"}
+            {replacement ? (replacement.finishing ? `Uploading ${replacement.file.name}` : `Replacing with ${replacement.file.name}`) : meta || "—"}
           </p>
         </div>
         {replacement ? (
@@ -338,6 +359,11 @@ function AssetRow({
                 </Tooltip>
               </>
             )}
+            {pending && (
+              <Tooltip content="Upload it again">
+                <IconButton icon={CloudUploadIcon} aria-label={`Upload ${name} again`} variant="bare" size="sm" disabled={busy || editing} onClick={onUploadAgain} />
+              </Tooltip>
+            )}
             <Tooltip content="Remove file">
               <IconButton icon={Delete02Icon} aria-label={`Remove ${name}`} variant="bare" size="sm" disabled={busy || editing} onClick={onRemove} />
             </Tooltip>
@@ -345,15 +371,30 @@ function AssetRow({
         )}
         {replacement?.status === "error" && (
           <div className="flex shrink-0 items-center gap-1">
-            <Button size="sm" variant="quiet" disabled={busy} onClick={() => void files.replace(asset, replacement.file)}>
+            <Button
+              size="sm"
+              variant="quiet"
+              disabled={busy}
+              onClick={() => void (replacement.finishing ? files.finishUpload(asset, replacement.file) : files.replace(asset, replacement.file))}
+            >
               Retry
             </Button>
-            <IconButton icon={Cancel01Icon} aria-label={`Cancel replacing ${name}`} variant="bare" size="sm" disabled={busy} onClick={() => files.cancelReplace(asset)} />
+            <IconButton
+              icon={Cancel01Icon}
+              aria-label={replacement.finishing ? `Stop uploading ${name}` : `Cancel replacing ${name}`}
+              variant="bare"
+              size="sm"
+              disabled={busy}
+              onClick={() => (replacement.finishing ? files.cancelFinish(asset) : files.cancelReplace(asset))}
+            />
           </div>
         )}
       </div>
       {replacement?.status === "uploading" && (
         <Progress value={Math.round(replacement.progress * 100)} size="thin" aria-label={`${replacement.file.name} upload`} className="mt-2" />
+      )}
+      {!replacement && pending && editable && (
+        <p className="caption mt-2 pl-7 text-ink-3">Its upload never finished. Upload the same file again, or remove it.</p>
       )}
       {!replacement && (crsChip || notes.length > 0 || failed.length > 0) && (
         <div className="mt-2 flex flex-col items-start gap-1 pl-7">
