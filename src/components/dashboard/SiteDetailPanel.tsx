@@ -12,10 +12,10 @@ import { LeaseCard } from "@/components/mm/LeaseCard";
 import { MoveSite } from "@/components/workspaces/MoveSite";
 import { useMinorMinerals } from "@/hooks/useMinorMinerals";
 import { getProject, type Project } from "@/lib/api/userSvc";
-import { getInventory, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
+import { getInventory, getPhotoFlight, listSurveys, type Survey } from "@/lib/api/orblodeSvc";
 import { useProcessing } from "@/lib/processing/store";
 import { failedInProject, failureTitle } from "@/lib/processing/summary";
-import { lifecycleState, PROCESSING, PROCESSING_FAILED } from "@/lib/status";
+import { lifecycleState, PHOTOS_WAITING, PROCESSING, PROCESSING_FAILED } from "@/lib/status";
 import { toast } from "@/lib/toast";
 import { formatSurveyDate } from "@/lib/utils";
 
@@ -33,6 +33,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
   const running = useProcessing((s) => s.running);
   const runningIds = useMemo(() => new Set(running.map((s) => s.survey_id)), [running]);
   const [retrying, setRetrying] = useState(false);
+  const [waitingIds, setWaitingIds] = useState<ReadonlySet<string>>(new Set());
   const minorMinerals = useMinorMinerals();
 
   useEffect(() => {
@@ -65,8 +66,21 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
     };
   }, [projectId, surveysTick]);
 
+  useEffect(() => {
+    const drone = surveys.filter((s) => s.survey_type === "drone");
+    if (drone.length === 0) return;
+    let cancelled = false;
+    Promise.all(drone.map((s) => getPhotoFlight(s.id).catch(() => null))).then((flights) => {
+      if (cancelled) return;
+      setWaitingIds(new Set(flights.flatMap((f) => (f && f.status === "uploading" && !f.mission_id ? [f.survey_id] : []))));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [surveys]);
+
   const latestSurveyId = surveys[0]?.id;
-  const openableSurveyId = surveys.find((s) => !runningIds.has(s.id))?.id;
+  const openableSurveyId = surveys.find((s) => !runningIds.has(s.id) && !waitingIds.has(s.id))?.id;
 
   useEffect(() => {
     if (!latestSurveyId) return;
@@ -171,6 +185,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
           <ul className="flex flex-col gap-2">
             {surveys.map((survey) => {
               const processing = runningIds.has(survey.id);
+              const waiting = !processing && waitingIds.has(survey.id);
               const body = (
                 <>
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-surface-3 text-ink-4">
@@ -183,6 +198,7 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="num-sm text-ink-4">{survey.working_crs}</span>
                       {processing && <StateChip state={PROCESSING} />}
+                      {waiting && <StateChip state={PHOTOS_WAITING} />}
                       {failedIds.has(survey.id) && <StateChip state={PROCESSING_FAILED} />}
                     </span>
                     {typeof survey.metadata?.sensor === "string" && <span className="caption mt-1 block text-ink-4">{survey.metadata.sensor}</span>}
@@ -200,6 +216,14 @@ export function SiteDetailPanel({ projectId, onClose }: { projectId: string; onC
                       {body}
                       <span className="caption ml-2 shrink-0 text-ink-3 group-hover:text-ink-2">See progress</span>
                     </button>
+                  ) : waiting ? (
+                    <Link
+                      href={`/upload?survey=${encodeURIComponent(survey.id)}`}
+                      className="group flex min-w-0 flex-1 items-center gap-3 rounded-md border border-hairline bg-surface-2 p-3 hover:border-hairline-strong hover:bg-surface-3"
+                    >
+                      {body}
+                      <span className="caption ml-2 shrink-0 text-ink-3 group-hover:text-ink-2">Continue upload</span>
+                    </Link>
                   ) : (
                     <Link
                       href={`/viewer/${survey.id}`}

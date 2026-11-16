@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { InitiatedUpload, SourceAsset, UploadInitFile } from "@/lib/api/orblodeSvc";
-import { uploadFiles, type AssetSlot, type UploadApi, type UploadFileStatus } from "../pipeline.ts";
+import { uploadFiles, waitingSlot, type AssetSlot, type UploadApi, type UploadFileStatus } from "../pipeline.ts";
 
 const noSleep = async () => {};
 const MINUTE = 60_000;
@@ -296,6 +296,17 @@ test("a replacement signed again keeps its asset, so no pending row is left behi
   assert.deepEqual(calls.resign, [["asset-dsm-v2.tif-1", "image/tiff"]]);
   assert.deepEqual(calls.mark, ["asset-dsm-v2.tif-1"]);
   assert.equal(run.slots["dsm-v2.tif"].url, "gs://b/asset-dsm-v2.tif-1");
+});
+
+test("a file waiting for its upload goes into its own asset: signed again, sent and marked, never minted again", async () => {
+  const { api, calls } = fakeApi();
+  const slots = { "dsm.tif": waitingSlot({ id: "pending-dsm", url: "gs://b/dsm.tif" }) };
+  await uploadFiles(api, { surveyId: "s1", files: [{ file: file("dsm.tif"), kind: "terrain", role: "dsm" }], slots }, atZero);
+  assert.deepEqual(calls.init, []);
+  assert.deepEqual(calls.resign, [["pending-dsm", "image/tiff"]]);
+  assert.deepEqual(calls.put, ["https://signed/pending-dsm?again"]);
+  assert.deepEqual(calls.mark, ["pending-dsm"]);
+  assert.equal(slots["dsm.tif"].url, "gs://b/dsm.tif");
 });
 
 test("signing again is retried through a transient failure", async () => {

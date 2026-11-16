@@ -96,6 +96,8 @@ export function ProcessingDialog({ surveyId, open, onClose }: { surveyId: string
   }, [open, running, load]);
 
   const flightFailed = flight?.status === "failed";
+  // A lease's flights carry on from the lease, not from Create.
+  const flightWaiting = flight?.status === "uploading" && !flight.mission_id;
   const failures = (processing?.failures ?? []).filter((f) => f.processor_type !== "photogrammetry");
   const others = processing ? { ...processing, failures } : null;
   const retryable = failures.filter((f) => f.retryable);
@@ -120,7 +122,17 @@ export function ProcessingDialog({ surveyId, open, onClose }: { surveyId: string
   };
 
   const runs = processing?.running ?? [];
-  const title = running ? (runs.length ? runsTitle(runs) : "Processing") : flightFailed ? "Photogrammetry failed" : failures.length && others ? failureTitle(others) : "Processing finished";
+  const title = running
+    ? runs.length
+      ? runsTitle(runs)
+      : "Processing"
+    : flightFailed
+      ? "Photogrammetry failed"
+      : failures.length && others
+        ? failureTitle(others)
+        : flightWaiting
+          ? "Waiting for its photos"
+          : "Processing finished";
 
   return (
     <Dialog
@@ -134,6 +146,11 @@ export function ProcessingDialog({ surveyId, open, onClose }: { surveyId: string
           {(flightFailed || retryable.length > 0) && !running && (
             <Button variant="ghost" loading={busy} onClick={() => void retry()}>
               Retry
+            </Button>
+          )}
+          {flightWaiting && (
+            <Button asChild variant="ghost">
+              <Link href={`/upload?survey=${encodeURIComponent(surveyId)}`}>Continue upload</Link>
             </Button>
           )}
           {processing && !keepsViewerShut(processing, flight) && (
@@ -179,7 +196,8 @@ export function ProcessingDialog({ surveyId, open, onClose }: { surveyId: string
             ))}
           </Alert>
         )}
-        {processing && !running && !flightFailed && failures.length === 0 && <p className="small text-ink-3">Nothing is processing.</p>}
+        {flightWaiting && <p className="small text-ink-3">Its photos never finished uploading. Continue upload sends the ones still missing, then you can process it.</p>}
+        {processing && !running && !flightFailed && !flightWaiting && failures.length === 0 && <p className="small text-ink-3">Nothing is processing.</p>}
       </div>
     </Dialog>
   );

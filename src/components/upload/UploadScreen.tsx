@@ -2,6 +2,7 @@
 
 import { Cancel01Icon, File01Icon } from "@hugeicons/core-free-icons";
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -45,6 +46,8 @@ import {
   createDesign,
   createSurvey,
   generateSurvey,
+  getPhotoFlight,
+  getSurvey,
   inspectAsset,
   listDesigns,
   listSiteVectors,
@@ -290,6 +293,9 @@ export function UploadScreen() {
   const [watching, setWatching] = useState(false);
   // Once the survey exists, what it is made from is settled.
   const [surveyMade, setSurveyMade] = useState(false);
+  // ?survey=<id>: a photo flight whose upload stopped, carried on here. `complete` when storage has every photo it was
+  // signed for, so it can be processed without dropping the photos again.
+  const [resumed, setResumed] = useState<{ survey: Survey; complete: boolean } | null>(null);
 
   // Review: the assets as last polled, what the person changed, and when they were checked.
   const [review, setReview] = useState<ReviewTarget | null>(null);
@@ -333,9 +339,58 @@ export function UploadScreen() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("survey");
+    if (!id) return;
+    let live = true;
+    Promise.all([getSurvey(id), getPhotoFlight(id), surveyPhotos(id)]).then(
+      ([survey, f, stored]) => {
+        if (!live) return;
+        if (f.mission_id) {
+          toast.error("This flight belongs to a river sand lease: carry on its upload from the lease.");
+          return;
+        }
+        if (f.status !== "uploading") {
+          toast.error("This survey's photos are already uploaded and processing.");
+          return;
+        }
+        const uploaded = stored.uploaded ?? [];
+        setResumed({ survey, complete: stored.expected > 0 && uploaded.length >= stored.expected });
+        setDestination("existing");
+        setSiteId(survey.project_id);
+        setLinkedSite(survey.project_id);
+        setSurveyDate(survey.survey_date);
+        const name = survey.metadata?.dataset_name;
+        if (typeof name === "string" && name) {
+          setDatasetName(name);
+          setDatasetEdited(true);
+        }
+        const savedTags = survey.metadata?.tags;
+        if (Array.isArray(savedTags)) setTags(savedTags.filter((t): t is string => typeof t === "string"));
+        setChoices({
+          ...loadChoices(survey.project_id),
+          source: "photos",
+          gcpFile: f.method === "gcp_file",
+          rtk: f.method === "rtk",
+          ...(f.heights ? { heights: f.heights } : {}),
+        });
+        setFlight(f);
+        setUploadedPhotos(uploaded);
+        setSurveyMade(true);
+        progressRef.current = { ...emptyProgress(`survey|${survey.id}`), survey };
+        setStep(1);
+      },
+      (err) => live && toast.error(refusalMessage(err, "That survey's photo flight couldn't be opened."))
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
   useSiteInWorkspace(siteId, setSiteId, linkedSite, false);
 
   useEffect(() => {
+    if (resumed) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({ destination, siteId, newSiteName, datasetName: datasetEdited ? datasetName : "", tags }));
@@ -345,7 +400,7 @@ export function UploadScreen() {
       }
     }, 600);
     return () => clearTimeout(t);
-  }, [destination, siteId, newSiteName, datasetName, datasetEdited, tags]);
+  }, [resumed, destination, siteId, newSiteName, datasetName, datasetEdited, tags]);
 
   // The site's vectors and designs, for "From <site>".
   const existingSite = destination === "existing" ? siteId : "";
@@ -379,7 +434,7 @@ export function UploadScreen() {
   const siteVectorsShown = destination === "existing" ? siteVectors : [];
   const latestDesign = destination === "existing" ? (designs[0]?.name ?? null) : null;
 
-  const runTarget = `${destination}|${siteId}|${newSiteName.trim()}|${choices.source}|${surveyDate}`;
+  const runTarget = resumed ? `survey|${resumed.survey.id}` : `${destination}|${siteId}|${newSiteName.trim()}|${choices.source}|${surveyDate}`;
   const resumeNotice = resume && resume.target === runTarget ? resume.text : null;
 
   const settle = useCallback((file: File, role: FileRole | null) => setFiles((prev) => settleRole(prev, file, role)), []);
@@ -789,7 +844,9 @@ export function UploadScreen() {
   };
 
   // What each step lets through.
-  const allPhotosUp = photos.length > 0 && stillToUpload(photos, uploadedPhotos).length === 0;
+  const allPhotosUp = photos.length > 0 ? stillToUpload(photos, uploadedPhotos).length === 0 : !!resumed?.complete;
+  // Photo names carry their folder, so the same photos dropped without it would upload a second time under new names.
+  const photosUnmatched = !!resumed && uploadedPhotos.length > 0 && photos.length > 0 && stillToUpload(photos, uploadedPhotos).length === photos.length;
   const siteReady = (destination === "existing" ? !!siteId : newSiteName.trim().length >= 2) && !!surveyDate && effectiveDatasetName.trim().length > 0;
   const filesReady = (files.length > 0 || extras.length > 0) && !files.some((q) => q.readingRole);
   const photosStarted = !!flight && (uploadedPhotos.length > 0 || photoUploading);
@@ -804,7 +861,7 @@ export function UploadScreen() {
   ][step];
   const nextEnabled = [
     siteReady,
-    photosSource ? photosStarted && (!choices.gcpFile || !!gcpFile) : filesReady,
+    photosSource ? photosStarted && (!choices.gcpFile || !!gcpFile || !!flight?.gcp_file) : filesReady,
     photosSource ? allPhotosUp && !photoUploading : filesReady && !working,
     photosSource ? gcpReady && allPhotosUp && !gcpSaving : reviewReady,
   ][step];
@@ -828,7 +885,11 @@ export function UploadScreen() {
           : NOT_UPLOADED,
     gcpFile: {
       on: choices.gcpFile,
-      upload: gcpSaving ? { state: "uploading", percent: 50 } : flight?.gcp_file && gcpFile ? { state: "done", label: formatBytes(gcpFile.size) } : NOT_UPLOADED,
+      upload: gcpSaving
+        ? { state: "uploading", percent: 50 }
+        : flight?.gcp_file
+          ? { state: "done", label: gcpFile ? formatBytes(gcpFile.size) : flight.gcp_file.name }
+          : NOT_UPLOADED,
     },
     rtk: choices.rtk,
     preset: choices.preset,
@@ -844,7 +905,15 @@ export function UploadScreen() {
   const sub = (i: number) =>
     [
       siteName || "Choose a site",
-      photosSource ? (photos.length ? `${uploadedPhotos.length} of ${photos.length} uploaded` : "No photos yet") : files.length ? plural(files.length, "file") : "No files yet",
+      photosSource
+        ? photos.length
+          ? `${uploadedPhotos.length} of ${photos.length} uploaded`
+          : uploadedPhotos.length
+            ? `${plural(uploadedPhotos.length, "photo")} uploaded`
+            : "No photos yet"
+        : files.length
+          ? plural(files.length, "file")
+          : "No files yet",
       photosSource ? "Photogrammetry, CRS" : "CRS and datum",
       "Read before processing",
       "Layers are built",
@@ -905,6 +974,13 @@ export function UploadScreen() {
         </nav>
 
         <Card className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
+          {resumed && step < 4 && (
+            <Alert tone="info" title={`Carrying on ${effectiveDatasetName || "this survey"}`}>
+              {uploadedPhotos.length
+                ? `${plural(uploadedPhotos.length, "photo")} reached Orblode before. Drop the same folder again: only the photos still missing are sent.`
+                : "None of its photos reached Orblode. Drop the flight's photos to upload them."}
+            </Alert>
+          )}
           {step === 0 && (
             <section className="flex flex-col gap-4">
               <StepTitle title="Where does this survey go?" sub="Pick the site and the day the data was captured." />
@@ -968,7 +1044,7 @@ export function UploadScreen() {
                           action={
                             photos.length > 0 &&
                             !allPhotosUp && (
-                              <Button variant="primary" size="sm" loading={photoUploading} disabled={reading > 0 || !siteReady} onClick={() => void startPhotos()}>
+                              <Button variant="primary" size="sm" loading={photoUploading} disabled={reading > 0 || !siteReady || photosUnmatched} onClick={() => void startPhotos()}>
                                 {uploadedPhotos.length ? `Upload ${stillToUpload(photos, uploadedPhotos).length} more` : "Upload"}
                               </Button>
                             )
@@ -982,6 +1058,11 @@ export function UploadScreen() {
                             disabled={photoUploading}
                             onDrop={(list) => void addPhotos(list)}
                           />
+                          {photosUnmatched && (
+                            <HelperText tone="error">
+                              None of these match the {plural(uploadedPhotos.length, "photo")} already uploaded. Drop the same folder as before, so no photo goes up twice.
+                            </HelperText>
+                          )}
                         </DataRow>
                         <DataRow
                           title="Ground control"
@@ -1001,7 +1082,13 @@ export function UploadScreen() {
                               }}
                             />
                           }
-                          files={gcpFile ? [{ name: gcpFile.name, size: formatBytes(gcpFile.size), done: !!flight?.gcp_file && !gcpError, percent: gcpSaving ? 50 : undefined }] : []}
+                          files={
+                            gcpFile
+                              ? [{ name: gcpFile.name, size: formatBytes(gcpFile.size), done: !!flight?.gcp_file && !gcpError, percent: gcpSaving ? 50 : undefined }]
+                              : flight?.gcp_file
+                                ? [{ name: flight.gcp_file.name, done: true }]
+                                : []
+                          }
                         >
                           {gcpError && <HelperText tone="error">{gcpError}</HelperText>}
                           {flight?.gcp_file && !gcpError && (
