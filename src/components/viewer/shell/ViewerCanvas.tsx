@@ -60,6 +60,7 @@ import { ApiError } from "@/lib/api/client";
 import { filesUrlsIn } from "@/lib/files";
 import { stripErrNamespace } from "@/lib/api/errors";
 import { surveyDenial } from "@/lib/viewer/surveyAccess";
+import { inputsChangedAt } from "@/lib/viewer/resultState";
 import {
   geometryPositions,
   geometryToRectangle,
@@ -233,7 +234,10 @@ export function ViewerCanvas() {
   const compareActive = useViewerStore((s) => s.compareActive);
   const heatmapId = useViewerStore((s) => s.heatmap?.measurementId ?? null);
   const selectedMeasurementId = useViewerStore((s) => (s.selection?.kind === "measurement" ? s.selection.measurementIds[0] : null));
-  const heatmapStamp = useViewerStore((s) => String(s.measurements.find((m) => m.id === s.heatmap?.measurementId)?.updated_at ?? ""));
+  const heatmapStamp = useViewerStore((s) => {
+    const m = s.measurements.find((x) => x.id === s.heatmap?.measurementId);
+    return m ? `${inputsChangedAt(m)}:${m.computed_at ?? ""}` : "";
+  });
   const compareA = useViewerStore((s) => s.compareA);
   const compareB = useViewerStore((s) => s.compareB);
   const splitPosition = useViewerStore((s) => s.splitPosition);
@@ -385,7 +389,7 @@ export function ViewerCanvas() {
         }
       }
       prevStatusesRef.current = new Map(list.map((m) => [m.id, m.status]));
-      const sig = list.map((m) => `${m.id}:${m.status}:${m.updated_at}`).join("|");
+      const sig = list.map((m) => `${m.id}:${m.status}:${m.updated_at}:${m.result_state ?? ""}`).join("|");
       if (sig === measurementsSigRef.current) return;
       measurementsSigRef.current = sig;
       store.getState().setMeasurements(list);

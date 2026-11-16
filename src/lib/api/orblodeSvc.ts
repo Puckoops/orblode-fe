@@ -606,6 +606,7 @@ export interface MeasurementSummary {
   status: string; // draft | computing | completed | failed
   result_ref?: string;
   result?: MeasurementResultDoc;
+  result_state?: ResultState;
 }
 
 export interface Manifest {
@@ -645,9 +646,18 @@ export interface Measurement {
   created_at: EpochMs;
   updated_at: EpochMs;
   computed_at?: EpochMs;
+  /** When geometry, kind or a compute param last changed; a rename or move
+   * leaves it. Absent on rows not written since orblode-svc added it. */
+  inputs_updated_at?: EpochMs;
+  /** Volume kinds only; see resultStateOf for older servers that omit it. */
+  result_state?: ResultState;
   created_by?: Author;
   edited_by?: Author;
 }
+
+/** Whether a volume measurement's stored numbers match its inputs. A failed
+ * recompute is "failed" even though the previous numbers are still stored. */
+export type ResultState = "fresh" | "stale" | "missing" | "computing" | "failed";
 
 export interface CreateMeasurementRequest {
   kind: string; // stockpile | volume | cut_fill | cross_section | contour | tin
