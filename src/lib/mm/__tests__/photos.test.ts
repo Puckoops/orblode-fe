@@ -124,7 +124,7 @@ test("a resumed upload sends only what storage doesn't have", () => {
 
 const fakeFile = (name: string, size: number) => ({ name, size }) as File;
 
-test("photos are signed in batches of 500 and a failing PUT is tried three times", async () => {
+test("photos are signed in batches of 50 and a failing PUT is tried three times", async () => {
   const photos: PhotoToUpload[] = Array.from({ length: 1001 }, (_, i) => ({ name: `P${i}.JPG`, file: fakeFile(`P${i}.JPG`, 10), exif: {} }));
   const signed: number[] = [];
   const tries = new Map<string, number>();
@@ -146,7 +146,7 @@ test("photos are signed in batches of 500 and a failing PUT is tried three times
     photos,
     { onProgress: (p) => (last = p), retryDelayMs: 0 }
   );
-  assert.deepEqual(signed, [500, 500, 1]);
+  assert.deepEqual(signed, [...Array(20).fill(50), 1]);
   assert.equal(tries.get("P7.JPG"), 3);
   assert.deepEqual(last, { done: 1001, total: 1001, fraction: 1 });
 });
